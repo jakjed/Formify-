@@ -18,6 +18,7 @@ Modular Accounts Payable / Procure-to-Pay suite.
 - [docs/architecture/MONOREPO.md](docs/architecture/MONOREPO.md) — folder & module rules
 - [docs/architecture/E0_FOUNDATION.md](docs/architecture/E0_FOUNDATION.md) — run the foundation locally
 - [docs/architecture/HOSTING.md](docs/architecture/HOSTING.md) — where to host & what to do first
+- [docs/architecture/E1_MASTERDATA.md](docs/architecture/E1_MASTERDATA.md) — auth guard + directory master data
 
 ## Workspace
 
