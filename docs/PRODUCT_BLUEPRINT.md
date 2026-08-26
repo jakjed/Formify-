@@ -1,7 +1,6 @@
 # Aptora — AP / P2P Product Blueprint
 
-**Product name:** **Aptora** (AP + “aura” — finance-native, pronounceable EN/EU)  
-**Alternates (if domain/trademark blocks):** Invora, Ordo, Vouchly  
+**Product name:** **Aptora** (confirmed)  
 **Former working name:** Formify  
 **Document type:** Ready-to-sell product blueprint (product + UX + architecture + GTM)  
 **Audience:** Founder / product leader briefing design & engineering  
@@ -23,7 +22,7 @@
 | Payments | **Not in-app** — payment-ready / status sync only; pay in ERP/bank |
 | Integrations (early) | **Integration Center** only: template upload/download + API foundation; **no ERP connectors yet** |
 | Auth (early) | **Configurable architecture**; **username/password** to start; SSO/IdP later |
-| Monetization | Modular subscriptions priced primarily on **transaction volume** + OCR pages |
+| Monetization | Modular subscriptions priced on **transaction volume** where **1 billable txn = `invoice.approved`** + OCR pages |
 | Clients | Cloud **web first**, then **React Native (Expo)** mobile (full capability) |
 | Mobile approach | React Native (Expo) — best quality/price |
 | Mobile scope | Approvals, capture, day-to-day AP, admin (after web GA) |
@@ -346,7 +345,7 @@ Shared DB + `tenant_id` + isolation tests; `module_licenses` + feature flags; gr
 
 ### Money & transactions
 
-Store money as integer minor units + currency; **billable transaction** = countable business event (e.g. invoice captured or invoice approved — pick one definition and keep it; recommend **invoice reaching Approved/Exported** as billable unit, plus OCR pages as usage).
+Store money as integer minor units + currency. **Billable transaction (locked):** each invoice that reaches status **`Approved`** (`invoice.approved`) increments volume by 1. Re-approvals after void/reopen do not double-count unless the invoice was voided and a new invoice record is created. OCR pages remain a separate usage meter.
 
 ---
 
@@ -386,7 +385,7 @@ Identity (password + future auth config), RBAC, workflows, master data, audit, *
 
 | Meter | Role |
 |---|---|
-| **Billable transactions / month** | Primary subscription bands (recommend: invoices approved or exported) |
+| **Billable transactions / month** | Primary subscription bands — count of **`invoice.approved`** events |
 | **OCR pages** | Usage overage or included buckets |
 | Seats | Soft cap only if abuse; not primary SKU |
 
@@ -471,7 +470,7 @@ ERP connectors, partner OAuth, dedicated tenants, SCIM, advanced SoD — still *
 
 | # | Topic | Status |
 |---|---|---|
-| 1 | Name | **Locked: Aptora** (alts: Invora, Ordo, Vouchly) |
+| 1 | Name | **Locked: Aptora** (confirmed) |
 | 2 | Wedge | **Locked: Invoices first; Contracts/PR/PO second** |
 | 3 | Integrations | **Locked: Integration Center + templates; connectors later** |
 | 4 | Payments | **Locked: not in-app** |
@@ -479,14 +478,13 @@ ERP connectors, partner OAuth, dedicated tenants, SCIM, advanced SoD — still *
 | 6 | OCR | **Locked: AWS Textract** (value) |
 | 7 | Auth | **Locked: configurable; password first; SSO later** |
 | 8 | Backend | **Locked: NestJS TS modular monolith** |
-| 9 | Pricing | **Locked: per transaction volume (+ OCR pages)** |
+| 9 | Pricing | **Locked: per transaction volume = `invoice.approved` (+ OCR pages)** |
 | 10 | Clients | **Locked: web first, then RN mobile** |
 
-### Remaining micro-decisions (optional)
+### Optional later (not blocking Phase 1)
 
-1. Exact **billable transaction** definition: `invoice.approved` vs `invoice.exported` vs `invoice.captured`  
-2. Trademark/domain check for **Aptora**  
-3. First SSO provider when needed (Google vs Microsoft Entra vs Okta)
+1. Trademark/domain registration for **Aptora**  
+2. First SSO provider when a deal requires it (Google vs Microsoft Entra vs Okta)
 
 ---
 
