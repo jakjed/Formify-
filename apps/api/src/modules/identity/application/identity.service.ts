@@ -116,6 +116,11 @@ export class IdentityService {
     return { userId: session.userId, tenantId: session.tenantId };
   }
 
+  async getUserById(id: string): Promise<Omit<UserRecord, 'passwordHash'> | null> {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    return user ? this.toSafeUser(user) : null;
+  }
+
   private toSafeUser(user: {
     id: string;
     tenantId: string;

@@ -1,14 +1,23 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { PRODUCT_NAME } from '@aptora/types';
+import { clearSession } from '../shared/lib/api';
 
 const links = [
   { to: '/', label: 'My Work' },
+  { to: '/directory', label: 'Directory' },
   { to: '/invoices', label: 'Invoices' },
   { to: '/integration', label: 'Integration Center' },
   { to: '/admin', label: 'Admin' },
 ];
 
 export function AppShell() {
+  const navigate = useNavigate();
+
+  function signOut() {
+    clearSession();
+    navigate('/login');
+  }
+
   return (
     <div className="shell">
       <aside className="shell__nav">
@@ -27,9 +36,9 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-        <NavLink to="/login" className="shell__link shell__link--muted">
-          Sign in
-        </NavLink>
+        <button type="button" className="shell__link shell__link--muted shell__signout" onClick={signOut}>
+          Sign out
+        </button>
       </aside>
       <main className="shell__main">
         <Outlet />
