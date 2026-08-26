@@ -22,15 +22,15 @@ Modular Accounts Payable / Procure-to-Pay suite.
 ## Workspace
 
 ```bash
+pnpm db:up          # Postgres via Docker Compose
 pnpm install
 pnpm --filter @aptora/types build
-pnpm dev          # API :3001 + web :5173
+pnpm db:deploy      # apply Prisma migrations
+pnpm dev            # API :3001 + web :5173
 pnpm build
-pnpm lint
-pnpm test
 ```
 
-Requires Node 22+ and pnpm 9+.
+Requires Node 22+, pnpm 9+, and PostgreSQL 16 (Docker or local).
 
 ## Module enablement
 

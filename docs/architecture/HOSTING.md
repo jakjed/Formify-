@@ -12,21 +12,21 @@ Do **not** start with Kubernetes, multi-cloud, or connectors.
 
 ### Step 1 — Local product loop (now)
 
-You are here after E0.
+You are here after E0 + Postgres.
 
-1. Run `pnpm install && pnpm --filter @aptora/types build && pnpm dev`
+1. Run `pnpm db:up && pnpm install && pnpm db:deploy && pnpm --filter @aptora/types build && pnpm dev`
 2. Create tenant + admin via API (see [E0_FOUNDATION.md](./E0_FOUNDATION.md))
 3. Keep building **Phase 1** on localhost: master data → capture → invoices → approvals → Integration Center
 
 **Goal:** a clerk can approve an invoice locally before any cloud bill matters.
 
-### Step 2 — Postgres (next engineering milestone)
+### Step 2 — Postgres (next engineering milestone) — **done in repo**
 
 Replace in-memory tenancy/identity with **PostgreSQL**.
 
-- Local: Docker Compose Postgres
-- Schema owned by modules (`tenancy`, `identity`, …)
-- Tenant isolation via `tenant_id` + tests
+- Local: `docker compose up -d postgres` (`pnpm db:up`)
+- Prisma schema + migration: `apps/api/prisma`
+- Tenant isolation via `tenant_id` (+ more tests as modules grow)
 
 **Goal:** data survives restart; ready for a shared staging DB.
 
@@ -155,8 +155,8 @@ Early fixed cost is usually modest; **per-invoice OCR** dominates as you grow �
 
 ## What *you* should do this week
 
-1. **Keep coding Phase 1 on E0** (product value first).  
-2. **Add Docker Compose Postgres** and migrate tenancy/identity off memory.  
+1. **Run local stack** with Postgres (`pnpm db:up` → `pnpm db:deploy` → `pnpm dev`).  
+2. **Build Phase 1 features** on that foundation (master data → invoices).  
 3. Create an **AWS account** (or org) and decide default region (`eu` vs `us`).  
 4. Reserve/buy domain for Aptora when trademark/domain is clear.  
 5. Only then stand up **staging** (Railway *or* thin AWS).

@@ -1,4 +1,10 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { TenancyService } from '../application/tenancy.service';
 import { CreateTenantDto } from './create-tenant.dto';
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { IdentityService } from '../application/identity.service';
 import { LoginDto, RegisterUserDto } from './identity.dto';
 
@@ -7,8 +7,8 @@ export class IdentityController {
   constructor(private readonly identity: IdentityService) {}
 
   @Get('providers')
-  providers() {
-    return this.identity.getAuthProviders();
+  providers(@Query('tenantId') tenantId?: string) {
+    return this.identity.getAuthProviders(tenantId);
   }
 
   @Post('register')
