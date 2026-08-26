@@ -31,6 +31,13 @@ export class TenancyService {
               { type: 'saml', enabled: false, order: 3, settings: {} },
             ],
           },
+          approvalPolicies: {
+            create: {
+              name: 'Default invoice policy',
+              enabled: true,
+              autoApproveUnderMinor: 10000, // €100.00
+            },
+          },
         },
         include: { moduleLicenses: true },
       });

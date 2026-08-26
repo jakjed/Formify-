@@ -124,9 +124,27 @@ export function InvoiceWorkspacePage() {
         method: 'POST',
       });
       setInvoice(inv);
-      setMessage('Approved — billable transaction recorded');
+      setMessage('Force-approved — billable transaction recorded');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Approve failed');
+    }
+  }
+
+  async function onSubmit() {
+    if (!id) return;
+    setError(null);
+    try {
+      const inv = await apiFetch<Invoice>(`/api/invoices/${id}/submit`, {
+        method: 'POST',
+      });
+      setInvoice(inv);
+      setMessage(
+        inv.status === 'approved'
+          ? 'Auto-approved by policy'
+          : 'Submitted for approval',
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Submit failed');
     }
   }
 
@@ -233,8 +251,11 @@ export function InvoiceWorkspacePage() {
 
         <div className="span-2 actions">
           <button type="submit">Save</button>
-          <button type="button" onClick={() => void onApprove()} disabled={invoice.status === 'approved'}>
-            Approve
+          <button type="button" onClick={() => void onSubmit()}>
+            Submit for approval
+          </button>
+          <button type="button" onClick={() => void onApprove()} disabled={invoice.status === 'approved' || invoice.status === 'exported'}>
+            Force approve
           </button>
           <button type="button" className="secondary-btn" onClick={() => navigate('/invoices')}>
             Back to list

@@ -9,7 +9,11 @@ import {
 } from '@nestjs/common';
 import { InvoiceStatus } from '@prisma/client';
 import { InvoicesService } from '../application/invoices.service';
-import { CurrentTenantId } from '../../../common/current-user.decorator';
+import {
+  CurrentTenantId,
+  CurrentUser,
+} from '../../../common/current-user.decorator';
+import type { RequestUser } from '../../identity/domain/identity.types';
 import { UpdateInvoiceDto } from './invoices.dto';
 
 @Controller('invoices')
@@ -41,6 +45,15 @@ export class InvoicesController {
   @Post(':id/resolve-exceptions')
   resolve(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
     return this.invoices.resolveExceptions(tenantId, id);
+  }
+
+  @Post(':id/submit')
+  submit(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.invoices.submit(tenantId, id, user.id);
   }
 
   @Post(':id/approve')

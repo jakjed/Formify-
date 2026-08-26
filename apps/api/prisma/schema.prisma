@@ -46,6 +46,9 @@ model Tenant {
   invoices       Invoice[]
   usageEvents    UsageEvent[]
   ocrPageMeters  OcrPageMeter[]
+  approvalPolicies ApprovalPolicy[]
+  approvalTasks  ApprovalTask[]
+  integrationJobs IntegrationJob[]
 }
 
 model ModuleLicense {
@@ -247,6 +250,7 @@ model Invoice {
   notes          String?
   ocrConfidence  Float?
   approvedAt     DateTime?
+  exportedAt     DateTime?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
@@ -313,5 +317,71 @@ model OcrPageMeter {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, yearMonth])
+}
+
+enum ApprovalTaskStatus {
+  pending
+  approved
+  rejected
+}
+
+model ApprovalPolicy {
+  id                   String   @id @default(uuid()) @db.Uuid
+  tenantId             String   @db.Uuid
+  name                 String   @default("Default invoice policy")
+  enabled              Boolean  @default(true)
+  autoApproveUnderMinor Int?    // null = never auto-approve
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId])
+}
+
+model ApprovalTask {
+  id           String             @id @default(uuid()) @db.Uuid
+  tenantId     String             @db.Uuid
+  invoiceId    String             @db.Uuid
+  assigneeId   String             @db.Uuid
+  status       ApprovalTaskStatus @default(pending)
+  comment      String?
+  createdAt    DateTime           @default(now())
+  decidedAt    DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, assigneeId, status])
+  @@index([invoiceId])
+}
+
+enum IntegrationJobType {
+  export_approved_invoices
+  import_vendors
+  import_gl_accounts
+}
+
+enum IntegrationJobStatus {
+  pending
+  succeeded
+  failed
+}
+
+model IntegrationJob {
+  id           String               @id @default(uuid()) @db.Uuid
+  tenantId     String               @db.Uuid
+  type         IntegrationJobType
+  status       IntegrationJobStatus @default(pending)
+  fileName     String?
+  storagePath  String?
+  rowCount     Int                  @default(0)
+  errorMessage String?
+  createdById  String?              @db.Uuid
+  createdAt    DateTime             @default(now())
+  finishedAt   DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
 }
 
