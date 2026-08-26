@@ -1,9 +1,11 @@
-# Formify — AP / P2P Product Blueprint
+# Aptora — AP / P2P Product Blueprint
 
-**Working name:** Formify  
+**Product name:** **Aptora** (AP + “aura” — finance-native, pronounceable EN/EU)  
+**Alternates (if domain/trademark blocks):** Invora, Ordo, Vouchly  
+**Former working name:** Formify  
 **Document type:** Ready-to-sell product blueprint (product + UX + architecture + GTM)  
 **Audience:** Founder / product leader briefing design & engineering  
-**Date:** 2026-08-26
+**Date:** 2026-08-26 (decisions locked)
 
 ---
 
@@ -11,64 +13,65 @@
 
 | Topic | Decision |
 |---|---|
+| Brand | **Aptora** (horizontal finance/AP market name) |
 | Buyers | Mid-market → upper mid-market finance/procurement; expandable to enterprise |
+| Market | **Universal / horizontal** — not vertical-specific |
 | Delivery | Multi-tenant SaaS first; dedicated tenant / private cloud path later |
 | Regions | US + EU (GDPR) first; multi-region capable |
-| Capture | Cloud OCR + human-in-the-loop exceptions |
-| Monetization | Modular subscriptions + OCR/page usage |
-| Clients | **Cloud web app (primary workstation) + mobile apps (full capability)** |
-| Mobile approach | **React Native (Expo)** — best quality/price vs native dual-stack or PWA-only |
-| Mobile scope | Approvals, capture, day-to-day AP work, **and** admin/setup (responsive IA, not a stripped toy) |
+| Product sequence | **Invoices first**; **Contracts + PR + PO as second flow** |
+| Capture / OCR | Cloud OCR + HITL; vendor = **AWS Textract** (best total value — see §7) |
+| Payments | **Not in-app** — payment-ready / status sync only; pay in ERP/bank |
+| Integrations (early) | **Integration Center** only: template upload/download + API foundation; **no ERP connectors yet** |
+| Auth (early) | **Configurable architecture**; **username/password** to start; SSO/IdP later |
+| Monetization | Modular subscriptions priced primarily on **transaction volume** + OCR pages |
+| Clients | Cloud **web first**, then **React Native (Expo)** mobile (full capability) |
+| Mobile approach | React Native (Expo) — best quality/price |
+| Mobile scope | Approvals, capture, day-to-day AP, admin (after web GA) |
+| Backend | **NestJS (TypeScript) modular monolith** — see §7 |
 
-**Why React Native (Expo) wins quality vs price**
+**Why Aptora:** Sounds like Accounts Payable without being literal (“AP-app”), works in US/EU sales conversations, avoids “forms” connotation of Formify, short enough for app icon + wordmark.
 
-- One TypeScript/React talent pool for web + mobile → lower hiring and coordination cost than Swift+Kotlin.
-- Near-native UX, camera, push, offline drafts, App Store / Play presence — materially better than PWA for invoice capture and approvals-on-the-go.
-- Expo speeds CI, OTA updates, and store submission vs bare RN or two native apps.
-- Flutter can look slightly “prettier” out of the box, but splits the skill stack from a React web app and raises long-term TCO.
-- Native dual apps = highest polish ceiling, ~1.6–2× mobile eng cost for mid-market SaaS — poor quality/price until enterprise scale demands it.
-
-**Assumption:** Brand name remains Formify unless replaced; visual system below is Formify-specific and deliberately *not* generic purple SaaS.
+**Why React Native (Expo) later:** Same as prior — shared TS talent with web; ship web GA first to close deals, then mobile ≤ one phase behind.
 
 ---
 
 ## 1. Executive product definition
 
-**Positioning.** Formify is a modular Accounts Payable and Procure-to-Pay cloud suite — contracts, purchase requests, purchase orders, and invoice automation with capture — that finance teams can buy as one module or the full stack. It feels calm and fast on desktop and fully capable on mobile, connects cleanly to ERPs via open APIs and OAuth, and is built to sell as multi-tenant SaaS from day one.
+**Positioning.** Aptora is a modular Accounts Payable and Procure-to-Pay cloud suite — starting with invoice capture and processing, then expanding into contracts, purchase requests, and purchase orders. Finance teams buy modules independently, run on a calm high-speed web app (mobile follows), move data through an Integration Center and open APIs, and keep paying vendors in their existing bank/ERP — Aptora stops at payment-ready.
 
 ### Target users & buyers
 
 | Persona | Role | Primary job |
 |---|---|---|
 | **AP Clerk / Processor** | Daily operator | Clear invoice queue, resolve exceptions, code & match |
-| **Requester** | Employee / buyer | Raise PR, track status, attach needs |
-| **Approver (manager / budget owner)** | Decision maker | Approve on web or phone in seconds |
-| **Procurement** | Buyer / category | Contracts, POs, vendor terms, change orders |
-| **AP Manager / Controller** | Buyer of value | Cycle time, controls, audit, straight-through rate |
-| **CFO / VP Finance** | Economic buyer | Risk, cost-to-serve, ERP fit, compliance |
-| **IT / Security** | Technical buyer | SSO, SCIM, APIs, data residency, SOC2 |
+| **Requester** | Employee / buyer | Raise PR, track status (Phase 2) |
+| **Approver** | Manager / budget owner | Approve in seconds |
+| **Procurement** | Buyer | Contracts, POs (Phase 2) |
+| **AP Manager / Controller** | Value buyer | Cycle time, controls, audit, STP rate |
+| **CFO / VP Finance** | Economic buyer | Cost-to-serve, risk, modular price vs volume |
+| **IT / Security** | Technical buyer | Auth config path, APIs, residency, SOC2 |
 
 ### Jobs-to-be-done
 
-- “When invoices arrive from email/scan/vendor portals, clear them with minimal re-keying.”
-- “When spend needs approval, route the right people with policy, not email chaos.”
-- “When we only need invoices (or only PR/PO), buy that — and grow into the suite later.”
-- “When I’m away from desk, approve, capture, and unblock exceptions from my phone.”
-- “When auditors ask, show immutable history without exporting to Excel archaeology.”
+- “When invoices arrive, clear them with minimal re-keying.”
+- “When we grow into procurement control, turn on PR/PO/contracts without rip-and-replace.”
+- “When we sync to ERP, start with templates/API — connectors when we’re ready.”
+- “When auditors ask, show immutable history.”
+- “When I’m on mobile (later), approve and capture without waiting for desktop.”
 
 ### Competitors & differentiation
 
-**Comps:** Coupa, SAP Ariba, Oracle Fusion AP, Tipalti, Bill.com, Melio, Stampli, MineralTree, AvidXchange, mid-market ERP-native AP.
+**Comps:** Coupa, SAP Ariba, Oracle Fusion AP, Tipalti, Bill.com, Melio, Stampli, MineralTree, AvidXchange, ERP-native AP.
 
-**Thesis:** Enterprise suites are powerful but heavy and expensive; point AP tools are friendly but shallow on PR/PO/contracts and modular packaging. Formify wins the mid-market “suite without the suite tax”: modular enablement, open gateways, and a UX that treats AP work as a craft product — not a port of ERP forms — on **both** web and mobile.
+**Thesis:** Mid-market wants Stampli-like clarity with a path to suite depth — without Coupa weight or forced payments. Aptora wins on modular land-and-expand (invoices → procure), Integration Center honesty (templates first), and UX that feels best-in-class.
 
 ### Why we win (5)
 
-1. **Best-in-class worklists** — filters, saved views, keyboard, bulk actions, exception triage that feels like Linear/Notion speed with finance trust.
-2. **True modularity** — Contracts / PR / PO / Invoices independently licensed; Platform Core shared; nav and data integrity stay coherent.
-3. **Dual-client by design** — web for deep work; React Native for full operational + admin capability with camera-native capture.
-4. **Open authorization & integration** — OIDC SSO, OAuth API clients, webhooks, ERP adapters — standalone *or* embedded in the finance stack.
-5. **Progressive power** — simple defaults; tolerances, matrix approvals, SoD, multi-entity available without day-1 complexity.
+1. **Invoice workstation excellence** — worklists, HITL OCR, exception triage at category-best speed.
+2. **True modularity** — land Invoices; enable Contracts/PR/PO when ready.
+3. **Integration honesty** — Integration Center + templates + API/OAuth gateway before brittle connector farm.
+4. **Configurable control plane** — auth, workflows, modules designed for plug-in growth; simple password login on day one.
+5. **Volume-aligned pricing** — pay for transaction throughput, not seat theater.
 
 ---
 
@@ -77,40 +80,39 @@
 ```mermaid
 flowchart TB
   subgraph platform [Platform Core - always on]
-    Id[Identity RBAC SSO SCIM]
+    Id[Identity RBAC Auth Config]
     Org[Org Entities Master Data]
     Wf[Workflows Notifications Audit]
-    Int[API Events Webhooks Files]
+    Int[Integration Center API Webhooks Files]
     Flags[Module License Flags]
   end
 
+  Inv[AP Invoices Capture]
   Contracts[AP Contracts]
   PR[Purchase Requests]
   PO[Purchase Orders]
-  Inv[AP Invoices Capture]
 
+  platform --> Inv
   platform --> Contracts
   platform --> PR
   platform --> PO
-  platform --> Inv
-  PR -->|"optional convert"| PO
-  Contracts -->|"optional link"| PO
-  Contracts -->|"optional link"| Inv
-  PO -->|"2/3-way match"| Inv
-  PR -->|"optional reference"| Inv
+  PR -->|"Phase 2 convert"| PO
+  Contracts -->|"Phase 2 link"| PO
+  Contracts -->|"Phase 2 link"| Inv
+  PO -->|"Phase 2 match"| Inv
 ```
 
 ### Dependency map
 
-| Module | Requires | Soft-links (optional) |
+| Module | Requires | Soft-links |
 |---|---|---|
 | Platform Core | — | — |
+| AP Invoices | Platform Core + Capture | PO/Contracts when licensed |
 | AP Contracts | Platform Core | PO, Invoices |
-| Purchase Requests | Platform Core | PO (convert), Invoices (ref) |
-| Purchase Orders | Platform Core | PR (source), Contracts, Receiving, Invoices |
-| AP Invoices | Platform Core + Capture pipeline | PO (match), Contracts, PR |
+| Purchase Requests | Platform Core | PO |
+| Purchase Orders | Platform Core | PR, Contracts, Invoices |
 
-**Rule:** No hard runtime dependency between revenue modules. Matching against PO is a **capability** that activates when PO module is licensed; otherwise invoices support non-PO / contract / cost-only coding paths.
+**Rule:** Revenue modules never hard-require each other. Matching activates when PO is licensed.
 
 ---
 
@@ -118,442 +120,302 @@ flowchart TB
 
 | | |
 |---|---|
-| **Purpose** | Tenant, identity, org structure, master data, workflows, files, audit, integrations, module flags |
-| **Must-have** | Multi-tenant orgs & entities; users/roles/permissions; SSO (OIDC/SAML); email+password optional; approval engine; notification center; document store; audit log; feature/module flags; admin console (web + mobile); global search; API keys & OAuth apps |
-| **Phase-2** | SCIM; advanced SoD matrices; customer UI theming; sandbox tenants; iPaaS recipes marketplace |
-| **Key objects** | Tenant, Entity, User, Role, Permission, Vendor, GL Account, CostCenter, TaxCode, PaymentTerm, UoM, Location, Project, WorkflowDefinition, ApprovalTask, FileAsset, IntegrationConnection, AuditEvent, ModuleLicense |
-| **Alone** | N/A — always on |
-| **Licensing** | Included with any paid module; not sold empty |
+| **Purpose** | Tenant, identity, org, master data, workflows, files, audit, Integration Center, module flags |
+| **Must-have** | Multi-tenant orgs/entities; users/roles/permissions; **username/password auth** with pluggable auth config; approval engine; notifications; document store; audit; feature flags; admin; global search; **Integration Center (templates + job log)**; API keys foundation |
+| **Later** | SSO OIDC/SAML, SCIM, OAuth client apps for partners, connector packs |
+| **Key objects** | Tenant, Entity, User, Role, Permission, AuthProviderConfig, Vendor, GLAccount, CostCenter, TaxCode, PaymentTerm, UoM, Location, Project, WorkflowDefinition, ApprovalTask, FileAsset, IntegrationJob, TemplateDefinition, AuditEvent, ModuleLicense |
+| **Licensing** | Included with any paid module |
 
-### AP Contracts / Agreements
-
-| | |
-|---|---|
-| **Purpose** | Supplier agreements: commercial terms, catalogues/rates, obligations, renewals |
-| **Must-have** | Contract record + parties; term dates; value/currency; payment & pricing terms; attachments; approval; active/expired; amendments with versioning; link to vendors; alerts for expiry/renewal; e-sign *handshake* (DocuSign/Adobe via integration) |
-| **Phase-2** | Clause library, obligation tracking, spend-against-contract, AI clause extraction |
-| **States** | Draft → InApproval → Approved → Active → AmendmentDraft → Expired/Terminated/Renewed |
-| **Alone** | Full contract lifecycle + reporting; no PO/invoice required |
-| **With suite** | Auto-suggest on PO/invoice; contract price validation |
-| **Licensing** | Paid module |
-
-### Purchase Requests (PR)
+### AP Invoices (+ Capture) — **Phase 1 commercial wedge**
 
 | | |
 |---|---|
-| **Purpose** | Intake & authorize demand before commitment |
-| **Must-have** | Line-based PR; requester; ship-to; needed-by; attachments; catalog/free-text; budget/owner coding; workflow by amount/dept; approve/reject/send-back; convert to PO (if PO on); status tracking; mobile create/approve |
-| **Phase-2** | Punch-out, preferred-vendor suggestions, budget soft/hard checks, demand consolidation |
-| **States** | Draft → Submitted → InApproval → Approved / Rejected / Returned → Converted / Closed / Cancelled |
-| **Alone** | Ends at Approved (export/API to external purchasing) |
-| **With PO** | One-click / selective line convert |
-| **Licensing** | Paid module |
+| **Purpose** | Capture, validate, code, approve, export payment-ready invoices |
+| **Must-have** | Email/upload/API capture; OCR; vendor match; duplicates; header/lines; GL coding; tolerances; exceptions; approvals; **export via Integration Center templates/API**; doc viewer |
+| **Phase 2+** | 2/3-way match (when PO on), contract checks, mobile camera path, vendor portal |
+| **States** | Captured → Extracting → NeedsReview → Matching → Exception → InApproval → Approved → Exported → Paid*(status only)* / Void |
+| **Alone** | Full non-PO AP automation |
+| **Licensing** | Paid + OCR page meter; transactions count toward volume tier |
 
-### Purchase Orders (PO)
+### AP Contracts / PR / PO — **Phase 2 flow**
 
-| | |
-|---|---|
-| **Purpose** | Formalize commitment to vendor |
-| **Must-have** | PO header/lines; vendor; prices/qty; tax; multi-currency; change orders; send PDF/email; acknowledgement status; receiving (goods/qty) toggle; close/cancel; match readiness flags; mobile view/approve/receive |
-| **Phase-2** | ASN, blanket/release POs, advanced three-way automation, supplier portal |
-| **States** | Draft → InApproval → Open → PartiallyReceived → FullyReceived → Closed / Cancelled; ChangeOrder states parallel |
-| **Alone** | Manual/API-sourced POs; export to ERP |
-| **With PR/Contracts/Inv** | Convert, price check, 2/3-way match |
-| **Licensing** | Paid module; Receiving as included capability flag |
+Same capability depth as prior blueprint (lifecycle, approvals, convert PR→PO, receiving, match readiness). Shipped as the **second commercial flow** after Invoices is selling.
 
-### AP Invoices (+ Capture)
-
-| | |
-|---|---|
-| **Purpose** | Capture, validate, code, match, approve, export payment-ready invoices |
-| **Must-have** | Email/upload/API/mobile camera capture; OCR; vendor match; duplicate detection; header/line extraction; GL coding; 2-way & 3-way match when PO on; tolerances; tax; exceptions queue; approvals; payment-ready export/sync; side-by-side doc viewer |
-| **Phase-2** | Vendor portal submission, continuous learning per-vendor models, payments execution (or Tipalti-like partner), advanced fraud scoring |
-| **States** | Captured → Extracting → NeedsReview → Matching → Exception → InApproval → Approved → Exported/Synced → Paid (status from ERP) / Void |
-| **Alone** | Non-PO invoice automation + ERP sync |
-| **With PO/Contracts** | Match & contract validation |
-| **Licensing** | Paid module + **OCR page usage** meter |
+| Module | Alone | With Invoices |
+|---|---|---|
+| Contracts | Full lifecycle | Link/validate on invoice |
+| PR | Ends at Approved + template export | Reference on invoice optional |
+| PO | Issue + receive + export | 2/3-way match |
 
 ---
 
 ## 3. End-to-end process design
 
-### 3.1 Contracts
+### 3.1 Invoices + scanning (Phase 1 — primary)
 
-**Happy path:** Create draft → add parties/terms/attachments → submit → workflow → activate → monitor expiry → renew/amend.
+**Happy path:** Ingest (email/upload/API) → OCR → vendor+fields → validate → code → (optional match hooks stubbed) → approve if needed → **Export batch via Integration Center** (template file or API pull) → mark Exported; Paid status optional manual/API later.
 
-**Primary screens:** Contract list (saved views); Contract detail (terms, files, activity); Approval task; Amendment diff; Renewal worklist.
+**Primary screens:** Capture inbox; **Invoice workspace**; Exception queue; Approval inbox; Export / Integration jobs; Vendor & GL admin.
 
-**Decisions:** Who must approve by value/legal; whether e-sign required before Active; auto-remind N days before expiry.
+**Exception categories:** `DUP`, `VENDOR_UNMATCHED`, `CODING`, `TAX`, `OCR_LOW`, `POLICY`, `ENTITY`, `PO_*` (when PO module on).
 
-**SLAs / notifications:** Approval pending, escalation, 90/60/30-day expiry, amendment approved.
+**SLAs:** Extraction p95 < 2 min; exception age alerts; approval reminders; failed export alerts.
 
-**Exceptions:** Missing signatures, overlapping active contracts per vendor+category, expired used on PO/invoice (block or warn by policy).
+### 3.2 Contracts → PR → PO (Phase 2 — second flow)
 
-### 3.2 Purchase Requests
+- **Contracts:** Draft → approve → active → amend/renew/expire  
+- **PR:** Create → approve → convert to PO or export  
+- **PO:** Create/issue → change orders → receive → match-ready for invoices  
 
-**Happy path:** Requester creates PR (web/mobile) → coding defaults → submit → approvals (serial/parallel) → Approved → Convert to PO (if enabled) or export.
+Cross-cutting: delegation, escalation, audit, comments, attachments, versioning — from Phase 1 platform onward.
 
-**Screens:** PR list; PR composer; Approval inbox; Conversion wizard.
+### 3.3 Integration Center flows (Phase 1)
 
-**Exceptions:** Insufficient budget (P1), missing cost object, policy violation (restricted vendor), approver out-of-office → delegate.
-
-### 3.3 Purchase Orders
-
-**Happy path:** Create from PR or scratch → approve if required → issue to vendor → optional receive → ready for match.
-
-**Screens:** PO list; PO detail; Change order; Receiving entry (mobile-friendly); Vendor send modal.
-
-**Exceptions:** Price/qty change after issue, over-receipt, vendor mismatch on invoice later.
-
-### 3.4 Invoices + scanning
-
-**Happy path:** Ingest (email/upload/API/camera) → OCR → vendor+header/lines → validate → code → match (if PO) → auto-approve if clean → export to ERP.
-
-**Screens (must feel magical):** Capture inbox; **Invoice workspace** (PDF + fields + match panel); Exception queue; Bulk coding; Export batch log.
-
-**Exception categories (standard):**
-
-| Code | Meaning |
-|---|---|
-| `DUP` | Duplicate invoice |
-| `VENDOR_UNMATCHED` | OCR vendor confidence low |
-| `PO_MISSING` / `PO_MISMATCH` | Expected PO not found / header mismatch |
-| `QTY_PRICE_TOL` | Outside tolerance |
-| `TAX` | Tax mismatch |
-| `CODING` | Missing/invalid GL or cost objects |
-| `OCR_LOW` | Low field confidence |
-| `POLICY` | SoD / amount / restricted |
-| `ENTITY` | Wrong legal entity |
-
-**SLAs:** Extraction < 2 min p95; exception age alerts; approver reminders; stuck-in-export alerts.
-
-### 3.5 Cross-cutting
-
-- **Delegation & OOO** with time-boxed rights  
-- **Escalation** by SLA on approval tasks  
-- **Audit trail** on every state/field change (who/when/before/after)  
-- **Comments @mentions** on documents  
-- **Attachments** with virus scan  
-- **Versioning** on contracts & PO change orders  
-- **Mobile parity** for tasks, capture, lists, detail edit, and admin (see §4)
+1. Download **CSV/XLSX template** (vendors, COA, open invoices export, approved invoices export, etc.)  
+2. Upload filled template → validation report → commit/reject  
+3. View **job history**, errors per row, replay  
+4. Later: map fields, schedule pulls, connectors (out of Phase 1 scope)
 
 ---
 
 ## 4. World-class UX / UI system brief
 
-### Visual direction — “Ledger Light”
-
-Avoid purple-glow SaaS, cream-terracotta cliché, and broadsheet density.
+### Visual direction — “Ledger Light” (Aptora)
 
 | Token | Direction |
 |---|---|
-| **Brand signal** | Wordmark **Formify** as hero-level identity in marketing; in-app, persistent precise mark + product area title |
-| **Typography** | Display: *Fraunces* or *Newsreader*; UI: *Söhne* / *Geist* / *IBM Plex Sans* — expressive but finance-serious |
-| **Color** | Deep ink `#0F1914`, paper `#F7F6F2`, signal teal `#0F766E`, alert amber, danger crimson — cool northern-finance, not neon |
-| **Atmosphere** | Soft paper grain + restrained gradient washes in marketing; in-app: structured white surfaces, hairline separators, generous density controls |
-| **Imagery** | Real document/workspace photography for marketing; in-product: live document canvas, not illustrations |
+| **Brand** | **Aptora** wordmark as hero on marketing; precise in-app mark |
+| **Typography** | Display: Fraunces or Newsreader; UI: Geist / IBM Plex Sans |
+| **Color** | Ink `#0F1914`, paper `#F7F6F2`, signal teal `#0F766E`, amber alert, crimson danger |
+| **Atmosphere** | Soft paper grain on marketing; calm structured surfaces in-app |
 
-### Design principles
+### Principles
 
-1. **Clarity over chrome** — every screen one job.  
-2. **Speed to decision** — approvers succeed in < 30 seconds.  
-3. **Progressive disclosure** — advanced match/tax behind “Adjust,” not walls of fields.  
-4. **Trust visible** — amounts, entity, vendor, audit cues always scannable.  
-5. **Same product, two canvases** — web = cockpit; mobile = full product with thumb-first patterns, not a unread-only app.
+1. Clarity over chrome  
+2. Speed to decision  
+3. Progressive disclosure  
+4. Trust visible (amount, entity, vendor, audit)  
+5. Web cockpit first; mobile full product second — same design system  
 
-### Information architecture (module-aware)
+### IA (module-aware)
 
-- **Home / My work** — tasks, drafts, exceptions assigned to me (always).  
-- **Module nav** — only licensed modules appear (Contracts, Requests, Orders, Invoices).  
-- **Directory** — Vendors & master data.  
-- **Analytics** — role-based dashboards.  
-- **Admin** — users, workflows, integrations, module licenses, capture mailboxes (web + mobile).  
-- **Search** — global `Cmd/Ctrl+K` (web) / global search sheet (mobile).
+- **My work** → **Invoices** (Phase 1) → Directory → Analytics → **Integration Center** → Admin  
+- Phase 2 adds Contracts, Requests, Orders when licensed  
+- Search: `Cmd/Ctrl+K`
 
-### Core interaction patterns
+### Patterns
 
-| Pattern | Web | Mobile |
-|---|---|---|
-| Worklists | Virtualized tables, column sort, facet filters, saved views, bulk select | Card/list hybrid, filter sheets, saved views, swipe actions |
-| Detail | Two-pane where needed (doc + data) | Tabbed: Document / Fields / Match / Activity |
-| Inline edit | Safe fields only; amount edits audited | Same with explicit Save |
-| Bulk actions | Toolbar | Multi-select + bottom bar |
-| AI assist | Subtle suggestions chips; never auto-post without policy | Same; “Apply suggestion” explicit |
-| Capture | Drag-drop, email, upload | **Camera capture**, gallery, PDF, email-to-tenant |
-| Empty/error | Honest next action | Same + offline queue status |
-
-### Accessibility & i18n
-
-- WCAG 2.2 AA; full keyboard on web; Dynamic Type / VoiceOver / TalkBack on mobile.  
-- i18n-ready strings; number/date/currency by entity locale; RTL later (P2).
+Sortable/filterable worklists, saved views, bulk actions, keyboard, side-by-side invoice viewer, AI suggestion chips (apply explicitly), Integration Center with template UX as first-class (not a buried import modal).
 
 ### Device strategy
 
-| Surface | Role |
+| Phase | Surface |
 |---|---|
-| **Desktop web** | Primary deep work: mass exceptions, admin, complex match, reporting |
-| **Tablet web / RN tablet** | Strong approver + light processing |
-| **Mobile RN** | Full capability: create/approve PR/PO, contract view/approve, invoice capture & process, master data & admin with stacked forms and search-driven pickers |
+| **Phase 1 GA** | Desktop web (+ usable tablet browser) |
+| **Phase 1.5 / 2** | React Native Expo — full capability including camera capture & admin |
 
-**Honest note:** Dense multi-line invoice coding is *better* on desktop; mobile must still complete the job with line editor sheets, not block users.
+### Magical screens (Phase 1 priority)
 
-### Motion
+1. My Work  
+2. Invoice workspace  
+3. Exception queue  
+4. Saved views  
+5. Approval sheet  
+6. Integration Center (templates + job log)  
+7. Vendor 360 (invoice history first)  
+8. Workflow simple designer  
+9. Module/license admin  
+10. Capture inbox  
 
-Purposeful only: view transitions, task completion check, doc load fade, filter chip add/remove. No decorative parallax in app chrome.
-
-### Critical screens that must feel magical (12)
-
-1. My Work inbox (unified tasks)  
-2. Invoice workspace (side-by-side)  
-3. Exception queue with smart grouping  
-4. Mobile camera capture → instant draft invoice  
-5. One-thumb approval sheet with policy context  
-6. PR composer with smart defaults  
-7. PO receiving (mobile)  
-8. Saved views builder  
-9. Vendor 360 (contracts, POs, invoices, balance)  
-10. Workflow designer (clarity > BPMN spaghetti)  
-11. Integration connection health  
-12. Module enablement / license admin  
+(Mobile camera capture & thumb approval join the “magical” list when mobile ships.)
 
 ---
 
 ## 5. Functional best-practice catalog
 
-Priority: **P0** sellable, **P1** competitive, **P2** enterprise/expand.
-
-| Area | Capability | P |
-|---|---|---|
-| Master data | Vendors, banks (masked), GL, CC, projects, tax, terms, UoM, locations, entities | P0 |
-| Master data | Vendor duplicate merge, external ERP IDs | P1 |
-| Users | Local users, roles, granular permissions | P0 |
-| Users | SSO OIDC/SAML, invite flows | P0 |
-| Users | SCIM, advanced SoD | P1/P2 |
-| Workflows | Amount/dept/entity routing, serial/parallel, delegate, escalate | P0 |
-| Workflows | Approval matrix UI, simulation | P1 |
-| Policy/budget | Soft budget warnings | P1 |
-| Policy/budget | Hard stops, project budgets | P2 |
-| Matching | 2-way, 3-way, header+line, tolerances | P0 |
-| Tax/FX/multi-entity | Tax codes, FX rates, entity isolation | P0 |
-| Capture | Email, upload, API, mobile camera, OCR HITL | P0 |
-| AI | Coding suggest, duplicate, anomaly flags | P0/P1 |
-| Audit/compliance | Immutable audit, export, retention policies | P0 |
-| E-sign | Integration to DocuSign/Adobe | P1 |
-| Reporting | Operational dashboards, CSV/Excel export | P0 |
-| Reporting | Pixel-perfect scheduled reports | P1 |
-| Notifications | Email + in-app + mobile push | P0 |
-| Search | Global + in-document | P0 |
-| Mobile | Full module operations + admin | P0 (phased delivery inside P0 window) |
-| Payments | Record status from ERP | P0 |
-| Payments | Execute payments in-app | P2 / partner |
+| Area | Capability | P | Notes |
+|---|---|---|---|
+| Master data | Vendors, GL, CC, tax, terms, entities, etc. | P0 | Template import via Integration Center |
+| Users | Username/password, roles, permissions | P0 | |
+| Users | Auth provider config framework | P0 | UI to add SSO later without rewrite |
+| Users | SSO OIDC/SAML, SCIM | P1/P2 | After password era |
+| Workflows | Routing, serial/parallel, delegate, escalate | P0 | |
+| Invoices | Capture, OCR HITL, coding, approvals, export | P0 | Wedge |
+| Matching | 2/3-way | P1 | With PO module |
+| Contracts / PR / PO | Full lifecycles | P1 | Second flow |
+| Integration Center | Templates upload/download, validation, jobs | P0 | |
+| Connectors | QBO/Xero/NetSuite/BC | P2 | Explicitly later |
+| Payments | In-app execution | — | **Out of scope** |
+| Payments | Exported / Paid status fields | P0/P1 | Status only |
+| AI | Coding suggest, dup, anomaly | P0/P1 | |
+| Audit | Immutable log, retention | P0 | |
+| Reporting | Ops dashboards + export | P0 | |
+| Mobile | Full RN app | P1 | After web |
+| Notifications | Email + in-app; push with mobile | P0/P1 | |
 
 ---
 
 ## 6. Integration & open authorization gateways
 
-### Philosophy
+### Phase 1 philosophy
 
-**API-first, event-friendly, ERP-honest.** Formify can be system of process with ERP as system of record — or lighter shadow with sync both ways.
+**Integration Center + API-ready core — not connector theater.**
 
-- REST (+ OpenAPI) for resources  
-- Async **webhooks** + outbound event bus for status changes  
-- Idempotent writes; external IDs on all syncable objects  
-- iPaaS-friendly (Workato/Boomi/Make) via public API  
+| Capability | Phase 1 | Later |
+|---|---|---|
+| CSV/XLSX templates in/out | Yes | — |
+| Validation + job log | Yes | — |
+| REST API (OpenAPI) for objects | Yes (authenticated) | Expand |
+| Webhooks | Stub / basic P1 | Full |
+| OAuth clients for partners | Design now, enable later | Yes |
+| ERP connectors | **No** | Pack roadmap |
+| iPaaS | Via public API when stable | Recipes |
+| RPA | Not productized | Avoid |
 
-### Canonical objects / events (examples)
+### Canonical template sets (Phase 1)
 
-`vendor.upserted`, `pr.approved`, `po.issued`, `po.received`, `invoice.captured`, `invoice.approved`, `invoice.exported`, `contract.activated`, `approval.task_completed`
+- Vendors (upsert)  
+- Chart of accounts / cost centers  
+- Approved invoices export (payment-ready)  
+- Invoice status import (optional Paid/Void from ERP)  
+- Users (optional)
 
-### ERP connector strategy
+### AuthN / AuthZ roadmap
 
-1. **Generic adapter** (CSV/SFTP + REST mapping) — P0  
-2. **Priority connectors:** QuickBooks Online, Xero, NetSuite, Microsoft Business Central — P0/P1 by GTM  
-3. **Enterprise:** SAP S/4, Oracle — P2 via partner or thin connector  
-
-**Avoid:** brittle UI RPA as productized path (support nightmare). Allow professional-services RPA only as escape hatch.
-
-### Ingestion
-
-- Dedicated per-tenant inbound email  
-- Upload & mobile camera  
-- API & SFTP batches  
-- Optional vendor portal (P1)
-
-### Open authorization
-
-| Mechanism | Use |
+| Stage | Auth |
 |---|---|
-| OIDC/SAML | Workforce login (Okta, Entra, Google) |
-| OAuth2 confidential clients | ERP/iPaaS apps; authorization code + client credentials |
-| Scoped API tokens | Automation; hashed at rest; rotation |
-| Admin consent | Tenant admin grants app + scopes |
-| Gateway | Rate limits, WAF, per-app audit, replay protection |
+| Now | Local username/password; hashed credentials; session/JWT; lockout; invite/reset |
+| Config model | `AuthProviderConfig` — `local` enabled; future `oidc` / `saml` records |
+| Later | OIDC/SAML SSO, SCIM, OAuth2 apps, granular API scopes |
 
-**Scopes (examples):** `invoices:read`, `invoices:write`, `approvals:act`, `masterdata:read`, `webhooks:manage`
-
-### Security
-
-- Tenant isolation (row-level tenant_id + tested policies)  
-- Encryption in transit (TLS1.2+) & at rest (KMS)  
-- Secrets in vault; least-privilege roles  
-- Full API access audit  
-- Optional customer-managed keys (P2)
+**Security:** tenant isolation, TLS, encryption at rest, secrets vault, API audit — from day one even with password-only login.
 
 ---
 
 ## 7. Technology recommendation (opinionated)
 
-### Stage 1 stack (MVP → first 50 customers)
+### Backend choice — **NestJS (TypeScript) modular monolith**
 
-| Layer | Choice | Why |
-|---|---|---|
-| Web frontend | **React + TypeScript + Vite**; TanStack Query/Table; Tailwind + design tokens | Hiring, speed, RN skill overlap |
-| Mobile | **React Native + Expo** (EAS) | Best quality/price; camera/push; shared TS types/SDK |
-| Shared | Monorepo (**pnpm + Turborepo**): `ui` tokens, `api-client`, `domain-types` | Consistency web/mobile |
-| Backend | **Node.js (NestJS) or .NET 8** — **default NestJS** for JS full-stack velocity; choose **.NET** if team is finance/.NET-heavy | Modular monolith, OpenAPI |
-| Primary DB | **PostgreSQL** | Relational integrity, audit, RLS option |
-| Search | **OpenSearch/Elastic** or Postgres + Typesense — **Postgres full-text → Typesense** when scale hits | Cost control |
-| Files | **S3-compatible** (AWS S3) + CloudFront | Durability; virus scan lambda |
-| OCR | **Buy:** AWS Textract or Google Document AI (+ vendor-specialized layer) | Time-to-quality; meterable COGS |
-| Workflows | **In-house state machine** on Postgres + job queue (avoid Camunda day 1) | Controllable UX; migrate complexity later |
-| Auth | **Auth0 / Clerk / Keycloak** — **Auth0** default for B2B SSO speed; or Cognito if AWS-pure | OIDC enterprise |
-| Jobs/events | **Redis + BullMQ** or SQS + workers | Capture pipeline, webhooks |
-| Observability | OpenTelemetry → Grafana/Datadog | SLO discipline |
-| Tests | Playwright (web), Maestro/Detox (mobile), Jest/Vitest, contract tests for API | Regressions in money flows kill trust |
+**Why this wins for Aptora given your constraints:**
 
-### Architecture stages
+| Factor | NestJS | .NET 8 | Java/Spring |
+|---|---|---|---|
+| Shared types with React + future RN | Excellent | Weak | Weak |
+| Modular monolith / bounded contexts | Excellent | Excellent | Excellent |
+| Time-to-first Invoice wedge | Fastest with your web stack | Fast if .NET team exists | Slower DX |
+| Finance audit + transactions | Excellent with Postgres | Excellent | Excellent |
+| Hiring for web+API+later mobile | One TS pool | Split | Split |
+| Mid-market SaaS TCO | Best fit | Better if selling only to Microsoft shops | Heavy |
 
-| Stage | Shape |
+**.NET** remains Plan B only if you hire a .NET-majority team; default is **NestJS**.
+
+### OCR — **AWS Textract** (Analyze Expense + Queries)
+
+**Best value-for-cost at your stage:**
+
+| Option | Verdict |
 |---|---|
-| **Stage 1** | **Modular monolith** (bounded contexts: identity, masterdata, contracts, pr, po, invoices, capture, workflow) + async workers |
-| **Stage 2** | Extract **capture/OCR** and **webhook delivery** first; then connectors |
+| **AWS Textract** | **Selected** — strong invoice/expense extraction, page-priced, same cloud as hosting → lower eng + billing + residency friction; HITL covers edge cases |
+| Azure Document Intelligence | Excellent invoice model; adds second-cloud vendor complexity |
+| Google Document AI Invoice Parser | Top accuracy band; usually worse $/page for mid-market volumes |
+| Veryfi / Mindee / Rossum | Good specialists; Rossum pricey; keep as bake-off if Textract STP stagnates |
 
-### Multi-tenancy
+**Rule:** Buy OCR; invest eng in **Aptora HITL workspace + per-vendor learning**, not training base models.
 
-Shared app + **shared DB with `tenant_id`** (strict middleware + automated isolation tests). Dedicated DB/schema for enterprise SKU later.
+### Full Stage-1 stack
 
-### Module enablement
+| Layer | Choice |
+|---|---|
+| Web | React + TypeScript + Vite; TanStack Query/Table; Tailwind + tokens |
+| Mobile (later) | React Native + Expo (EAS) |
+| Monorepo | pnpm + Turborepo (`api`, `web`, future `mobile`, `types`, `ui`) |
+| API | NestJS modular monolith |
+| DB | PostgreSQL |
+| Search | Postgres FTS → Typesense when needed |
+| Files | S3 + virus scan |
+| OCR | AWS Textract |
+| Workflows | In-house state machine + job queue |
+| Auth | First-party local auth in NestJS + `AuthProviderConfig` for future IdPs |
+| Jobs | SQS or Redis/BullMQ |
+| Observability | OpenTelemetry → Grafana or Datadog |
+| Tests | Playwright, Vitest/Jest, API contract tests |
 
-- `module_licenses` + LaunchDarkly-style **feature flags** (can build thin in-house)  
-- API and UI both enforce license; soft-links degrade gracefully  
+### Multi-tenancy & modules
 
-### Data model principles
+Shared DB + `tenant_id` + isolation tests; `module_licenses` + feature flags; graceful soft-links when modules off.
 
-- Shared `vendor_id`, `entity_id`, money as **integer minor units + currency**  
-- External IDs map table  
-- Event-sourced **audit** table (append-only)  
-- Soft delete sparingly; financial docs void, not delete  
+### Money & transactions
+
+Store money as integer minor units + currency; **billable transaction** = countable business event (e.g. invoice captured or invoice approved — pick one definition and keep it; recommend **invoice reaching Approved/Exported** as billable unit, plus OCR pages as usage).
 
 ---
 
 ## 8. Hosting & operating model
 
-### Primary path
+**Primary:** AWS (`us-east-1` + `eu-west-1`) — ECS/EKS, RDS Postgres, S3, SQS, Textract, CloudFront, WAF.
 
-**AWS** (us-east-1 + eu-west-1): EKS or ECS Fargate, RDS Postgres, S3, SQS, Textract, Cognito/Auth0, CloudFront, WAF.
+**Envs:** dev → staging → prod; GitHub Actions; Expo channels when mobile exists.
 
-**Why AWS:** OCR + enterprise procurement familiarity + IAM story. Azure is fine if Microsoft-led GTM; don’t multi-cloud early.
+**DR (Stage 1):** RPO ≤ 1h; RTO ≤ 4h; ingest availability 99.9%.
 
-### Environments
+**COGS drivers:** OCR pages, storage, compute, support (UX reduces), later mobile stores.
 
-`dev` → `staging` → `prod`; PR previews for web; Expo channels for mobile. GitHub Actions CI/CD; migrations gated; feature flags for risky rollout.
+**Compliance:** SOC 2 → ISO 27001; GDPR DPA; EU data pin.
 
-### Data residency
-
-- US & EU pools; tenant pinned at signup  
-- EU data stays in EU (GDPR)  
-- Document metadata follows same pin  
-
-### DR targets (Stage 1)
-
-| Metric | Target |
-|---|---|
-| RPO | ≤ 1 hour (better: continuous RDS) |
-| RTO | ≤ 4 hours |
-| Invoice ingest availability | 99.9% |
-
-### COGS drivers
-
-1. OCR pages  
-2. File storage/egress  
-3. App compute  
-4. Support (exceptions UX reduces this)  
-5. Mobile store overhead (low)
-
-### Compliance roadmap
-
-| When | What |
-|---|---|
-| Pre-sale mid-market | SOC 2 Type I → Type II, GDPR DPA, pen test |
-| Year 1–2 | ISO 27001 |
-| Enterprise | Dedicated tenant, CMA/KMS, SIG questionnaire automation |
-
-### Enterprise deploy later
-
-Same containers; single-tenant RDS/VPC or private link; mobile still via public stores with tenant-specific SSO.
+**Enterprise later:** dedicated tenant/VPC; same codebase.
 
 ---
 
 ## 9. Packaging, pricing & GTM readiness
 
-### What Platform Core includes
+### Platform Core (included)
 
-Identity, RBAC, SSO, workflows, master data, audit, API/webhooks, admin, **web + mobile clients**, notifications.
+Identity (password + future auth config), RBAC, workflows, master data, audit, **Integration Center**, API foundation, web client, notifications.
 
 ### Paid modules
 
-| SKU | Includes |
+| SKU | When |
 |---|---|
-| **Invoices** | Capture, OCR (usage), matching (PO match if PO licensed), approvals, export |
-| **Purchase Requests** | PR lifecycle |
-| **Purchase Orders** | PO + receiving |
-| **Contracts** | Agreements lifecycle |
-| **Suite** | All modules + discount |
+| **Invoices** | Phase 1 — sell now |
+| **Contracts** | Phase 2 |
+| **Purchase Requests** | Phase 2 |
+| **Purchase Orders** | Phase 2 |
+| **Suite** | Bundle discount |
 
-### Suggested packages
+### Pricing model — **per transaction volume**
 
-| Package | Modules | Ideal land |
-|---|---|---|
-| **AP Start** | Platform + Invoices | Fastest wedge |
-| **Procure** | Platform + PR + PO | Control spend before AP |
-| **Full Formify** | All | Replace patchwork tools |
+| Meter | Role |
+|---|---|
+| **Billable transactions / month** | Primary subscription bands (recommend: invoices approved or exported) |
+| **OCR pages** | Usage overage or included buckets |
+| Seats | Soft cap only if abuse; not primary SKU |
 
-**Pricing intuition (directional):** per-entity or per-active-user bands + **OCR pages**; connector fees for premium ERPs.
+Suggested packages:
+
+| Package | Contents |
+|---|---|
+| **Aptora AP** | Platform + Invoices |
+| **Aptora Procure** | + PR + PO (+ Contracts optional add) |
+| **Aptora Full** | All modules |
 
 ### Onboarding
 
-- **Self-serve:** AP Start (sample vendors, email capture, test invoice)  
-- **Assisted:** Procure/Full (workflow workshops, ERP map)
+Self-serve Aptora AP: templates for vendors/COA → inbound email → 3 sample invoices → first export template.  
+Assisted for multi-entity / complex workflows.
 
-### Time-to-value checklists
+### &lt;1 day / &lt;1 week checklists
 
-**< 1 day**
+**<1 day:** tenant, admin user (password), enable Invoices, sample master data via template, process samples, download payment-ready export.  
+**<1 week:** real vendors/COA import, approval policy, mailbox cutover, train clerks, weekly volume baseline for pricing tier.
 
-- [ ] Tenant + entity  
-- [ ] Admin user + SSO or password  
-- [ ] Enable Invoices  
-- [ ] Connect inbound email / mobile capture test  
-- [ ] 1 vendor + 1 GL  
-- [ ] Process 3 sample invoices  
-
-**< 1 week**
-
-- [ ] Vendor import  
-- [ ] Chart of accounts / cost centers  
-- [ ] Approval policies  
-- [ ] ERP export path  
-- [ ] Train AP clerk + 3 approvers on mobile  
-- [ ] Real mailbox cutover  
-
-### Deal killers → product answers
+### Deal killers → answers
 
 | Risk | Answer |
 |---|---|
-| “ERP already has AP” | Better UX + capture + mobile; ERP remains ledger via sync |
-| “Only need invoices now” | Modular SKU; upgrade path |
-| “Security” | SOC2, SSO, audit, residency |
-| “OCR accuracy” | HITL workspace + vendor learning; SLAs on exception age not fantasy 100% STP |
-| “Mobile is read-only junk” | Full RN app including admin — demo camera→approve→export |
+| “No native NetSuite connector” | Integration Center templates + API now; connectors on roadmap — faster go-live than waiting |
+| “No payments” | Intentional — ERP/bank remains payment system; we deliver payment-ready accuracy |
+| “Mobile?” | Web GA first; mobile full app next — same product |
+| “SSO required day 1” | Password + enterprise-ready auth config; SSO scheduled — or hold deal to SSO milestone if blocker |
 
 ---
 
@@ -561,88 +423,91 @@ Identity, RBAC, SSO, workflows, master data, audit, API/webhooks, admin, **web +
 
 ### Phase 0 — Foundations
 
-Platform Core, design system (Ledger Light), auth, tenancy, audit, CI/CD, web shell, RN app shell, module flags.
+NestJS modular monolith, Postgres, tenancy, local auth + AuthProviderConfig, design system, web shell, module flags, audit, CI/CD, Integration Center skeleton.
 
-**Metric:** empty-tenant admin can invite users & toggle modules.  
-**Demo:** design quality + IA.
+**Demo:** admin invites user, toggles Invoices module, uploads vendor template.
 
-### Phase 1 — Sellable wedge: **AP Invoices + Capture** (justify)
+### Phase 1 — Sellable wedge: **Aptora AP (Invoices + Capture + Integration Center)**
 
-Highest willingness-to-pay, clearest ROI (cycle time, touchless rate), works standalone, mobile camera is a killer demo.
+OCR (Textract), HITL workspace, coding, approvals, exceptions, email/upload ingest, template export of payment-ready invoices, volume metering hooks, horizontal mid-market positioning.
 
-**Scope:** Capture channels, OCR HITL, coding, non-PO + light match hooks, approvals, ERP generic export, My Work, mobile full invoice path + admin basics.
+**Success:** paying customers on transaction tiers; STP↑; exception age↓.  
+**Close demo:** upload/email invoice → resolve exception → approve → export template for ERP/bank pay run.
 
-**Metrics:** STP %, time-to-approve, exception age, NPS AP clerks.  
-**Close demo:** email+camera invoice → exception resolve → approve on phone → export.
+### Phase 1.5 — Web harden + mobile start
 
-### Phase 2 — Suite expansion
+SOC2 evidence, webhook v1, auth SSO provider #1 if deals require; **begin Expo app** (approve + capture + lists).
 
-PR, PO, receiving, 2/3-way match, Contracts v1, QBO/Xero/BC connectors, SCIM, richer analytics.
+### Phase 2 — Second flow: **Contracts + PR + PO**
 
-**Metrics:** attach rate of second module; match rate; PR→PO conversion time.
+Procurement suite, PR→PO, receiving, 2/3-way match into Invoices, richer Integration Center mappings.
 
-### Phase 3 — Enterprise & ecosystem
+**Demo:** PR→PO→invoice match→export.
 
-NetSuite/SAP depth, dedicated tenants, e-sign, budget hard controls, partner API program, payment partner, marketplace.
+### Phase 3 — Ecosystem
 
-**Metrics:** ACV, win rate vs Coupa/Tipalti mid-enterprise, NRR.
+ERP connectors, partner OAuth, dedicated tenants, SCIM, advanced SoD — still **no requirement** for in-app payments.
 
 ---
 
 ## 11. Success metrics & quality bar
 
-### Product KPIs
-
-| KPI | Stage-1 target direction |
+| KPI | Direction |
 |---|---|
-| Straight-through invoice rate | Climb month-over-month after vendor learning |
-| Median time capture→approve | Downward trend; segment by amount |
-| Exception cycle time | < 2 business days median |
-| Approver action time | < 30s median on mobile |
-| Mobile % of approvals | > 40% within 6 months of launch |
-| Sync failures | < 0.5% of export batches |
+| Straight-through rate | ↑ after vendor learning |
+| Capture→approve median time | ↓ |
+| Exception cycle time | &lt; 2 business days median |
+| Export job success | &gt; 99.5% |
+| Billable transactions / account | Healthy utilization vs tier |
+| Time-to-first-export (new tenant) | &lt; 1 day guided |
 
-### UX quality bar
+**UX bar:** clerk processes real invoice unsupervised in ~15 minutes; Integration Center errors are human-readable per row.
 
-- New AP clerk processes a real invoice unsupervised after 15 minutes.  
-- Approver completes mobile approval without training.  
-- No critical task requires a user manual.  
-- WCAG AA on P0 screens; Lighthouse/perf budgets on web lists.
-
-### Reliability / security SLOs
-
-- API availability 99.9%  
-- Capture pipeline p95 < 2 min  
-- Zero cross-tenant data leaks (continuous isolation tests)  
-- Security patches for critical CVEs < 72h  
+**SLOs:** API 99.9%; OCR pipeline p95 &lt; 2 min; zero cross-tenant leaks.
 
 ---
 
-## 12. Open questions only you can decide
+## 12. Decisions status
 
-Prioritized:
+| # | Topic | Status |
+|---|---|---|
+| 1 | Name | **Locked: Aptora** (alts: Invora, Ordo, Vouchly) |
+| 2 | Wedge | **Locked: Invoices first; Contracts/PR/PO second** |
+| 3 | Integrations | **Locked: Integration Center + templates; connectors later** |
+| 4 | Payments | **Locked: not in-app** |
+| 5 | Market | **Locked: horizontal** |
+| 6 | OCR | **Locked: AWS Textract** (value) |
+| 7 | Auth | **Locked: configurable; password first; SSO later** |
+| 8 | Backend | **Locked: NestJS TS modular monolith** |
+| 9 | Pricing | **Locked: per transaction volume (+ OCR pages)** |
+| 10 | Clients | **Locked: web first, then RN mobile** |
 
-1. **Company / product brand** — keep Formify or rename for finance market?  
-2. **Wedge confirmation** — lock Phase 1 as Invoices (recommended) or land with PR/PO if your distribution is procurement-led?  
-3. **Primary ERP beachhead** — QBO/Xero vs NetSuite/BC first (sets connector order & hiring)?  
-4. **Payments** — stay payment-ready export only, or plan in-app payments / partner in Year 1?  
-5. **Vertical focus** — horizontal mid-market vs 1–2 verticals (construction, healthcare, nonprofit)?  
-6. **OCR vendor preference** — AWS Textract vs Google Document AI vs specialist (Veryfi, etc.) after bake-off?  
-7. **Auth vendor** — Auth0 vs Cognito vs Clerk enterprise readiness for your sales motion?  
-8. **Backend preference** — NestJS default OK, or existing .NET/Java team to leverage?  
-9. **Pricing metric** — seats vs entities vs invoice volume (plus OCR pages)?  
-10. **Mobile store timeline** — ship Expo mobile **with** Phase 1 GA, or GA web first and mobile ≤ 30 days after?
+### Remaining micro-decisions (optional)
+
+1. Exact **billable transaction** definition: `invoice.approved` vs `invoice.exported` vs `invoice.captured`  
+2. Trademark/domain check for **Aptora**  
+3. First SSO provider when needed (Google vs Microsoft Entra vs Okta)
 
 ---
 
-## Appendix A — Mobile delivery notes (React Native / Expo)
+## Appendix A — Integration Center (Phase 1 scope box)
 
-- **Shared:** OpenAPI-generated client, Zod validators, design tokens, permission checks.  
-- **Native modules:** Camera, document picker, secure storage/biometrics, push (FCM/APNs).  
-- **Admin on mobile:** Prefer search + single-column forms; dangerous actions (delete entity, rotate secrets) require re-auth / desktop recommendation banner but remain possible.  
-- **Offline:** Queue captures and approval actions with clear sync states.  
-- **Stores:** Expo EAS Submit; staged rollouts; privacy nutrition labels for camera/files.
+**In:** template catalog, download, upload, schema versioning, row validation, dry-run, commit, error CSV, job history, permissions.  
+**Out:** hosted connector runtime, vendor-specific ERP auth, payment rails, RPA bots.
 
-## Appendix B — Competitive feature posture (summary)
+## Appendix B — Auth configurability (build now)
 
-Match Stampli/Bill on AP friendliness; approach Coupa modular breadth without Coupa implementation weight; beat point solutions on **PR+PO+Contracts attach** and **open OAuth gateway** story; beat all of them on **coherent web+mobile full product** for mid-market operators.
+```text
+AuthProviderConfig {
+  type: 'local' | 'oidc' | 'saml'  // only local enabled at GA
+  enabled: boolean
+  order: number
+  settings: jsonb  // empty for local; clientId/metadataUrl later
+}
+```
+
+Password policy, MFA-ready flags (optional TOTP as early upsell), and session controls should exist even before SSO.
+
+## Appendix C — Rename map
+
+All product copy, repo branding, and marketing should migrate **Formify → Aptora**. Keep git repo rename as a separate ops task if desired.
