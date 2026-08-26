@@ -6,7 +6,11 @@ import {
   Post,
   Res,
   StreamableFile,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import type { Response } from 'express';
 import { IntegrationService } from '../application/integration.service';
 import {
@@ -26,7 +30,10 @@ export class IntegrationController {
 
   @Get('templates/:key/download')
   @Header('Content-Type', 'text/csv; charset=utf-8')
-  templateFile(@Param('key') key: string, @Res({ passthrough: true }) res: Response) {
+  templateFile(
+    @Param('key') key: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const file = this.integration.templateCsv(key);
     res.setHeader(
       'Content-Disposition',
@@ -58,5 +65,37 @@ export class IntegrationController {
     res.setHeader('X-Aptora-Job-Id', result.job.id);
     res.setHeader('X-Aptora-Row-Count', String(result.rowCount));
     return new StreamableFile(Buffer.from(result.content, 'utf8'));
+  }
+
+  @Post('imports/vendors')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  importVendors(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @UploadedFile()
+    file: { originalname: string; buffer: Buffer },
+  ) {
+    return this.integration.importVendors(tenantId, user.id, file);
+  }
+
+  @Post('imports/gl-accounts')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  importGl(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @UploadedFile()
+    file: { originalname: string; buffer: Buffer },
+  ) {
+    return this.integration.importGlAccounts(tenantId, user.id, file);
   }
 }

@@ -21,6 +21,7 @@ Modular Accounts Payable / Procure-to-Pay suite.
 - [docs/architecture/E1_MASTERDATA.md](docs/architecture/E1_MASTERDATA.md) — auth guard + directory master data
 - [docs/architecture/E2_CAPTURE.md](docs/architecture/E2_CAPTURE.md) — capture upload + invoice workspace
 - [docs/architecture/E3_WORKFLOW_EXPORT.md](docs/architecture/E3_WORKFLOW_EXPORT.md) — approvals + Integration Center export
+- [docs/architecture/E4_IMPORT_TEXTRACT.md](docs/architecture/E4_IMPORT_TEXTRACT.md) — CSV import + optional Textract
 
 ## Workspace
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, getToken } from '../../shared/lib/api';
 
 type Template = {
@@ -16,6 +16,7 @@ type Job = {
   status: string;
   fileName: string | null;
   rowCount: number;
+  errorMessage: string | null;
   createdAt: string;
 };
 
@@ -38,6 +39,21 @@ export function IntegrationCenterPage() {
   useEffect(() => {
     void refresh().catch((err: Error) => setError(err.message));
   }, []);
+
+  async function downloadTemplate(key: string, fileName: string) {
+    const token = getToken();
+    const res = await fetch(`/api/integration/templates/${key}/download`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    if (!res.ok) throw new Error('Template download failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function exportApproved() {
     setBusy(true);
@@ -71,25 +87,51 @@ export function IntegrationCenterPage() {
     }
   }
 
-  async function downloadTemplate(key: string, fileName: string) {
-    const token = getToken();
-    const res = await fetch(`/api/integration/templates/${key}/download`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    });
-    if (!res.ok) throw new Error('Template download failed');
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
+  async function onImport(
+    e: FormEvent<HTMLFormElement>,
+    endpoint: 'vendors' | 'gl-accounts',
+  ) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const input = form.elements.namedItem('file') as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const body = new FormData();
+      body.append('file', file);
+      const token = getToken();
+      const res = await fetch(`/api/integration/imports/${endpoint}`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body,
+      });
+      const data = (await res.json()) as {
+        message?: string;
+        upserted?: number;
+        errors?: string[];
+        job?: { status: string };
+      };
+      if (!res.ok) throw new Error(data.message ?? `Import failed (${res.status})`);
+      setMessage(
+        `Imported ${data.upserted ?? 0} rows` +
+          (data.errors?.length ? ` (${data.errors.length} row warnings)` : ''),
+      );
+      form.reset();
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Import failed');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
     <section className="page">
       <h1>Integration Center</h1>
-      <p className="lede">Templates and export jobs — connectors come later.</p>
+      <p className="lede">Templates, CSV import/export — connectors come later.</p>
 
       {error && <p className="error">{error}</p>}
       {message && <p className="ok">{message}</p>}
@@ -112,12 +154,35 @@ export function IntegrationCenterPage() {
               >
                 Download blank CSV
               </button>
-              {t.note && <div className="muted">{t.note}</div>}
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="panel">
+        <h2>Import vendors</h2>
+        <form className="inline-form" onSubmit={(e) => void onImport(e, 'vendors')}>
+          <input name="file" type="file" accept=".csv,text/csv" required />
+          <button type="submit" disabled={busy}>
+            Upload vendors CSV
+          </button>
+        </form>
+      </div>
+
+      <div className="panel">
+        <h2>Import GL accounts</h2>
+        <form className="inline-form" onSubmit={(e) => void onImport(e, 'gl-accounts')}>
+          <input name="file" type="file" accept=".csv,text/csv" required />
+          <button type="submit" disabled={busy}>
+            Upload GL CSV
+          </button>
+        </form>
+      </div>
+
+      <div className="panel">
+        <h2>Export</h2>
         <button type="button" onClick={() => void exportApproved()} disabled={busy}>
-          {busy ? 'Exporting…' : 'Export approved invoices'}
+          {busy ? 'Working…' : 'Export approved invoices'}
         </button>
       </div>
 
@@ -132,6 +197,7 @@ export function IntegrationCenterPage() {
                 <th>Status</th>
                 <th>File</th>
                 <th>Rows</th>
+                <th>Errors</th>
               </tr>
             </thead>
             <tbody>
@@ -142,11 +208,12 @@ export function IntegrationCenterPage() {
                   <td>{job.status}</td>
                   <td>{job.fileName ?? '—'}</td>
                   <td>{job.rowCount}</td>
+                  <td>{job.errorMessage ?? '—'}</td>
                 </tr>
               ))}
               {jobs.length === 0 && (
                 <tr>
-                  <td colSpan={5}>No jobs yet</td>
+                  <td colSpan={6}>No jobs yet</td>
                 </tr>
               )}
             </tbody>
