@@ -16,12 +16,14 @@ Modular Accounts Payable / Procure-to-Pay suite.
 - [docs/PRODUCT_BLUEPRINT.md](docs/PRODUCT_BLUEPRINT.md) — product blueprint
 - [docs/PHASE1_PRD.md](docs/PHASE1_PRD.md) — Phase 1 PRD (when merged)
 - [docs/architecture/MONOREPO.md](docs/architecture/MONOREPO.md) — folder & module rules
+- [docs/architecture/E0_FOUNDATION.md](docs/architecture/E0_FOUNDATION.md) — run the foundation locally
 
 ## Workspace
 
 ```bash
 pnpm install
-pnpm dev          # turbo: api + web
+pnpm --filter @aptora/types build
+pnpm dev          # API :3001 + web :5173
 pnpm build
 pnpm lint
 pnpm test

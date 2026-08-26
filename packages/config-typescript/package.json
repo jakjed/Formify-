@@ -1,5 +1,6 @@
 {
   "name": "@aptora/config-typescript",
   "private": true,
-  "version": "0.0.0"
+  "version": "0.0.0",
+  "files": ["base.json", "nestjs.json", "react.json", "library.json"]
 }
