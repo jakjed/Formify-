@@ -1,3 +1,3 @@
 # audit
 
-Append-only audit events for auth, admin, and document field/state changes.
+Append-only tenant audit log for platform and AP actions (`invoice.*`, `email.ingested`, `mailbox.rotated`, …).

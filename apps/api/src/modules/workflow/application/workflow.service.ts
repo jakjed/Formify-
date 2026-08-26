@@ -5,6 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
+import { AuditService } from '../../audit/application/audit.service';
+import { NotificationsService } from '../../notifications/application/notifications.service';
 import { UsageService } from '../../usage/application/usage.service';
 
 @Injectable()
@@ -12,6 +14,8 @@ export class WorkflowService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly usage: UsageService,
+    private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async getPolicy(tenantId: string) {
@@ -68,7 +72,7 @@ export class WorkflowService {
       invoice.totalMinor <= policy.autoApproveUnderMinor;
 
     if (underAuto) {
-      return this.finalizeApprove(tenantId, invoiceId);
+      return this.finalizeApprove(tenantId, invoiceId, actorUserId);
     }
 
     const assignees = await this.prisma.user.findMany({
@@ -84,7 +88,7 @@ export class WorkflowService {
 
     if (fallback.length === 0) {
       // no approver available — auto-approve
-      return this.finalizeApprove(tenantId, invoiceId);
+      return this.finalizeApprove(tenantId, invoiceId, actorUserId);
     }
 
     await this.prisma.approvalTask.updateMany({
@@ -98,6 +102,27 @@ export class WorkflowService {
         invoiceId,
         assigneeId: user.id,
       })),
+    });
+
+    await this.notifications.notifyMany(
+      fallback.map((user) => ({
+        tenantId,
+        userId: user.id,
+        type: 'approval.assigned',
+        title: 'Invoice needs approval',
+        body: invoice.invoiceNumber
+          ? `Invoice ${invoice.invoiceNumber} is waiting for you.`
+          : 'An invoice is waiting for your approval.',
+        href: `/invoices/${invoiceId}`,
+      })),
+    );
+
+    await this.audit.record({
+      tenantId,
+      actorId: actorUserId,
+      action: 'invoice.submitted',
+      entityType: 'Invoice',
+      entityId: invoiceId,
     });
 
     return this.prisma.invoice.update({
@@ -160,7 +185,7 @@ export class WorkflowService {
         where: { invoiceId: task.invoiceId, status: 'pending' },
         data: { status: 'rejected', comment: 'Rejected by peer', decidedAt: new Date() },
       });
-      return this.prisma.invoice.update({
+      const rejected = await this.prisma.invoice.update({
         where: { id: task.invoiceId },
         data: { status: 'needs_review' },
         include: {
@@ -169,6 +194,24 @@ export class WorkflowService {
           lines: { orderBy: { lineNo: 'asc' } },
         },
       });
+      await this.audit.record({
+        tenantId,
+        actorId: userId,
+        action: 'invoice.rejected',
+        entityType: 'Invoice',
+        entityId: task.invoiceId,
+        meta: { comment: comment ?? null },
+      });
+      await this.notifications.notifyRoles(tenantId, ['admin', 'ap_manager', 'ap_clerk'], {
+        type: 'invoice.rejected',
+        title: 'Invoice rejected',
+        body: rejected.invoiceNumber
+          ? `Invoice ${rejected.invoiceNumber} was sent back for review.`
+          : 'An invoice was sent back for review.',
+        href: `/invoices/${task.invoiceId}`,
+        excludeUserId: userId,
+      });
+      return rejected;
     }
 
     // One approval is enough for P0
@@ -176,10 +219,14 @@ export class WorkflowService {
       where: { invoiceId: task.invoiceId, status: 'pending' },
       data: { status: 'approved', comment: 'Closed by peer approval', decidedAt: new Date() },
     });
-    return this.finalizeApprove(tenantId, task.invoiceId);
+    return this.finalizeApprove(tenantId, task.invoiceId, userId);
   }
 
-  private async finalizeApprove(tenantId: string, invoiceId: string) {
+  private async finalizeApprove(
+    tenantId: string,
+    invoiceId: string,
+    actorId?: string,
+  ) {
     const updated = await this.prisma.invoice.update({
       where: { id: invoiceId },
       data: {
@@ -199,6 +246,22 @@ export class WorkflowService {
       },
     });
     await this.usage.recordInvoiceApproved(tenantId, invoiceId);
+    await this.audit.record({
+      tenantId,
+      actorId,
+      action: 'invoice.approved',
+      entityType: 'Invoice',
+      entityId: invoiceId,
+    });
+    await this.notifications.notifyRoles(tenantId, ['admin', 'ap_manager'], {
+      type: 'invoice.approved',
+      title: 'Invoice approved',
+      body: updated.invoiceNumber
+        ? `Invoice ${updated.invoiceNumber} is payment-ready.`
+        : 'An invoice was approved.',
+      href: `/invoices/${invoiceId}`,
+      excludeUserId: actorId,
+    });
     return updated;
   }
 }

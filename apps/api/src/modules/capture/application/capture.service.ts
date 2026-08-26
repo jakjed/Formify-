@@ -1,8 +1,14 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { randomBytes, randomUUID } from 'node:crypto';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
+import { AuditService } from '../../audit/application/audit.service';
+import { NotificationsService } from '../../notifications/application/notifications.service';
 import { UsageService } from '../../usage/application/usage.service';
 import { OcrService } from './ocr.service';
 
@@ -24,9 +30,160 @@ export class CaptureService {
     private readonly prisma: PrismaService,
     private readonly usage: UsageService,
     private readonly ocr: OcrService,
+    private readonly audit: AuditService,
+    private readonly notifications: NotificationsService,
   ) {}
 
-  async uploadAndExtract(tenantId: string, file: UploadedFile) {
+  async ensureMailbox(tenantId: string) {
+    const existing = await this.prisma.captureMailbox.findUnique({
+      where: { tenantId },
+    });
+    if (existing) return existing;
+
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+    });
+    const token = randomBytes(24).toString('hex');
+    return this.prisma.captureMailbox.create({
+      data: {
+        tenantId,
+        token,
+        address: `${tenant.slug}-invoices@inbound.aptora.local`,
+      },
+    });
+  }
+
+  async getMailbox(tenantId: string) {
+    const mailbox = await this.ensureMailbox(tenantId);
+    return this.toMailboxDto(mailbox);
+  }
+
+  async rotateMailbox(tenantId: string, actorId?: string) {
+    const mailbox = await this.ensureMailbox(tenantId);
+    const updated = await this.prisma.captureMailbox.update({
+      where: { id: mailbox.id },
+      data: {
+        token: randomBytes(24).toString('hex'),
+        rotatedAt: new Date(),
+      },
+    });
+    await this.audit.record({
+      tenantId,
+      actorId,
+      action: 'mailbox.rotated',
+      entityType: 'CaptureMailbox',
+      entityId: updated.id,
+    });
+    return this.toMailboxDto(updated);
+  }
+
+  async listEmailIngests(tenantId: string, limit = 50) {
+    return this.prisma.emailIngest.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limit, 100),
+    });
+  }
+
+  async ingestEmail(input: {
+    token: string;
+    messageId: string;
+    fromAddress?: string;
+    subject?: string;
+    file: UploadedFile;
+  }) {
+    const mailbox = await this.prisma.captureMailbox.findUnique({
+      where: { token: input.token },
+    });
+    if (!mailbox || !mailbox.enabled) {
+      throw new NotFoundException('Mailbox not found');
+    }
+
+    const existing = await this.prisma.emailIngest.findUnique({
+      where: {
+        tenantId_messageId: {
+          tenantId: mailbox.tenantId,
+          messageId: input.messageId,
+        },
+      },
+    });
+    if (existing) {
+      return {
+        duplicate: true,
+        emailIngestId: existing.id,
+        status: existing.status,
+        invoiceId: existing.invoiceId,
+      };
+    }
+
+    const email = await this.prisma.emailIngest.create({
+      data: {
+        tenantId: mailbox.tenantId,
+        messageId: input.messageId,
+        fromAddress: input.fromAddress?.trim() || null,
+        subject: input.subject?.trim() || null,
+        status: 'processing',
+      },
+    });
+
+    try {
+      const invoice = await this.uploadAndExtract(
+        mailbox.tenantId,
+        input.file,
+        {
+          source: 'email',
+          skipNotify: false,
+        },
+      );
+
+      await this.prisma.emailIngest.update({
+        where: { id: email.id },
+        data: {
+          status: 'completed',
+          invoiceId: invoice.id,
+        },
+      });
+
+      await this.audit.record({
+        tenantId: mailbox.tenantId,
+        action: 'email.ingested',
+        entityType: 'EmailIngest',
+        entityId: email.id,
+        meta: {
+          messageId: input.messageId,
+          fromAddress: input.fromAddress ?? null,
+          invoiceId: invoice.id,
+        },
+      });
+
+      return {
+        duplicate: false,
+        emailIngestId: email.id,
+        status: 'completed' as const,
+        invoiceId: invoice.id,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Ingest failed';
+      await this.prisma.emailIngest.update({
+        where: { id: email.id },
+        data: {
+          status: 'failed',
+          errorMessage: message,
+        },
+      });
+      throw error;
+    }
+  }
+
+  async uploadAndExtract(
+    tenantId: string,
+    file: UploadedFile,
+    options?: {
+      actorId?: string;
+      source?: 'upload' | 'email';
+      skipNotify?: boolean;
+    },
+  ) {
     if (!file) throw new BadRequestException('File is required');
     const allowed = [
       'application/pdf',
@@ -75,6 +232,7 @@ export class CaptureService {
         entityId: entity?.id,
         fileAssetId: fileAsset.id,
         status: 'extracting',
+        notes: options?.source === 'email' ? 'source:email' : 'source:upload',
       },
       include: { lines: true, exceptions: true, fileAsset: true },
     });
@@ -112,7 +270,7 @@ export class CaptureService {
         taxMinor: stub.taxMinor,
         totalMinor: stub.totalMinor,
         ocrConfidence: stub.confidence,
-        notes: `ocr:${stub.provider}`,
+        notes: `ocr:${stub.provider};source:${options?.source ?? 'upload'}`,
         lines: {
           create: stub.lines.map((line, idx) => ({
             lineNo: idx + 1,
@@ -130,6 +288,54 @@ export class CaptureService {
     });
 
     await this.usage.incrementOcrPages(tenantId, pageCount);
+
+    await this.audit.record({
+      tenantId,
+      actorId: options?.actorId,
+      action:
+        options?.source === 'email' ? 'invoice.captured_email' : 'invoice.uploaded',
+      entityType: 'Invoice',
+      entityId: invoice.id,
+      meta: {
+        originalName: file.originalname,
+        source: options?.source ?? 'upload',
+      },
+    });
+
+    if (!options?.skipNotify) {
+      await this.notifications.notifyRoles(
+        tenantId,
+        ['admin', 'ap_manager', 'ap_clerk'],
+        {
+          type: 'invoice.captured',
+          title: 'New invoice captured',
+          body: `${file.originalname} is ready for review.`,
+          href: `/invoices/${invoice.id}`,
+        },
+      );
+    }
+
     return invoice;
+  }
+
+  private toMailboxDto(mailbox: {
+    id: string;
+    tenantId: string;
+    address: string;
+    token: string;
+    enabled: boolean;
+    createdAt: Date;
+    rotatedAt: Date | null;
+  }) {
+    return {
+      id: mailbox.id,
+      tenantId: mailbox.tenantId,
+      address: mailbox.address,
+      token: mailbox.token,
+      enabled: mailbox.enabled,
+      ingestPath: `/api/capture/email/${mailbox.token}`,
+      createdAt: mailbox.createdAt.toISOString(),
+      rotatedAt: mailbox.rotatedAt?.toISOString() ?? null,
+    };
   }
 }

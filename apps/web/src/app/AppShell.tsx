@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { PRODUCT_NAME } from '@aptora/types';
-import { clearSession } from '../shared/lib/api';
+import { apiFetch, clearSession, getToken } from '../shared/lib/api';
 
 const links = [
   { to: '/', label: 'My Work' },
@@ -12,6 +13,28 @@ const links = [
 
 export function AppShell() {
   const navigate = useNavigate();
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    if (!getToken()) return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const rows = await apiFetch<{ id: string }[]>(
+          '/api/notifications?unreadOnly=true',
+        );
+        if (!cancelled) setUnread(rows.length);
+      } catch {
+        /* ignore while bootstrapping */
+      }
+    }
+    void load();
+    const timer = window.setInterval(() => void load(), 20_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   function signOut() {
     clearSession();
@@ -33,6 +56,9 @@ export function AppShell() {
               }
             >
               {link.label}
+              {link.to === '/admin' && unread > 0 ? (
+                <span className="nav-badge">{unread}</span>
+              ) : null}
             </NavLink>
           ))}
         </nav>
