@@ -17,6 +17,7 @@ Modular Accounts Payable / Procure-to-Pay suite.
 - [docs/PHASE1_PRD.md](docs/PHASE1_PRD.md) — Phase 1 PRD (when merged)
 - [docs/architecture/MONOREPO.md](docs/architecture/MONOREPO.md) — folder & module rules
 - [docs/architecture/E0_FOUNDATION.md](docs/architecture/E0_FOUNDATION.md) — run the foundation locally
+- [docs/architecture/HOSTING.md](docs/architecture/HOSTING.md) — where to host & what to do first
 
 ## Workspace
 
