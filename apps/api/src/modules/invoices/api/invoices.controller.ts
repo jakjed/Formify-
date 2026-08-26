@@ -25,9 +25,37 @@ export class InvoicesController {
   @RequireScopes('invoices:read')
   list(
     @CurrentTenantId() tenantId: string,
-    @Query('status') status?: InvoiceStatus,
+    @Query('status') status?: InvoiceStatus | InvoiceStatus[],
+    @Query('q') q?: string,
+    @Query('exceptionCode') exceptionCode?: string,
+    @Query('hasOpenExceptions') hasOpenExceptions?: string,
+    @Query('sort')
+    sort?:
+      | 'created_desc'
+      | 'created_asc'
+      | 'total_desc'
+      | 'total_asc'
+      | 'age_desc',
+    @Query('limit') limit?: string,
   ) {
-    return this.invoices.list(tenantId, status);
+    return this.invoices.list(tenantId, {
+      status,
+      q,
+      exceptionCode,
+      hasOpenExceptions: hasOpenExceptions === 'true',
+      sort,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  /** Must stay above `:id` routes */
+  @Get('exceptions')
+  @RequireScopes('invoices:read')
+  exceptions(
+    @CurrentTenantId() tenantId: string,
+    @Query('code') code?: string,
+  ) {
+    return this.invoices.listExceptionQueue(tenantId, code);
   }
 
   @Get(':id')

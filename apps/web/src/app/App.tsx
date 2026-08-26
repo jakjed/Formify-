@@ -9,6 +9,8 @@ import { InvoiceWorkspacePage } from '../modules/invoices/InvoiceWorkspacePage';
 import { IntegrationCenterPage } from '../modules/integration-center/IntegrationCenterPage';
 import { AdminPage } from '../modules/admin/AdminPage';
 import { DirectoryPage } from '../modules/directory/DirectoryPage';
+import { ExceptionsPage } from '../modules/ops/ExceptionsPage';
+import { OpsDashboardPage } from '../modules/ops/OpsDashboardPage';
 
 export function App() {
   return (
@@ -21,6 +23,8 @@ export function App() {
           <Route path="/directory" element={<DirectoryPage />} />
           <Route path="/invoices" element={<InvoicesPage />} />
           <Route path="/invoices/:id" element={<InvoiceWorkspacePage />} />
+          <Route path="/exceptions" element={<ExceptionsPage />} />
+          <Route path="/ops" element={<OpsDashboardPage />} />
           <Route path="/integration" element={<IntegrationCenterPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Route>

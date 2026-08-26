@@ -127,6 +127,70 @@
   background: rgb(15 118 110 / 10%);
 }
 
+.view-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+}
+
+.view-chip {
+  border: 1px solid var(--aptora-border);
+  background: white;
+  color: var(--aptora-ink);
+  border-radius: var(--aptora-radius);
+  padding: 0.4rem 0.7rem;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.view-chip--active {
+  border-color: var(--aptora-teal);
+  color: var(--aptora-teal);
+  background: rgb(15 118 110 / 10%);
+  font-weight: 600;
+}
+
+.check-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.75rem;
+  margin: 1.25rem 0 1.5rem;
+}
+
+.stat-tile {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--aptora-border);
+  border-radius: calc(var(--aptora-radius) + 2px);
+  background: rgb(255 255 255 / 85%);
+  text-decoration: none;
+  color: inherit;
+}
+
+.stat-tile__label {
+  font-size: 0.8rem;
+  color: var(--aptora-muted);
+  font-weight: 600;
+}
+
+.stat-tile__value {
+  font-family: var(--aptora-font-display);
+  font-size: 1.85rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--aptora-ink);
+}
+
 .shell__main {
   padding: 2.5rem 2rem;
 }

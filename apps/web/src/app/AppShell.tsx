@@ -5,8 +5,10 @@ import { apiFetch, clearSession, getToken } from '../shared/lib/api';
 
 const links = [
   { to: '/', label: 'My Work' },
-  { to: '/directory', label: 'Directory' },
   { to: '/invoices', label: 'Invoices' },
+  { to: '/exceptions', label: 'Exceptions' },
+  { to: '/ops', label: 'Dashboard' },
+  { to: '/directory', label: 'Directory' },
   { to: '/integration', label: 'Integration Center' },
   { to: '/admin', label: 'Admin' },
 ];
