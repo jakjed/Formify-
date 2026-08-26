@@ -1,4 +1,3 @@
 # invoices
 
-Invoice aggregate, lines, exceptions, state machine. Commercial module — Phase 1 wedge.  
-Billable event: transition to `Approved` → `invoice.approved`.
+Invoice aggregate, lines, exceptions, state transitions. Approve emits billable `invoice.approved`.

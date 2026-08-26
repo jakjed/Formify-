@@ -1,4 +1,3 @@
 # capture
 
-Document ingest (upload, email, API), S3 file assets, AWS Textract pipeline, OCR page metering hooks.  
-Used by Invoices; keep separate so workers can split later.
+Document ingest (upload now; email/API later), local file assets, stub OCR pipeline (Textract next), OCR page metering hooks.
