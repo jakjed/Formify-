@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
+import { InvoiceValidationService } from '../../invoice-rules/application/invoice-validation.service';
 import { NotificationsService } from '../../notifications/application/notifications.service';
 import { UsageService } from '../../usage/application/usage.service';
 
@@ -16,6 +17,7 @@ export class WorkflowService {
     private readonly usage: UsageService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly validation: InvoiceValidationService,
   ) {}
 
   async getPolicy(tenantId: string) {
@@ -58,18 +60,26 @@ export class WorkflowService {
     if (!['needs_review', 'exception', 'captured', 'in_approval'].includes(invoice.status)) {
       throw new BadRequestException(`Cannot submit invoice in status ${invoice.status}`);
     }
-    if (invoice.totalMinor == null) {
-      throw new BadRequestException('Total amount is required before submit');
+
+    const gate = await this.validation.assertReadyForApproval(tenantId, invoiceId);
+    if (gate.blocking) {
+      throw new BadRequestException(
+        `Cannot submit: ${gate.summary}. Fix exceptions and save again.`,
+      );
     }
-    if (!invoice.invoiceNumber) {
-      throw new BadRequestException('Invoice number is required before submit');
+
+    const ready = await this.prisma.invoice.findFirstOrThrow({
+      where: { id: invoiceId, tenantId },
+    });
+    if (ready.totalMinor == null) {
+      throw new BadRequestException('Total amount is required before submit');
     }
 
     const policy = await this.getPolicy(tenantId);
     const underAuto =
       policy.enabled &&
       policy.autoApproveUnderMinor != null &&
-      invoice.totalMinor <= policy.autoApproveUnderMinor;
+      ready.totalMinor <= policy.autoApproveUnderMinor;
 
     if (underAuto) {
       return this.finalizeApprove(tenantId, invoiceId, actorUserId);

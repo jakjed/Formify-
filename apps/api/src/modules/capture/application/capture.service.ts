@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
+import { InvoiceValidationService } from '../../invoice-rules/application/invoice-validation.service';
 import { NotificationsService } from '../../notifications/application/notifications.service';
 import { UsageService } from '../../usage/application/usage.service';
 import { OcrService } from './ocr.service';
@@ -32,6 +33,7 @@ export class CaptureService {
     private readonly ocr: OcrService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly validation: InvoiceValidationService,
   ) {}
 
   async ensureMailbox(tenantId: string) {
@@ -288,6 +290,12 @@ export class CaptureService {
     });
 
     await this.usage.incrementOcrPages(tenantId, pageCount);
+
+    await this.validation.syncExceptions(tenantId, invoice.id);
+    invoice = await this.prisma.invoice.findFirstOrThrow({
+      where: { id: invoice.id },
+      include: { lines: true, exceptions: true, fileAsset: true },
+    });
 
     await this.audit.record({
       tenantId,
