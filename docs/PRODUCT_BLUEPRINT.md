@@ -134,7 +134,7 @@ flowchart TB
 | **Phase 2+** | 2/3-way match (when PO on), contract checks, mobile camera path, vendor portal |
 | **States** | Captured → Extracting → NeedsReview → Matching → Exception → InApproval → Approved → Exported → Paid*(status only)* / Void |
 | **Alone** | Full non-PO AP automation |
-| **Licensing** | Paid + OCR page meter; transactions count toward volume tier |
+| **Licensing** | Paid + OCR page meter; each **`invoice.approved`** counts as 1 billable transaction |
 
 ### AP Contracts / PR / PO — **Phase 2 flow**
 
