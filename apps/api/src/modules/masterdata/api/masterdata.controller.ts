@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { MasterdataService } from '../application/masterdata.service';
 import { CurrentTenantId } from '../../../common/current-user.decorator';
+import { RequireScopes } from '../../../common/scopes.decorator';
 import {
   CreateCodeNameDto,
   CreatePaymentTermDto,
@@ -40,6 +41,7 @@ export class MasterdataController {
   }
 
   @Post('vendors')
+  @RequireScopes('masterdata:write')
   createVendor(
     @CurrentTenantId() tenantId: string,
     @Body() dto: CreateVendorDto,
@@ -48,6 +50,7 @@ export class MasterdataController {
   }
 
   @Patch('vendors/:id')
+  @RequireScopes('masterdata:write')
   updateVendor(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,
@@ -57,6 +60,7 @@ export class MasterdataController {
   }
 
   @Delete('vendors/:id')
+  @RequireScopes('masterdata:write')
   deactivateVendor(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,
@@ -74,6 +78,7 @@ export class MasterdataController {
   }
 
   @Post('gl-accounts')
+  @RequireScopes('masterdata:write')
   createGl(
     @CurrentTenantId() tenantId: string,
     @Body() dto: CreateCodeNameDto,
@@ -82,6 +87,7 @@ export class MasterdataController {
   }
 
   @Patch('gl-accounts/:id')
+  @RequireScopes('masterdata:write')
   updateGl(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,
@@ -100,6 +106,7 @@ export class MasterdataController {
   }
 
   @Post('cost-centers')
+  @RequireScopes('masterdata:write')
   createCc(
     @CurrentTenantId() tenantId: string,
     @Body() dto: CreateCodeNameDto,
@@ -108,6 +115,7 @@ export class MasterdataController {
   }
 
   @Patch('cost-centers/:id')
+  @RequireScopes('masterdata:write')
   updateCc(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,
@@ -126,6 +134,7 @@ export class MasterdataController {
   }
 
   @Post('tax-codes')
+  @RequireScopes('masterdata:write')
   createTax(
     @CurrentTenantId() tenantId: string,
     @Body() dto: CreateTaxCodeDto,
@@ -134,6 +143,7 @@ export class MasterdataController {
   }
 
   @Patch('tax-codes/:id')
+  @RequireScopes('masterdata:write')
   updateTax(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,
@@ -155,6 +165,7 @@ export class MasterdataController {
   }
 
   @Post('payment-terms')
+  @RequireScopes('masterdata:write')
   createTerm(
     @CurrentTenantId() tenantId: string,
     @Body() dto: CreatePaymentTermDto,
@@ -163,6 +174,7 @@ export class MasterdataController {
   }
 
   @Patch('payment-terms/:id')
+  @RequireScopes('masterdata:write')
   updateTerm(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,

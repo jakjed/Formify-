@@ -18,12 +18,14 @@ import {
 } from '../../../common/current-user.decorator';
 import { Public } from '../../../common/public.decorator';
 import type { RequestUser } from '../../identity/domain/identity.types';
+import { RequireScopes } from '../../../common/scopes.decorator';
 
 @Controller('capture')
 export class CaptureController {
   constructor(private readonly capture: CaptureService) {}
 
   @Post('upload')
+  @RequireScopes('invoices:write')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),

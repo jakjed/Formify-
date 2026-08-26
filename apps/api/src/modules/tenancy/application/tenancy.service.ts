@@ -85,6 +85,104 @@ export class TenancyService {
     }));
   }
 
+  async createEntity(
+    tenantId: string,
+    input: { name: string; code: string },
+  ): Promise<EntityRecord> {
+    await this.getTenant(tenantId);
+    try {
+      const entity = await this.prisma.entity.create({
+        data: {
+          tenantId,
+          name: input.name.trim(),
+          code: input.code.trim().toUpperCase(),
+        },
+      });
+      return {
+        id: entity.id,
+        tenantId: entity.tenantId,
+        name: entity.name,
+        code: entity.code,
+      };
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new ConflictException(`Entity code "${input.code}" already exists`);
+      }
+      throw err;
+    }
+  }
+
+  async updateEntity(
+    tenantId: string,
+    id: string,
+    input: { name?: string; code?: string },
+  ): Promise<EntityRecord> {
+    const existing = await this.prisma.entity.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) throw new NotFoundException('Entity not found');
+    try {
+      const entity = await this.prisma.entity.update({
+        where: { id },
+        data: {
+          name: input.name?.trim(),
+          code: input.code?.trim().toUpperCase(),
+        },
+      });
+      return {
+        id: entity.id,
+        tenantId: entity.tenantId,
+        name: entity.name,
+        code: entity.code,
+      };
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new ConflictException(`Entity code already exists`);
+      }
+      throw err;
+    }
+  }
+
+  async getPlan(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    if (!tenant) throw new NotFoundException(`Tenant ${tenantId} not found`);
+    return {
+      planName: tenant.planName,
+      approvedSoftLimit: tenant.approvedSoftLimit,
+      approvedHardLimit: tenant.approvedHardLimit,
+    };
+  }
+
+  async updatePlan(
+    tenantId: string,
+    input: {
+      planName?: string;
+      approvedSoftLimit?: number | null;
+      approvedHardLimit?: number | null;
+    },
+  ) {
+    await this.getTenant(tenantId);
+    const tenant = await this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        planName: input.planName,
+        approvedSoftLimit: input.approvedSoftLimit,
+        approvedHardLimit: input.approvedHardLimit,
+      },
+    });
+    return {
+      planName: tenant.planName,
+      approvedSoftLimit: tenant.approvedSoftLimit,
+      approvedHardLimit: tenant.approvedHardLimit,
+    };
+  }
+
   async isModuleEnabled(tenantId: string, moduleKey: string): Promise<boolean> {
     const license = await this.prisma.moduleLicense.findUnique({
       where: { tenantId_moduleKey: { tenantId, moduleKey } },

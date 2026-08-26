@@ -13,6 +13,7 @@ import { IntegrationModule } from './modules/integration/integration.module';
 import { UsageModule } from './modules/usage/usage.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ApiKeysModule } from './modules/apikeys/apikeys.module';
 import { AuthGuard } from './common/auth.guard';
 
 @Module({
@@ -33,6 +34,7 @@ import { AuthGuard } from './common/auth.guard';
     UsageModule,
     AuditModule,
     NotificationsModule,
+    ApiKeysModule,
   ],
   providers: [
     {

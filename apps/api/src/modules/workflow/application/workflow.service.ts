@@ -227,6 +227,13 @@ export class WorkflowService {
     invoiceId: string,
     actorId?: string,
   ) {
+    const usage = await this.usage.getUsageSummary(tenantId);
+    if (usage.hardBlocked) {
+      throw new BadRequestException(
+        `Approved invoice hard limit reached (${usage.approvedHardLimit} MTD)`,
+      );
+    }
+
     const updated = await this.prisma.invoice.update({
       where: { id: invoiceId },
       data: {

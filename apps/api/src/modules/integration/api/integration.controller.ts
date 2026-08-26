@@ -18,6 +18,7 @@ import {
   CurrentUser,
 } from '../../../common/current-user.decorator';
 import type { RequestUser } from '../../identity/domain/identity.types';
+import { RequireScopes } from '../../../common/scopes.decorator';
 
 @Controller('integration')
 export class IntegrationController {
@@ -48,6 +49,7 @@ export class IntegrationController {
   }
 
   @Post('exports/approved-invoices')
+  @RequireScopes('exports:read')
   async exportApproved(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
@@ -68,6 +70,7 @@ export class IntegrationController {
   }
 
   @Post('imports/vendors')
+  @RequireScopes('masterdata:write')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -84,6 +87,7 @@ export class IntegrationController {
   }
 
   @Post('imports/gl-accounts')
+  @RequireScopes('masterdata:write')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),

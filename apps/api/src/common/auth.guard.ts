@@ -1,12 +1,15 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from './public.decorator';
+import { REQUIRED_SCOPES_KEY } from './scopes.decorator';
 import { IdentityService } from '../modules/identity/application/identity.service';
+import { ApiKeysService } from '../modules/apikeys/application/apikeys.service';
 import type { RequestUser } from '../modules/identity/domain/identity.types';
 
 @Injectable()
@@ -14,6 +17,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly identity: IdentityService,
+    private readonly apiKeys: ApiKeysService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -34,6 +38,26 @@ export class AuthGuard implements CanActivate {
     const token = header.slice('Bearer '.length).trim();
     if (!token) throw new UnauthorizedException('Missing bearer token');
 
+    if (token.startsWith('aptora_')) {
+      const principal = await this.apiKeys.resolveBearer(token);
+      if (!principal) throw new UnauthorizedException('Invalid API key');
+      request.user = principal;
+
+      const required = this.reflector.getAllAndOverride<string[]>(
+        REQUIRED_SCOPES_KEY,
+        [context.getHandler(), context.getClass()],
+      );
+      if (required?.length) {
+        const ok = required.every((scope) => principal.scopes?.includes(scope));
+        if (!ok) {
+          throw new ForbiddenException(
+            `API key missing scope(s): ${required.join(', ')}`,
+          );
+        }
+      }
+      return true;
+    }
+
     const session = await this.identity.getSession(token);
     if (!session) throw new UnauthorizedException('Invalid session');
 
@@ -42,7 +66,7 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid session');
     }
 
-    request.user = user;
+    request.user = { ...user, authKind: 'session' };
     return true;
   }
 }
