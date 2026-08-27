@@ -35,18 +35,41 @@ export class UsageService {
 
   async getUsageSummary(tenantId: string) {
     const yearMonth = new Date().toISOString().slice(0, 7);
-    const [approvedCount, ocr] = await Promise.all([
+    const startOfMonth = new Date(`${yearMonth}-01T00:00:00.000Z`);
+    const [approvedTotal, approvedMtd, ocr, tenant] = await Promise.all([
       this.prisma.usageEvent.count({
         where: { tenantId, type: BILLABLE_EVENT_INVOICE_APPROVED },
+      }),
+      this.prisma.usageEvent.count({
+        where: {
+          tenantId,
+          type: BILLABLE_EVENT_INVOICE_APPROVED,
+          createdAt: { gte: startOfMonth },
+        },
       }),
       this.prisma.ocrPageMeter.findUnique({
         where: { tenantId_yearMonth: { tenantId, yearMonth } },
       }),
+      this.prisma.tenant.findUnique({ where: { id: tenantId } }),
     ]);
+
+    const soft = tenant?.approvedSoftLimit ?? null;
+    const hard = tenant?.approvedHardLimit ?? null;
+    const softWarned =
+      soft != null ? approvedMtd >= soft : false;
+    const hardBlocked =
+      hard != null ? approvedMtd >= hard : false;
+
     return {
-      approvedInvoices: approvedCount,
+      approvedInvoices: approvedTotal,
+      approvedInvoicesMtd: approvedMtd,
       ocrPagesThisMonth: ocr?.pages ?? 0,
       yearMonth,
+      planName: tenant?.planName ?? 'starter',
+      approvedSoftLimit: soft,
+      approvedHardLimit: hard,
+      softWarned,
+      hardBlocked,
     };
   }
 }

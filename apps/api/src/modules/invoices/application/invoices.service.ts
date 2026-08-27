@@ -105,6 +105,13 @@ export class InvoicesService {
       throw new BadRequestException('Invoice number is required before approval');
     }
 
+    const usage = await this.usage.getUsageSummary(tenantId);
+    if (usage.hardBlocked) {
+      throw new BadRequestException(
+        `Approved invoice hard limit reached (${usage.approvedHardLimit} MTD)`,
+      );
+    }
+
     const updated = await this.prisma.invoice.update({
       where: { id },
       data: {

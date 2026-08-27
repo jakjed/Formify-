@@ -103,6 +103,30 @@
   background: rgb(15 118 110 / 6%);
 }
 
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 1.25rem 0 1rem;
+}
+
+.tabs__btn {
+  border: 1px solid var(--aptora-border);
+  background: white;
+  color: var(--aptora-ink);
+  border-radius: var(--aptora-radius);
+  padding: 0.45rem 0.75rem;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tabs__btn--active {
+  border-color: var(--aptora-teal);
+  color: var(--aptora-teal);
+  background: rgb(15 118 110 / 10%);
+}
+
 .shell__main {
   padding: 2.5rem 2rem;
 }

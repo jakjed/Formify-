@@ -30,6 +30,9 @@ model Tenant {
   name      String
   slug      String   @unique
   region    Region   @default(us)
+  planName  String   @default("starter")
+  approvedSoftLimit Int? @default(100)
+  approvedHardLimit Int?
   createdAt DateTime @default(now())
 
   entities       Entity[]
@@ -53,6 +56,7 @@ model Tenant {
   emailIngests   EmailIngest[]
   notifications  Notification[]
   auditEvents    AuditEvent[]
+  apiKeys        ApiKey[]
 }
 
 model ModuleLicense {
@@ -451,5 +455,23 @@ model AuditEvent {
 
   @@index([tenantId, createdAt])
   @@index([tenantId, entityType, entityId])
+}
+
+model ApiKey {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  name        String
+  prefix      String
+  keyHash     String    @unique
+  scopes      String[]
+  createdById String?   @db.Uuid
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([prefix])
 }
 

@@ -1,34 +1,114 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { IdentityService } from '../application/identity.service';
-import { LoginDto, RegisterUserDto } from './identity.dto';
+import {
+  CreateTenantUserDto,
+  LoginDto,
+  RegisterUserDto,
+  UpdateTenantUserDto,
+} from './identity.dto';
 import { Public } from '../../../common/public.decorator';
-import { CurrentUser } from '../../../common/current-user.decorator';
+import {
+  CurrentTenantId,
+  CurrentUser,
+} from '../../../common/current-user.decorator';
 import type { RequestUser } from '../domain/identity.types';
+import { AuditService } from '../../audit/application/audit.service';
 
-@Controller('auth')
+function assertAdmin(user: RequestUser) {
+  if (user.authKind === 'api_key' || user.role !== 'admin') {
+    throw new ForbiddenException('Admin session required');
+  }
+}
+
+@Controller()
 export class IdentityController {
-  constructor(private readonly identity: IdentityService) {}
+  constructor(
+    private readonly identity: IdentityService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Public()
-  @Get('providers')
+  @Get('auth/providers')
   providers() {
     return this.identity.getAuthProviders();
   }
 
   @Public()
-  @Post('register')
+  @Post('auth/register')
   register(@Body() dto: RegisterUserDto) {
     return this.identity.register(dto);
   }
 
   @Public()
-  @Post('login')
+  @Post('auth/login')
   login(@Body() dto: LoginDto) {
     return this.identity.login(dto);
   }
 
-  @Get('me')
+  @Get('auth/me')
   me(@CurrentUser() user: RequestUser) {
     return user;
+  }
+
+  @Get('users')
+  listUsers(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    assertAdmin(user);
+    return this.identity.listUsers(tenantId);
+  }
+
+  @Post('users')
+  async createUser(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateTenantUserDto,
+  ) {
+    assertAdmin(user);
+    const created = await this.identity.createUser({
+      tenantId,
+      email: dto.email,
+      displayName: dto.displayName,
+      password: dto.password,
+      role: dto.role,
+    });
+    await this.audit.record({
+      tenantId,
+      actorId: user.id,
+      action: 'user.created',
+      entityType: 'User',
+      entityId: created.id,
+      meta: { email: created.email, role: created.role },
+    });
+    return created;
+  }
+
+  @Patch('users/:id')
+  async updateUser(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateTenantUserDto,
+  ) {
+    assertAdmin(user);
+    const updated = await this.identity.updateUser(tenantId, id, dto);
+    await this.audit.record({
+      tenantId,
+      actorId: user.id,
+      action: 'user.updated',
+      entityType: 'User',
+      entityId: id,
+      meta: { role: updated.role },
+    });
+    return updated;
   }
 }

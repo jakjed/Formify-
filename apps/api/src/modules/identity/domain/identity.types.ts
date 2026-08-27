@@ -7,14 +7,20 @@ export type AuthProviderConfig = {
   settings: Record<string, unknown>;
 };
 
+export type UserRole = 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
+
 export type UserRecord = {
   id: string;
   tenantId: string;
   email: string;
   displayName: string;
   passwordHash: string;
-  role: 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
+  role: UserRole;
   createdAt: string;
 };
 
-export type RequestUser = Omit<UserRecord, 'passwordHash'>;
+export type RequestUser = Omit<UserRecord, 'passwordHash'> & {
+  authKind?: 'session' | 'api_key';
+  scopes?: string[];
+  apiKeyId?: string;
+};

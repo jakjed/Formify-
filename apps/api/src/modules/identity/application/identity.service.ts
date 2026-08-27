@@ -121,6 +121,52 @@ export class IdentityService {
     return user ? this.toSafeUser(user) : null;
   }
 
+  listUsers(tenantId: string) {
+    return this.prisma.user
+      .findMany({
+        where: { tenantId },
+        orderBy: { createdAt: 'asc' },
+      })
+      .then((rows) => rows.map((u) => this.toSafeUser(u)));
+  }
+
+  async createUser(input: {
+    tenantId: string;
+    email: string;
+    displayName: string;
+    password: string;
+    role: UserRecord['role'];
+  }) {
+    return this.register(input);
+  }
+
+  async updateUser(
+    tenantId: string,
+    id: string,
+    patch: {
+      displayName?: string;
+      role?: UserRecord['role'];
+      password?: string;
+    },
+  ) {
+    const existing = await this.prisma.user.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) throw new NotFoundException('User not found');
+
+    const user = await this.prisma.user.update({
+      where: { id },
+      data: {
+        displayName: patch.displayName,
+        role: patch.role,
+        ...(patch.password
+          ? { passwordHash: await argon2.hash(patch.password) }
+          : {}),
+      },
+    });
+    return this.toSafeUser(user);
+  }
+
   private toSafeUser(user: {
     id: string;
     tenantId: string;

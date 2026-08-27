@@ -1,1 +1,3 @@
-Users, roles, entities, workflows, capture settings, API keys, usage, audit.
+# admin
+
+Users, roles, entities, capture mailbox, API keys, usage/plan, notifications, audit.
