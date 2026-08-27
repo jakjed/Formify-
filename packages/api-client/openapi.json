@@ -2554,7 +2554,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2568,9 +2575,9 @@
         ]
       }
     },
-    "/api/contracts/{id}": {
+    "/api/contracts/{id}/comments": {
       "get": {
-        "operationId": "get",
+        "operationId": "comments",
         "parameters": [
           {
             "name": "id",
@@ -2591,7 +2598,255 @@
             "bearer": []
           }
         ],
-        "summary": "Get contract",
+        "summary": "List contract comments",
+        "tags": [
+          "contracts"
+        ]
+      },
+      "post": {
+        "operationId": "addComment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateContractCommentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add contract comment",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/{id}/activity": {
+      "get": {
+        "operationId": "activity",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Contract activity timeline",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/{id}": {
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get contract workspace payload",
+        "tags": [
+          "contracts"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateContractDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update contract fields (draft / in_approval)",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/{id}/amend": {
+      "post": {
+        "operationId": "amend",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AmendContractDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Amend an active contract",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/{id}/renew": {
+      "post": {
+        "operationId": "renew",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenewContractDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Renew an active contract end date",
         "tags": [
           "contracts"
         ]
@@ -2622,7 +2877,14 @@
         },
         "responses": {
           "201": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -3443,7 +3705,132 @@
       },
       "CreateContractDto": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "number": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 2
+          },
+          "vendorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "entityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "valueMinor": {
+            "type": "number",
+            "minimum": 0
+          },
+          "startDate": {
+            "type": "string"
+          },
+          "endDate": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "title"
+        ]
+      },
+      "CreateContractCommentDto": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "body"
+        ]
+      },
+      "UpdateContractDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2
+          },
+          "vendorId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "valueMinor": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
+          },
+          "startDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "endDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "AmendContractDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 2
+          },
+          "valueMinor": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
+          },
+          "startDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "endDate": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "RenewContractDto": {
+        "type": "object",
+        "properties": {
+          "endDate": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "endDate"
+        ]
       },
       "TransitionDto": {
         "type": "object",

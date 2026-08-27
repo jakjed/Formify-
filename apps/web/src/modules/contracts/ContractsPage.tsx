@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { apiFetch } from '../../shared/lib/api';
 
 type Contract = {
@@ -8,16 +9,25 @@ type Contract = {
   status: string;
   currency: string;
   valueMinor: number | null;
+  vendor: { id: string; code: string; name: string } | null;
   createdAt: string;
 };
 
+type Vendor = { id: string; code: string; name: string };
+
 export function ContractsPage() {
   const [rows, setRows] = useState<Contract[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
-    setRows(await apiFetch<Contract[]>('/api/contracts'));
+    const [contracts, vendorRows] = await Promise.all([
+      apiFetch<Contract[]>('/api/contracts'),
+      apiFetch<Vendor[]>('/api/vendors'),
+    ]);
+    setRows(contracts);
+    setVendors(vendorRows);
   }
 
   useEffect(() => {
@@ -31,34 +41,24 @@ export function ContractsPage() {
     setBusy(true);
     setError(null);
     try {
+      const valueRaw = String(data.get('value') || '').trim();
       await apiFetch('/api/contracts', {
         method: 'POST',
         body: JSON.stringify({
           number: data.get('number'),
           title: data.get('title'),
-          valueMinor: Number(data.get('valueMinor') || 0) || undefined,
+          vendorId: data.get('vendorId') || undefined,
+          startDate: data.get('startDate') || undefined,
+          endDate: data.get('endDate') || undefined,
+          valueMinor: valueRaw
+            ? Math.round(parseFloat(valueRaw) * 100)
+            : undefined,
         }),
       });
       form.reset();
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Create failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function transition(id: string, status: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      await apiFetch(`/api/contracts/${id}/transition`, {
-        method: 'POST',
-        body: JSON.stringify({ status }),
-      });
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Transition failed');
     } finally {
       setBusy(false);
     }
@@ -75,31 +75,15 @@ export function ContractsPage() {
           <li key={row.id}>
             <div>
               <strong>
-                {row.number} · {row.title}
+                <Link to={`/contracts/${row.id}`}>
+                  {row.number} · {row.title}
+                </Link>
               </strong>
-              <span className="muted"> · {row.status}</span>
-            </div>
-            <div className="actions">
-              {row.status === 'draft' && (
-                <button
-                  type="button"
-                  className="secondary-btn"
-                  disabled={busy}
-                  onClick={() => void transition(row.id, 'in_approval')}
-                >
-                  Submit
-                </button>
-              )}
-              {row.status === 'in_approval' && (
-                <button
-                  type="button"
-                  className="secondary-btn"
-                  disabled={busy}
-                  onClick={() => void transition(row.id, 'active')}
-                >
-                  Activate
-                </button>
-              )}
+              <span className="muted">
+                {' '}
+                · {row.status}
+                {row.vendor ? ` · ${row.vendor.name}` : ''}
+              </span>
             </div>
           </li>
         ))}
@@ -115,8 +99,27 @@ export function ContractsPage() {
           <input name="title" required minLength={2} placeholder="Office supply MSA" />
         </label>
         <label>
-          Value (minor units)
-          <input name="valueMinor" type="number" min={0} placeholder="100000" />
+          Vendor
+          <select name="vendorId" defaultValue="">
+            <option value="">— none —</option>
+            {vendors.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.code} — {v.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Value
+          <input name="value" inputMode="decimal" placeholder="1000.00" />
+        </label>
+        <label>
+          Start
+          <input name="startDate" type="date" />
+        </label>
+        <label>
+          End
+          <input name="endDate" type="date" />
         </label>
         <div className="span-2 actions">
           <button type="submit" disabled={busy}>

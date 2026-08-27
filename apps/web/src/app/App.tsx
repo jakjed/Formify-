@@ -15,6 +15,7 @@ import { DirectoryPage } from '../modules/directory/DirectoryPage';
 import { ExceptionsPage } from '../modules/ops/ExceptionsPage';
 import { OpsDashboardPage } from '../modules/ops/OpsDashboardPage';
 import { ContractsPage } from '../modules/contracts/ContractsPage';
+import { ContractWorkspacePage } from '../modules/contracts/ContractWorkspacePage';
 import { PurchaseRequestsPage } from '../modules/purchase-requests/PurchaseRequestsPage';
 import { PurchaseOrdersPage } from '../modules/purchase-orders/PurchaseOrdersPage';
 import {
@@ -40,6 +41,7 @@ export function App() {
           <Route path="/exceptions" element={<ExceptionsPage />} />
           <Route path="/ops" element={<OpsDashboardPage />} />
           <Route path="/contracts" element={<ContractsPage />} />
+          <Route path="/contracts/:id" element={<ContractWorkspacePage />} />
           <Route path="/purchase-requests" element={<PurchaseRequestsPage />} />
           <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
           <Route path="/integration" element={<IntegrationCenterPage />} />

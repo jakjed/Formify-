@@ -37,6 +37,7 @@ Formerly working name: Formify.
 - [docs/architecture/E13_PHASE1_E2E.md](docs/architecture/E13_PHASE1_E2E.md) — J1–J3 journeys & Playwright
 - [docs/architecture/PHASE1_COMPLETE.md](docs/architecture/PHASE1_COMPLETE.md) — Phase 1 track complete
 - [docs/architecture/P2_E0_PROCURE_FOUNDATION.md](docs/architecture/P2_E0_PROCURE_FOUNDATION.md) — Phase 2 procure foundation
+- [docs/architecture/P2_E1_CONTRACTS_WORKSPACE.md](docs/architecture/P2_E1_CONTRACTS_WORKSPACE.md) — Contracts workspace (amend/renew/comments)
 
 ## Workspace
 
