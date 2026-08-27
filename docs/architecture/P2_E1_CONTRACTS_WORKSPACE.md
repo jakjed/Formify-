@@ -21,4 +21,4 @@ Usable contract detail workspace after P2-E0 CRUD:
 
 ## Next
 
-P2-E2 PR→PO convert · P2-E3 receiving · P2-E4 invoice match
+P2-E2 PR→PO convert ✅ · P2-E3 receiving · P2-E4 invoice match

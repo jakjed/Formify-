@@ -79,8 +79,23 @@ class CreatePrDto {
 }
 
 class TransitionDto {
-  @IsIn(['draft', 'in_approval', 'approved', 'converted', 'cancelled'])
+  @IsIn(['draft', 'in_approval', 'approved', 'cancelled'])
   status!: PurchaseRequestStatus;
+}
+
+class ConvertPrDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  number?: string;
+
+  @IsOptional()
+  @IsUUID()
+  vendorId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  contractId?: string;
 }
 
 @ApiTags('purchase-requests')
@@ -97,12 +112,6 @@ export class PurchaseRequestsController {
     return this.prs.list(tenantId);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get purchase request' })
-  get(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
-    return this.prs.get(tenantId, id);
-  }
-
   @Post()
   @ApiOperation({ summary: 'Create purchase request' })
   create(
@@ -111,6 +120,25 @@ export class PurchaseRequestsController {
     @Body() dto: CreatePrDto,
   ) {
     return this.prs.create(tenantId, user.id, dto);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get purchase request' })
+  get(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
+    return this.prs.get(tenantId, id);
+  }
+
+  @Post(':id/convert')
+  @ApiOperation({
+    summary: 'Convert approved PR to draft PO (requires purchase_orders license)',
+  })
+  convert(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: ConvertPrDto,
+  ) {
+    return this.prs.convertToPo(tenantId, id, user.id, dto);
   }
 
   @Post(':id/transition')

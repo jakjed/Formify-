@@ -2996,6 +2996,45 @@
         ]
       }
     },
+    "/api/purchase-requests/{id}/convert": {
+      "post": {
+        "operationId": "convert",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConvertPrDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Convert approved PR to draft PO (requires purchase_orders license)",
+        "tags": [
+          "purchase-requests"
+        ]
+      }
+    },
     "/api/purchase-requests/{id}/transition": {
       "post": {
         "operationId": "transition",
@@ -3837,6 +3876,10 @@
         "properties": {}
       },
       "CreatePrDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ConvertPrDto": {
         "type": "object",
         "properties": {}
       },
