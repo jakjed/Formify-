@@ -33,4 +33,4 @@ First **connector runtime** slice: Demo ERP pack with mock connect + stub sync j
 
 ## Next
 
-P3-E5 Advanced SoD ✅
+P4-E0 NetSuite connector ✅ · P4-E1 SuiteTalk runtime · P4-E2 QuickBooks Online

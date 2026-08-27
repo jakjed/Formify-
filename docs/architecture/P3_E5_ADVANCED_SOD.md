@@ -41,4 +41,4 @@ Tenant **SoD policies** for invoice approvals beyond the Phase 1 “exclude subm
 
 ## Phase 3 complete
 
-P3-E0…E5 foundation epic set is shipped. Live ERP OAuth packs remain follow-ons under Integration Center.
+P3-E0…E5 foundation epic set is shipped. Live ERP OAuth packs: see [PHASE4_PRD.md](../PHASE4_PRD.md) / [P4_E0_NETSUITE_CONNECTOR.md](./P4_E0_NETSUITE_CONNECTOR.md).
