@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, PurchaseOrderStatus } from '@prisma/client';
+import { buildScopedEntityWhere } from '../../../common/entity-scope';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
 
@@ -37,9 +38,21 @@ export class PurchaseOrdersService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(tenantId: string) {
+  async list(
+    tenantId: string,
+    opts?: {
+      entityId?: string | null;
+      userId?: string;
+      role?: string;
+    },
+  ) {
+    const entityWhere = await buildScopedEntityWhere(this.prisma, tenantId, {
+      entityId: opts?.entityId,
+      userId: opts?.userId,
+      role: opts?.role,
+    });
     const rows = await this.prisma.purchaseOrder.findMany({
-      where: { tenantId },
+      where: { tenantId, ...entityWhere },
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: poInclude,

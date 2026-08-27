@@ -11,6 +11,7 @@ import * as argon2 from 'argon2';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import type {
+  ApprovalDelegationRecord,
   AuthProviderConfig,
   EntityMembershipSummary,
   UserRecord,
@@ -77,13 +78,14 @@ export class IdentityService {
     });
     return rows.map((row) => {
       const settings = (row.settings ?? {}) as Record<string, unknown>;
-      const { clientSecret, ...rest } = settings;
+      const { clientSecret, idpCertificate, ...rest } = settings;
       return {
         type: row.type,
         enabled: row.enabled,
         order: row.order,
         settings: rest,
         clientSecretSet: Boolean(clientSecret),
+        idpCertificateSet: Boolean(idpCertificate),
       };
     });
   }
@@ -211,13 +213,98 @@ export class IdentityService {
     type: string,
     settings: Record<string, unknown>,
   ): Record<string, unknown> {
-    if (type !== 'oidc') return {};
+    if (type === 'oidc') {
+      return {
+        displayName:
+          typeof settings.displayName === 'string'
+            ? settings.displayName
+            : 'SSO',
+        mode: settings.mode === 'mock' ? 'mock' : 'live',
+      };
+    }
+    if (type === 'saml') {
+      return {
+        displayName:
+          typeof settings.displayName === 'string'
+            ? settings.displayName
+            : 'SAML SSO',
+        mode: settings.mode === 'mock' ? 'mock' : 'live',
+      };
+    }
+    return {};
+  }
+
+  async listDelegationCandidates(tenantId: string, userId: string) {
+    return this.prisma.user.findMany({
+      where: {
+        tenantId,
+        status: 'active',
+        NOT: { id: userId },
+      },
+      select: { id: true, email: true, displayName: true },
+      orderBy: { displayName: 'asc' },
+    });
+  }
+
+  async updateSamlProvider(
+    tenantId: string,
+    input: {
+      enabled?: boolean;
+      settings?: {
+        idpEntityId?: string;
+        idpSsoUrl?: string;
+        idpCertificate?: string | null;
+        spEntityId?: string;
+        displayName?: string;
+        mode?: 'live' | 'mock';
+        mockEmail?: string;
+      };
+    },
+  ) {
+    const existing = await this.prisma.authProviderConfig.findUnique({
+      where: { tenantId_type: { tenantId, type: 'saml' } },
+    });
+    const prev = (existing?.settings ?? {}) as Record<string, unknown>;
+    const nextSettings = { ...prev };
+    if (input.settings) {
+      for (const [key, value] of Object.entries(input.settings)) {
+        if (key === 'idpCertificate') {
+          if (value === null) {
+            delete nextSettings.idpCertificate;
+          } else if (typeof value === 'string' && value.trim()) {
+            nextSettings.idpCertificate = value.trim();
+          }
+          continue;
+        }
+        if (value !== undefined) {
+          nextSettings[key] = value;
+        }
+      }
+    }
+    const row = await this.prisma.authProviderConfig.upsert({
+      where: { tenantId_type: { tenantId, type: 'saml' } },
+      create: {
+        tenantId,
+        type: 'saml',
+        enabled: input.enabled ?? false,
+        order: 3,
+        settings: nextSettings as Prisma.InputJsonValue,
+      },
+      update: {
+        ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+        settings: nextSettings as Prisma.InputJsonValue,
+      },
+    });
+    const { idpCertificate, ...safe } = (row.settings ?? {}) as Record<
+      string,
+      unknown
+    >;
     return {
-      displayName:
-        typeof settings.displayName === 'string'
-          ? settings.displayName
-          : 'SSO',
-      mode: settings.mode === 'mock' ? 'mock' : 'live',
+      type: row.type,
+      enabled: row.enabled,
+      order: row.order,
+      settings: safe,
+      idpCertificateSet: Boolean(idpCertificate),
     };
   }
 
@@ -227,6 +314,8 @@ export class IdentityService {
     displayName: string;
     password: string;
     role?: UserRecord['role'];
+    canAccessDirectory?: boolean;
+    canApprove?: boolean;
   }): Promise<Omit<UserRecord, 'passwordHash'>> {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: input.tenantId },
@@ -234,6 +323,9 @@ export class IdentityService {
     if (!tenant) throw new NotFoundException('Tenant not found');
 
     const email = input.email.toLowerCase();
+    const role = input.role ?? 'admin';
+    const canAccessDirectory =
+      input.canAccessDirectory ?? (role === 'admin' ? true : false);
     try {
       const user = await this.prisma.user.create({
         data: {
@@ -241,8 +333,10 @@ export class IdentityService {
           email,
           displayName: input.displayName,
           passwordHash: await argon2.hash(input.password),
-          role: input.role ?? 'admin',
+          role,
           status: 'active',
+          canAccessDirectory,
+          canApprove: input.canApprove ?? false,
         },
       });
       return this.toSafeUser(user);
@@ -378,6 +472,8 @@ export class IdentityService {
     role: UserRecord['role'];
     entityIds?: string[];
     defaultEntityId?: string;
+    canAccessDirectory?: boolean;
+    canApprove?: boolean;
   }) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: input.tenantId },
@@ -395,6 +491,8 @@ export class IdentityService {
             passwordHash: await argon2.hash(input.password),
             role: input.role,
             status: 'active',
+            canAccessDirectory: input.canAccessDirectory ?? false,
+            canApprove: input.canApprove ?? false,
           },
         });
         if (input.entityIds) {
@@ -431,6 +529,8 @@ export class IdentityService {
     invitedById?: string;
     entityIds?: string[];
     defaultEntityId?: string;
+    canAccessDirectory?: boolean;
+    canApprove?: boolean;
   }) {
     const email = input.email.toLowerCase();
     const existing = await this.prisma.user.findUnique({
@@ -451,6 +551,8 @@ export class IdentityService {
             role: input.role,
             status: 'invited',
             passwordHash: null,
+            canAccessDirectory: input.canAccessDirectory ?? false,
+            canApprove: input.canApprove ?? false,
           },
         }));
 
@@ -462,6 +564,12 @@ export class IdentityService {
             role: input.role,
             status: 'invited',
             passwordHash: null,
+            ...(input.canAccessDirectory !== undefined
+              ? { canAccessDirectory: input.canAccessDirectory }
+              : {}),
+            ...(input.canApprove !== undefined
+              ? { canApprove: input.canApprove }
+              : {}),
           },
         });
       }
@@ -653,6 +761,8 @@ export class IdentityService {
       password?: string;
       entityIds?: string[];
       defaultEntityId?: string;
+      canAccessDirectory?: boolean;
+      canApprove?: boolean;
     },
   ) {
     const existing = await this.prisma.user.findFirst({
@@ -671,6 +781,12 @@ export class IdentityService {
           displayName: patch.displayName,
           role: patch.role,
           ...(patch.status !== undefined ? { status: patch.status } : {}),
+          ...(patch.canAccessDirectory !== undefined
+            ? { canAccessDirectory: patch.canAccessDirectory }
+            : {}),
+          ...(patch.canApprove !== undefined
+            ? { canApprove: patch.canApprove }
+            : {}),
           ...(passwordHash
             ? {
                 passwordHash,
@@ -700,6 +816,144 @@ export class IdentityService {
       });
     });
     return this.toSafeUser(user);
+  }
+
+  async listDelegations(
+    tenantId: string,
+    userId: string,
+    options?: { all?: boolean; isAdmin?: boolean },
+  ) {
+    const includeUsers = {
+      fromUser: { select: { id: true, email: true, displayName: true } },
+      toUser: { select: { id: true, email: true, displayName: true } },
+    } as const;
+
+    if (options?.all && options.isAdmin) {
+      const rows = await this.prisma.approvalDelegation.findMany({
+        where: { tenantId },
+        include: includeUsers,
+        orderBy: { createdAt: 'desc' },
+      });
+      return rows.map((row) => this.toDelegationRecord(row));
+    }
+
+    const [outgoing, incoming] = await Promise.all([
+      this.prisma.approvalDelegation.findMany({
+        where: { tenantId, fromUserId: userId, active: true },
+        include: includeUsers,
+        orderBy: { startsAt: 'asc' },
+      }),
+      this.prisma.approvalDelegation.findMany({
+        where: { tenantId, toUserId: userId, active: true },
+        include: includeUsers,
+        orderBy: { startsAt: 'asc' },
+      }),
+    ]);
+
+    return {
+      outgoing: outgoing.map((row) => this.toDelegationRecord(row)),
+      incoming: incoming.map((row) => this.toDelegationRecord(row)),
+    };
+  }
+
+  async createDelegation(
+    tenantId: string,
+    fromUserId: string,
+    input: {
+      toUserId: string;
+      startsAt: string;
+      endsAt: string;
+      reason?: string;
+    },
+  ): Promise<ApprovalDelegationRecord> {
+    if (fromUserId === input.toUserId) {
+      throw new BadRequestException('Cannot delegate approval rights to yourself');
+    }
+
+    const startsAt = new Date(input.startsAt);
+    const endsAt = new Date(input.endsAt);
+    if (Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())) {
+      throw new BadRequestException('Invalid delegation date range');
+    }
+    if (endsAt <= startsAt) {
+      throw new BadRequestException('endsAt must be after startsAt');
+    }
+
+    const [fromUser, toUser] = await Promise.all([
+      this.prisma.user.findFirst({
+        where: { id: fromUserId, tenantId, status: 'active' },
+      }),
+      this.prisma.user.findFirst({
+        where: { id: input.toUserId, tenantId, status: 'active' },
+      }),
+    ]);
+    if (!fromUser) throw new NotFoundException('Delegator user not found');
+    if (!toUser) throw new NotFoundException('Delegate user not found');
+
+    const row = await this.prisma.approvalDelegation.create({
+      data: {
+        tenantId,
+        fromUserId,
+        toUserId: input.toUserId,
+        startsAt,
+        endsAt,
+        reason: input.reason?.trim() || null,
+      },
+      include: {
+        fromUser: { select: { id: true, email: true, displayName: true } },
+        toUser: { select: { id: true, email: true, displayName: true } },
+      },
+    });
+    return this.toDelegationRecord(row);
+  }
+
+  async updateDelegation(
+    tenantId: string,
+    id: string,
+    actorUserId: string,
+    patch: { active?: boolean },
+    isAdmin: boolean,
+  ): Promise<ApprovalDelegationRecord> {
+    const existing = await this.prisma.approvalDelegation.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) throw new NotFoundException('Delegation not found');
+    if (!isAdmin && existing.fromUserId !== actorUserId) {
+      throw new ForbiddenException('Only the delegator or an admin can update this delegation');
+    }
+    if (patch.active === undefined) {
+      throw new BadRequestException('No changes provided');
+    }
+
+    const row = await this.prisma.approvalDelegation.update({
+      where: { id },
+      data: { active: patch.active },
+      include: {
+        fromUser: { select: { id: true, email: true, displayName: true } },
+        toUser: { select: { id: true, email: true, displayName: true } },
+      },
+    });
+    return this.toDelegationRecord(row);
+  }
+
+  async revokeDelegation(
+    tenantId: string,
+    id: string,
+    actorUserId: string,
+    isAdmin: boolean,
+  ) {
+    const existing = await this.prisma.approvalDelegation.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) throw new NotFoundException('Delegation not found');
+    if (!isAdmin && existing.fromUserId !== actorUserId) {
+      throw new ForbiddenException('Only the delegator or an admin can revoke this delegation');
+    }
+    await this.prisma.approvalDelegation.update({
+      where: { id },
+      data: { active: false },
+    });
+    return { ok: true as const };
   }
 
   private async replaceEntityMemberships(
@@ -781,6 +1035,8 @@ export class IdentityService {
     displayName: string;
     role: UserRecord['role'];
     status: UserRecord['status'];
+    canAccessDirectory: boolean;
+    canApprove: boolean;
     failedLoginCount: number;
     lockedUntil: Date | null;
     createdAt: Date;
@@ -809,11 +1065,41 @@ export class IdentityService {
       displayName: user.displayName,
       role: user.role,
       status: user.status,
+      canAccessDirectory: user.canAccessDirectory,
+      canApprove: user.canApprove,
       failedLoginCount: user.failedLoginCount,
       lockedUntil: user.lockedUntil ? user.lockedUntil.toISOString() : null,
       createdAt: user.createdAt.toISOString(),
       defaultEntityId,
       ...(memberships ? { entityMemberships: memberships } : {}),
+    };
+  }
+
+  private toDelegationRecord(row: {
+    id: string;
+    tenantId: string;
+    fromUserId: string;
+    toUserId: string;
+    startsAt: Date;
+    endsAt: Date;
+    reason: string | null;
+    active: boolean;
+    createdAt: Date;
+    fromUser?: { id: string; email: string; displayName: string };
+    toUser?: { id: string; email: string; displayName: string };
+  }): ApprovalDelegationRecord {
+    return {
+      id: row.id,
+      tenantId: row.tenantId,
+      fromUserId: row.fromUserId,
+      toUserId: row.toUserId,
+      startsAt: row.startsAt.toISOString(),
+      endsAt: row.endsAt.toISOString(),
+      reason: row.reason,
+      active: row.active,
+      createdAt: row.createdAt.toISOString(),
+      ...(row.fromUser ? { fromUser: row.fromUser } : {}),
+      ...(row.toUser ? { toUser: row.toUser } : {}),
     };
   }
 }

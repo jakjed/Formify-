@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../../shared/lib/api';
+import { appendEntityParam, formatEntityCell } from '../../shared/lib/entity';
 import {
   CLM_TOOLS,
   CONTRACT_APPROVAL_CHAIN,
@@ -38,8 +39,10 @@ type Contract = {
   ownerName: string | null;
   approvalStage: number;
   aiExtracted: boolean;
+  entityId: string | null;
   signatureJson: SignatureEnvelope | null;
   vendor: { id: string; code: string; name: string } | null;
+  entity: { id: string; code: string; name: string } | null;
 };
 
 type Vendor = { id: string; code: string; name: string };
@@ -63,25 +66,32 @@ export function ContractsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     const params = new URLSearchParams();
+    appendEntityParam(params);
     if (q.trim()) params.set('q', q.trim());
-    // Always load the full pipeline so KPIs / other tabs stay accurate.
     const qs = params.toString();
     const [contracts, vendorRows] = await Promise.all([
-      apiFetch<Contract[]>(`/api/contracts${qs ? `?${qs}` : ''}`),
+      apiFetch<Contract[]>(`/api/contracts?${qs}`),
       apiFetch<Vendor[]>('/api/vendors'),
     ]);
     setRows(
       contracts.map((c) => ({ ...c, signatureJson: asSignature(c.signatureJson) })),
     );
     setVendors(vendorRows);
-  }
+  }, [q]);
 
   useEffect(() => {
     void refresh().catch((err: Error) => setError(err.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [refresh, tab]);
+
+  useEffect(() => {
+    const onEntityChange = () => {
+      void refresh().catch((err: Error) => setError(err.message));
+    };
+    window.addEventListener('aptora:entity-change', onEntityChange);
+    return () => window.removeEventListener('aptora:entity-change', onEntityChange);
+  }, [refresh]);
 
   const kpis = useMemo(() => {
     const all = rows;
@@ -364,6 +374,7 @@ export function ContractsPage() {
               <table className="procure__table">
                 <thead>
                   <tr>
+                    <th>Entity</th>
                     <th>Vendor</th>
                     <th>Number</th>
                     <th>Type</th>
@@ -380,6 +391,9 @@ export function ContractsPage() {
                       className="is-clickable"
                       onClick={() => navigate(`/contracts/${c.id}`)}
                     >
+                      <td className="procure__mono">
+                        {formatEntityCell(c.entityId, c.entity)}
+                      </td>
                       <td>{c.vendor?.name ?? '—'}</td>
                       <td className="procure__mono">
                         {c.number}
@@ -425,7 +439,7 @@ export function ContractsPage() {
                   ))}
                   {setupRows.length === 0 && (
                     <tr>
-                      <td colSpan={7}>
+                      <td colSpan={8}>
                         <div className="procure__empty">
                           <div className="procure__empty-icon">◇</div>
                           No contracts match these filters

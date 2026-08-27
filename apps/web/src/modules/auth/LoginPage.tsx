@@ -42,6 +42,7 @@ export function LoginPage() {
   }, [tenantId]);
 
   const oidc = providers.find((p) => p.type === 'oidc' && p.enabled);
+  const saml = providers.find((p) => p.type === 'saml' && p.enabled);
   const localOn =
     providers.find((p) => p.type === 'local')?.enabled !== false;
 
@@ -73,6 +74,18 @@ export function LoginPage() {
       q.set('email', email);
     }
     window.location.assign(`/api/auth/oidc/start?${q}`);
+  }
+
+  function startSaml() {
+    if (!tenantId) {
+      setMessage('Enter tenant ID first');
+      return;
+    }
+    const q = new URLSearchParams({ tenantId });
+    if (saml?.settings?.mode === 'mock' && email) {
+      q.set('email', email);
+    }
+    window.location.assign(`/api/auth/saml/start?${q}`);
   }
 
   return (
@@ -136,6 +149,18 @@ export function LoginPage() {
             Continue with{' '}
             {oidc.settings.displayName ??
               (oidc.settings.mode === 'mock' ? 'SSO (mock)' : 'SSO')}
+          </button>
+        )}
+        {saml && (
+          <button
+            type="button"
+            className="secondary-btn"
+            disabled={busy || !tenantId}
+            onClick={startSaml}
+          >
+            Continue with{' '}
+            {saml.settings.displayName ??
+              (saml.settings.mode === 'mock' ? 'SAML (mock)' : 'SAML SSO')}
           </button>
         )}
         <p className="muted">

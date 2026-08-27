@@ -2,7 +2,8 @@
 
 ## Scope
 
-- Per-tenant **capture mailbox** (`address` + secret `token`) created with the tenant
+- Per-tenant **capture mailbox** (`address` + secret `token`) for **inbound invoice** email — see [MAILBOXES.md](./MAILBOXES.md)
+- Per-tenant **outbound notification email** (`TenantOutboundEmail`) for approver/workflow **From** address — config in Admin → Mailbox
 - Public `POST /api/capture/email/:token` — multipart attachment + `messageId` (idempotent)
 - In-app **notifications** for capture, approval assignment, approve/reject
 - Append-only **audit events** for upload, email ingest, submit, approve/reject, mailbox rotate
@@ -16,6 +17,8 @@
 | POST | `/api/capture/mailbox/rotate` | yes | New token |
 | GET | `/api/capture/email-ingests` | yes | Recent inbound rows |
 | POST | `/api/capture/email/:token` | **public** | `file` + optional `messageId`, `fromAddress`, `subject` |
+| GET | `/api/notifications/outbound-email` | yes (admin) | Outbound From address |
+| PATCH | `/api/notifications/outbound-email` | yes (admin) | Configure outbound email |
 | GET | `/api/notifications` | yes | `?unreadOnly=true` |
 | POST | `/api/notifications/read-all` | yes | |
 | POST | `/api/notifications/:id/read` | yes | |

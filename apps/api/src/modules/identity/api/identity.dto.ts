@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsBoolean,
+  IsDateString,
   IsEmail,
   IsIn,
   IsOptional,
@@ -29,6 +30,14 @@ export class RegisterUserDto {
   @IsOptional()
   @IsIn(['admin', 'ap_manager', 'ap_clerk', 'approver'])
   role?: 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
+
+  @IsOptional()
+  @IsBoolean()
+  canAccessDirectory?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  canApprove?: boolean;
 }
 
 export class LoginDto {
@@ -66,6 +75,14 @@ export class CreateTenantUserDto {
   @IsOptional()
   @IsUUID()
   defaultEntityId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  canAccessDirectory?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  canApprove?: boolean;
 }
 
 export class InviteUserDto {
@@ -87,6 +104,14 @@ export class InviteUserDto {
   @IsOptional()
   @IsUUID()
   defaultEntityId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  canAccessDirectory?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  canApprove?: boolean;
 }
 
 export class AcceptInviteDto {
@@ -144,6 +169,35 @@ export class UpdateTenantUserDto {
   @IsOptional()
   @IsUUID()
   defaultEntityId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  canAccessDirectory?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  canApprove?: boolean;
+}
+
+export class CreateDelegationDto {
+  @IsUUID()
+  toUserId!: string;
+
+  @IsDateString()
+  startsAt!: string;
+
+  @IsDateString()
+  endsAt!: string;
+
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}
+
+export class UpdateDelegationDto {
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
 }
 
 export class OidcSettingsDto {
@@ -185,4 +239,45 @@ export class UpdateOidcProviderDto {
   @ValidateNested()
   @Type(() => OidcSettingsDto)
   settings?: OidcSettingsDto;
+}
+
+export class SamlSettingsDto {
+  @IsOptional()
+  @IsString()
+  idpEntityId?: string;
+
+  @IsOptional()
+  @IsString()
+  idpSsoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  idpCertificate?: string | null;
+
+  @IsOptional()
+  @IsString()
+  spEntityId?: string;
+
+  @IsOptional()
+  @IsString()
+  displayName?: string;
+
+  @IsOptional()
+  @IsIn(['live', 'mock'])
+  mode?: 'live' | 'mock';
+
+  @IsOptional()
+  @IsEmail()
+  mockEmail?: string;
+}
+
+export class UpdateSamlProviderDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SamlSettingsDto)
+  settings?: SamlSettingsDto;
 }

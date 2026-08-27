@@ -1,7 +1,8 @@
 /* Procure surfaces — table-first, Gabi-clarity with Aptora tokens */
 
 .procure {
-  max-width: 1180px;
+  width: 100%;
+  max-width: none;
 }
 
 .procure__header {
@@ -34,9 +35,10 @@
 
 .procure__kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10rem), 1fr));
   gap: 0.65rem;
   margin-bottom: 1.15rem;
+  width: 100%;
 }
 
 .procure__kpi {
@@ -161,6 +163,7 @@ a.procure__kpi {
 }
 
 .procure__table-card {
+  width: 100%;
   background: var(--aptora-surface);
   border: 1px solid var(--aptora-border);
   border-radius: var(--aptora-radius);

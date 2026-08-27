@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   IsArray,
@@ -150,8 +150,16 @@ export class PurchaseOrdersController {
 
   @Get()
   @ApiOperation({ summary: 'List purchase orders' })
-  list(@CurrentTenantId() tenantId: string) {
-    return this.pos.list(tenantId);
+  list(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Query('entityId') entityId?: string,
+  ) {
+    return this.pos.list(tenantId, {
+      entityId,
+      userId: user.id,
+      role: user.role,
+    });
   }
 
   @Post()

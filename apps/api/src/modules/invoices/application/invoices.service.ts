@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InvoiceStatus, Prisma } from '@prisma/client';
+import { buildScopedEntityWhere } from '../../../common/entity-scope';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
 import { InvoiceValidationService } from '../../invoice-rules/application/invoice-validation.service';
@@ -20,6 +21,9 @@ export type InvoiceListQuery = {
   hasOpenExceptions?: boolean;
   sort?: 'created_desc' | 'created_asc' | 'total_desc' | 'total_asc' | 'age_desc';
   limit?: number;
+  entityId?: string | null;
+  userId?: string;
+  role?: string;
 };
 
 @Injectable()
@@ -33,10 +37,16 @@ export class InvoicesService {
     private readonly webhooks: WebhooksService,
   ) {}
 
-  list(tenantId: string, query: InvoiceListQuery = {}) {
+  async list(tenantId: string, query: InvoiceListQuery = {}) {
     const statuses = normalizeStatuses(query.status);
+    const entityWhere = await buildScopedEntityWhere(this.prisma, tenantId, {
+      entityId: query.entityId,
+      userId: query.userId,
+      role: query.role,
+    });
     const where: Prisma.InvoiceWhereInput = {
       tenantId,
+      ...entityWhere,
       ...(statuses.length === 1
         ? { status: statuses[0] }
         : statuses.length > 1
@@ -463,6 +473,18 @@ export class InvoicesService {
     },
   ) {
     const existing = await this.get(tenantId, id);
+    const locked: InvoiceStatus[] = [
+      'in_approval',
+      'approved',
+      'exported',
+      'paid',
+      'void',
+    ];
+    if (locked.includes(existing.status)) {
+      throw new BadRequestException(
+        `Cannot update invoice in status ${existing.status}`,
+      );
+    }
     if (data.purchaseOrderId) {
       const po = await this.prisma.purchaseOrder.findFirst({
         where: { id: data.purchaseOrderId, tenantId },
@@ -741,6 +763,10 @@ export class InvoicesService {
       entityId: id,
     });
     return this.get(tenantId, id);
+  }
+
+  async recall(tenantId: string, id: string, actorUserId: string) {
+    return this.workflow.recallInvoice(tenantId, id, actorUserId);
   }
 
   async submit(tenantId: string, id: string, actorUserId: string) {

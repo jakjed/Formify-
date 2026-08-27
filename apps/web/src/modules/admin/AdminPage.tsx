@@ -14,7 +14,8 @@ type Tab =
   | 'sso'
   | 'notifications'
   | 'audit'
-  | 'workflow';
+  | 'workflow'
+  | 'delegations';
 
 type ApprovalModuleKey =
   | 'invoices'
@@ -110,6 +111,8 @@ type UserRow = {
   createdAt: string;
   defaultEntityId?: string | null;
   entityMemberships?: EntityMembership[];
+  canAccessDirectory?: boolean;
+  canApprove?: boolean;
 };
 
 type EntityRow = { id: string; name: string; code: string };
@@ -168,10 +171,11 @@ type WebhookDelivery = {
   createdAt: string;
 };
 
-type OidcAdmin = {
+type AuthProviderAdmin = {
   type: string;
   enabled: boolean;
-  clientSecretSet: boolean;
+  clientSecretSet?: boolean;
+  idpCertificateSet?: boolean;
   settings: {
     issuer?: string;
     clientId?: string;
@@ -179,7 +183,18 @@ type OidcAdmin = {
     displayName?: string;
     mode?: string;
     mockEmail?: string;
+    idpEntityId?: string;
+    idpSsoUrl?: string;
+    spEntityId?: string;
   };
+};
+
+type OutboundEmail = {
+  fromAddress: string;
+  fromName: string | null;
+  replyTo: string | null;
+  enabled: boolean;
+  configured: boolean;
 };
 
 const TABS: { id: Tab; label: string }[] = [
@@ -195,6 +210,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'notifications', label: 'Notifications' },
   { id: 'audit', label: 'Audit' },
   { id: 'workflow', label: 'Approvals' },
+  { id: 'delegations', label: 'Delegation' },
 ];
 
 const ROLES = ['admin', 'ap_manager', 'ap_clerk', 'approver'] as const;
@@ -244,7 +260,9 @@ export function AdminPage() {
     [],
   );
   const [newWebhookSecret, setNewWebhookSecret] = useState<string | null>(null);
-  const [oidc, setOidc] = useState<OidcAdmin | null>(null);
+  const [oidc, setOidc] = useState<AuthProviderAdmin | null>(null);
+  const [saml, setSaml] = useState<AuthProviderAdmin | null>(null);
+  const [outboundEmail, setOutboundEmail] = useState<OutboundEmail | null>(null);
   const [policy, setPolicy] = useState<ApprovalPolicy | null>(null);
   const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([]);
   const [sodPolicies, setSodPolicies] = useState<SodPolicy[]>([]);
@@ -255,6 +273,21 @@ export function AdminPage() {
   const [busy, setBusy] = useState(false);
   const [userQuery, setUserQuery] = useState('');
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [editingEntity, setEditingEntity] = useState<EntityRow | null>(null);
+  const [editingRule, setEditingRule] = useState<ApprovalRule | null>(null);
+  const [adminDelegations, setAdminDelegations] = useState<
+    Array<{
+      id: string;
+      fromUserId: string;
+      toUserId: string;
+      startsAt: string;
+      endsAt: string;
+      reason: string | null;
+      active: boolean;
+      fromUser?: { id: string; email: string; displayName: string };
+      toUser?: { id: string; email: string; displayName: string };
+    }>
+  >([]);
   const [approvalModule, setApprovalModule] =
     useState<ApprovalModuleKey>('invoices');
 
@@ -276,6 +309,7 @@ export function AdminPage() {
       whe,
       whd,
       providers,
+      outbound,
       pol,
       rules,
       sod,
@@ -301,8 +335,11 @@ export function AdminPage() {
       apiFetch<WebhookDelivery[]>('/api/webhooks/deliveries').catch(
         () => [] as WebhookDelivery[],
       ),
-      apiFetch<OidcAdmin[]>('/api/auth/providers/admin').catch(
-        () => [] as OidcAdmin[],
+      apiFetch<AuthProviderAdmin[]>('/api/auth/providers/admin').catch(
+        () => [] as AuthProviderAdmin[],
+      ),
+      apiFetch<OutboundEmail>('/api/notifications/outbound-email').catch(
+        () => null as OutboundEmail | null,
       ),
       apiFetch<ApprovalPolicy>(
         `/api/workflow/policy?moduleKey=${approvalModule}`,
@@ -328,6 +365,8 @@ export function AdminPage() {
     setWebhookEvents(whe);
     setWebhookDeliveries(whd);
     setOidc(providers.find((p) => p.type === 'oidc') ?? null);
+    setSaml(providers.find((p) => p.type === 'saml') ?? null);
+    setOutboundEmail(outbound);
     setPolicy(pol);
     setApprovalRules(rules);
     setSodPolicies(sod);
@@ -371,6 +410,12 @@ export function AdminPage() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, approvalModule]);
+
+  useEffect(() => {
+    if (tab !== 'delegations') return;
+    void loadAdminDelegations().catch((err: Error) => setError(err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   async function rotateToken() {
     setBusy(true);
@@ -425,6 +470,8 @@ export function AdminPage() {
           displayName: data.get('displayName'),
           password: data.get('password'),
           role: data.get('role'),
+          canAccessDirectory: data.get('canAccessDirectory') === 'on',
+          canApprove: data.get('canApprove') === 'on',
           ...(entityIds.length
             ? {
                 entityIds,
@@ -460,6 +507,8 @@ export function AdminPage() {
           email: data.get('email'),
           displayName: data.get('displayName'),
           role: data.get('role'),
+          canAccessDirectory: data.get('canAccessDirectory') === 'on',
+          canApprove: data.get('canApprove') === 'on',
           ...(entityIds.length
             ? {
                 entityIds,
@@ -496,6 +545,8 @@ export function AdminPage() {
           displayName: data.get('displayName'),
           role: data.get('role'),
           status: data.get('status'),
+          canAccessDirectory: data.get('canAccessDirectory') === 'on',
+          canApprove: data.get('canApprove') === 'on',
           entityIds,
           ...(defaultEntityId
             ? { defaultEntityId }
@@ -534,6 +585,88 @@ export function AdminPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Create entity failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onUpdateEntity(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editingEntity) return;
+    const data = new FormData(e.currentTarget);
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch(`/api/entities/${editingEntity.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: data.get('name'),
+          code: data.get('code'),
+        }),
+      });
+      setEditingEntity(null);
+      setMessage('Entity updated');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Update entity failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onUpdateRule(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editingRule) return;
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const minRaw = String(data.get('minMajor') ?? '').trim();
+    const maxRaw = String(data.get('maxMajor') ?? '').trim();
+    const entityRaw = String(data.get('entityId') ?? '').trim();
+    const roleRaw = String(data.get('assigneeRole') ?? '').trim();
+    const priorityRaw = String(data.get('priority') ?? '').trim();
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch(`/api/workflow/rules/${editingRule.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: data.get('name'),
+          entityId: entityRaw === '' ? null : entityRaw,
+          minMinor: minRaw === '' ? null : Math.round(Number(minRaw) * 100),
+          maxMinor: maxRaw === '' ? null : Math.round(Number(maxRaw) * 100),
+          autoApprove: data.get('autoApprove') === 'on',
+          assigneeRole: roleRaw === '' ? null : roleRaw,
+          priority: priorityRaw === '' ? 100 : Number(priorityRaw),
+          enabled: data.get('enabled') === 'on',
+        }),
+      });
+      setEditingRule(null);
+      setMessage('Approval rule updated');
+      await loadWorkflowTab(approvalModule);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Update rule failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadAdminDelegations() {
+    const rows = await apiFetch<typeof adminDelegations>(
+      '/api/delegations?all=true',
+    );
+    setAdminDelegations(rows);
+  }
+
+  async function revokeDelegation(id: string) {
+    setBusy(true);
+    try {
+      await apiFetch(`/api/delegations/${id}`, { method: 'DELETE' });
+      setMessage('Delegation revoked');
+      await loadAdminDelegations();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Revoke failed');
     } finally {
       setBusy(false);
     }
@@ -1044,6 +1177,25 @@ export function AdminPage() {
                     ))}
                   </select>
                 </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    name="canAccessDirectory"
+                    defaultChecked={
+                      editingUser.canAccessDirectory ||
+                      editingUser.role === 'admin'
+                    }
+                  />{' '}
+                  Directory access
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    name="canApprove"
+                    defaultChecked={!!editingUser.canApprove}
+                  />{' '}
+                  Can approve (in addition to role)
+                </label>
                 <div className="span-2 actions">
                   <button
                     type="button"
@@ -1100,6 +1252,13 @@ export function AdminPage() {
                 ))}
               </select>
             </label>
+            <label>
+              <input type="checkbox" name="canAccessDirectory" /> Directory
+              access
+            </label>
+            <label>
+              <input type="checkbox" name="canApprove" /> Can approve
+            </label>
             <div className="span-2 actions">
               <button type="submit" disabled={busy}>
                 Send invite
@@ -1150,6 +1309,13 @@ export function AdminPage() {
                 ))}
               </select>
             </label>
+            <label>
+              <input type="checkbox" name="canAccessDirectory" /> Directory
+              access
+            </label>
+            <label>
+              <input type="checkbox" name="canApprove" /> Can approve
+            </label>
             <div className="span-2 actions">
               <button type="submit" disabled={busy}>
                 Add user
@@ -1169,9 +1335,55 @@ export function AdminPage() {
                   <strong>{ent.name}</strong>
                   <span className="muted"> · {ent.code}</span>
                 </div>
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => setEditingEntity(ent)}
+                >
+                  Edit
+                </button>
               </li>
             ))}
           </ul>
+          {editingEntity && (
+            <form
+              className="workspace-form"
+              onSubmit={(e) => void onUpdateEntity(e)}
+              key={editingEntity.id}
+            >
+              <h3>Edit entity</h3>
+              <label>
+                Name
+                <input
+                  name="name"
+                  required
+                  minLength={2}
+                  defaultValue={editingEntity.name}
+                />
+              </label>
+              <label>
+                Code
+                <input
+                  name="code"
+                  required
+                  minLength={1}
+                  defaultValue={editingEntity.code}
+                />
+              </label>
+              <div className="span-2 actions">
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => setEditingEntity(null)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" disabled={busy}>
+                  Save entity
+                </button>
+              </div>
+            </form>
+          )}
           <form className="workspace-form" onSubmit={(e) => void onCreateEntity(e)}>
             <label>
               Name
@@ -1434,7 +1646,88 @@ export function AdminPage() {
       {tab === 'mailbox' && (
         <>
           <div className="panel">
-            <h2>Invoice mailbox</h2>
+            <h2>Outbound notifications</h2>
+            <p className="lede">
+              From address used when Aptora sends approval and workflow email to
+              approvers (in-app notifications always remain on).
+            </p>
+            {!outboundEmail && <p className="muted">Loading…</p>}
+            {outboundEmail && (
+              <form
+                className="workspace-form"
+                onSubmit={(e) =>
+                  void (async (ev: FormEvent<HTMLFormElement>) => {
+                    ev.preventDefault();
+                    const form = ev.currentTarget;
+                    const data = new FormData(form);
+                    setBusy(true);
+                    setError(null);
+                    setMessage(null);
+                    try {
+                      const updated = await apiFetch<OutboundEmail>(
+                        '/api/notifications/outbound-email',
+                        {
+                          method: 'PATCH',
+                          body: JSON.stringify({
+                            enabled: data.get('enabled') === 'on',
+                            fromAddress: data.get('fromAddress'),
+                            fromName: data.get('fromName') || undefined,
+                            replyTo: data.get('replyTo') || undefined,
+                          }),
+                        },
+                      );
+                      setOutboundEmail(updated);
+                      setMessage('Outbound email saved');
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Save failed');
+                    } finally {
+                      setBusy(false);
+                    }
+                  })(e)
+                }
+              >
+                <label>
+                  <input
+                    type="checkbox"
+                    name="enabled"
+                    defaultChecked={outboundEmail.enabled}
+                  />{' '}
+                  Enable outbound email
+                </label>
+                <label>
+                  From address
+                  <input
+                    name="fromAddress"
+                    type="email"
+                    required
+                    defaultValue={outboundEmail.fromAddress}
+                  />
+                </label>
+                <label>
+                  From name
+                  <input
+                    name="fromName"
+                    defaultValue={outboundEmail.fromName ?? ''}
+                  />
+                </label>
+                <label>
+                  Reply-To
+                  <input
+                    name="replyTo"
+                    type="email"
+                    defaultValue={outboundEmail.replyTo ?? ''}
+                  />
+                </label>
+                <div className="span-2 actions">
+                  <button type="submit" disabled={busy}>
+                    Save outbound email
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+          <div className="panel">
+            <h2>Invoice mailbox (inbound capture)</h2>
             {!mailbox && <p className="muted">Loading…</p>}
             {mailbox && (
               <>
@@ -1664,7 +1957,7 @@ export function AdminPage() {
 
       {tab === 'sso' && (
         <div className="panel">
-          <h2>SSO (OIDC)</h2>
+          <h2>SSO (OIDC & SAML)</h2>
           <p className="lede">
             Enable OpenID Connect for this tenant. Use mock mode for local
             tests; live mode needs issuer + client id (Google / Entra).
@@ -1685,7 +1978,7 @@ export function AdminPage() {
                 setMessage(null);
                 try {
                   const secret = String(data.get('clientSecret') || '').trim();
-                  const updated = await apiFetch<OidcAdmin>(
+                  const updated = await apiFetch<AuthProviderAdmin>(
                     '/api/auth/providers/oidc',
                     {
                       method: 'PATCH',
@@ -1779,6 +2072,127 @@ export function AdminPage() {
             <div className="span-2 actions">
               <button type="submit" disabled={busy}>
                 Save OIDC
+              </button>
+            </div>
+          </form>
+
+          <h3>SAML 2.0</h3>
+          <p className="lede">
+            Enterprise SAML alongside OIDC. Use mock mode locally; live mode stores
+            IdP metadata — ACS validates assertions in a later release.
+          </p>
+          <p className="muted">
+            ACS URL: <code>http://127.0.0.1:3001/api/auth/saml/acs</code>
+            {' · '}
+            SP metadata:{' '}
+            <code>
+              http://127.0.0.1:3001/api/auth/saml/metadata?tenantId=&lt;tenant&gt;
+            </code>
+          </p>
+          <form
+            className="workspace-form"
+            onSubmit={(e) =>
+              void (async (ev: FormEvent<HTMLFormElement>) => {
+                ev.preventDefault();
+                const form = ev.currentTarget;
+                const data = new FormData(form);
+                setBusy(true);
+                setError(null);
+                setMessage(null);
+                try {
+                  const cert = String(data.get('idpCertificate') || '').trim();
+                  const updated = await apiFetch<AuthProviderAdmin>(
+                    '/api/auth/providers/saml',
+                    {
+                      method: 'PATCH',
+                      body: JSON.stringify({
+                        enabled: data.get('enabled') === 'on',
+                        settings: {
+                          mode: data.get('mode') || 'mock',
+                          displayName: data.get('displayName') || 'SAML SSO',
+                          idpEntityId: data.get('idpEntityId') || undefined,
+                          idpSsoUrl: data.get('idpSsoUrl') || undefined,
+                          spEntityId: data.get('spEntityId') || undefined,
+                          mockEmail: data.get('mockEmail') || undefined,
+                          ...(cert ? { idpCertificate: cert } : {}),
+                        },
+                      }),
+                    },
+                  );
+                  setSaml(updated);
+                  setMessage('SAML settings saved');
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Save failed');
+                } finally {
+                  setBusy(false);
+                }
+              })(e)
+            }
+          >
+            <label>
+              <input
+                type="checkbox"
+                name="enabled"
+                defaultChecked={saml?.enabled ?? false}
+              />{' '}
+              Enable SAML
+            </label>
+            <label>
+              Mode
+              <select name="mode" defaultValue={saml?.settings.mode ?? 'mock'}>
+                <option value="mock">mock (dev)</option>
+                <option value="live">live</option>
+              </select>
+            </label>
+            <label>
+              Button label
+              <input
+                name="displayName"
+                defaultValue={saml?.settings.displayName ?? 'SAML SSO'}
+              />
+            </label>
+            <label>
+              Mock email
+              <input
+                name="mockEmail"
+                type="email"
+                defaultValue={saml?.settings.mockEmail ?? ''}
+              />
+            </label>
+            <label>
+              IdP entity ID
+              <input
+                name="idpEntityId"
+                defaultValue={saml?.settings.idpEntityId ?? ''}
+              />
+            </label>
+            <label>
+              IdP SSO URL
+              <input
+                name="idpSsoUrl"
+                defaultValue={saml?.settings.idpSsoUrl ?? ''}
+              />
+            </label>
+            <label>
+              SP entity ID (optional)
+              <input
+                name="spEntityId"
+                defaultValue={saml?.settings.spEntityId ?? ''}
+              />
+            </label>
+            <label className="span-2">
+              IdP X.509 certificate (PEM)
+              <textarea
+                name="idpCertificate"
+                rows={4}
+                placeholder={
+                  saml?.idpCertificateSet ? '(unchanged if empty)' : ''
+                }
+              />
+            </label>
+            <div className="span-2 actions">
+              <button type="submit" disabled={busy}>
+                Save SAML
               </button>
             </div>
           </form>
@@ -1979,6 +2393,14 @@ export function AdminPage() {
                           type="button"
                           className="secondary-btn"
                           disabled={busy}
+                          onClick={() => setEditingRule(rule)}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-btn"
+                          disabled={busy}
                           onClick={() => void toggleRule(rule)}
                         >
                           {rule.enabled ? 'Disable' : 'Enable'}
@@ -1998,6 +2420,117 @@ export function AdminPage() {
               </tbody>
             </table>
           </div>
+
+          {editingRule && (
+            <form
+              key={editingRule.id}
+              className="workspace-form"
+              onSubmit={(e) => void onUpdateRule(e)}
+            >
+              <h3>Edit rule</h3>
+              <label>
+                Name
+                <input
+                  name="name"
+                  required
+                  minLength={1}
+                  defaultValue={editingRule.name}
+                />
+              </label>
+              <label>
+                Entity
+                <select
+                  name="entityId"
+                  defaultValue={editingRule.entityId ?? ''}
+                >
+                  <option value="">All entities</option>
+                  {entities.map((ent) => (
+                    <option key={ent.id} value={ent.id}>
+                      {ent.code} / {ent.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Min amount (major)
+                <input
+                  name="minMajor"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  defaultValue={
+                    editingRule.minMinor != null
+                      ? (editingRule.minMinor / 100).toFixed(2)
+                      : ''
+                  }
+                />
+              </label>
+              <label>
+                Max amount (major)
+                <input
+                  name="maxMajor"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  defaultValue={
+                    editingRule.maxMinor != null
+                      ? (editingRule.maxMinor / 100).toFixed(2)
+                      : ''
+                  }
+                />
+              </label>
+              <label>
+                Assignee role
+                <select
+                  name="assigneeRole"
+                  defaultValue={editingRule.assigneeRole ?? ''}
+                >
+                  <option value="">Default roles</option>
+                  <option value="admin">admin</option>
+                  <option value="approver">approver</option>
+                  <option value="ap_manager">ap_manager</option>
+                  <option value="ap_clerk">ap_clerk</option>
+                </select>
+              </label>
+              <label>
+                Priority
+                <input
+                  name="priority"
+                  type="number"
+                  defaultValue={editingRule.priority}
+                  required
+                />
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  name="autoApprove"
+                  defaultChecked={editingRule.autoApprove}
+                />{' '}
+                Auto-approve
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  name="enabled"
+                  defaultChecked={editingRule.enabled}
+                />{' '}
+                Enabled
+              </label>
+              <div className="span-2 actions">
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => setEditingRule(null)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" disabled={busy}>
+                  Save rule
+                </button>
+              </div>
+            </form>
+          )}
 
           <h3>Create rule</h3>
           <form
@@ -2133,6 +2666,49 @@ export function AdminPage() {
               </form>
             </>
           )}
+        </div>
+      )}
+
+      {tab === 'delegations' && (
+        <div className="panel">
+          <h2>All delegations</h2>
+          <p className="lede">
+            Admin oversight of every approval delegation in this tenant. Users
+            create their own rules from{' '}
+            <Link to="/account/delegation">My delegation</Link>.
+          </p>
+          <ul className="task-list">
+            {adminDelegations.length === 0 && (
+              <li className="muted">No delegations yet.</li>
+            )}
+            {adminDelegations.map((d) => (
+              <li key={d.id}>
+                <div>
+                  <strong>
+                    {d.fromUser?.displayName ?? d.fromUserId.slice(0, 8)} →{' '}
+                    {d.toUser?.displayName ?? d.toUserId.slice(0, 8)}
+                  </strong>
+                  <span className="muted">
+                    {' '}
+                    · {new Date(d.startsAt).toLocaleString()} →{' '}
+                    {new Date(d.endsAt).toLocaleString()}
+                    {d.active ? '' : ' · revoked'}
+                  </span>
+                  {d.reason ? <div className="muted">{d.reason}</div> : null}
+                </div>
+                {d.active && (
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    disabled={busy}
+                    onClick={() => void revokeDelegation(d.id)}
+                  >
+                    Revoke
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </section>

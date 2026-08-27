@@ -103,4 +103,63 @@ export class NotificationsService {
     });
     return { ok: true };
   }
+
+  async getOutboundEmail(tenantId: string) {
+    const row = await this.prisma.tenantOutboundEmail.findUnique({
+      where: { tenantId },
+    });
+    if (!row) {
+      const tenant = await this.prisma.tenant.findUniqueOrThrow({
+        where: { id: tenantId },
+      });
+      return {
+        fromAddress: `notifications@${tenant.slug}.aptora.local`,
+        fromName: `${tenant.name} AP`,
+        replyTo: null as string | null,
+        enabled: false,
+        configured: false,
+      };
+    }
+    return {
+      fromAddress: row.fromAddress,
+      fromName: row.fromName,
+      replyTo: row.replyTo,
+      enabled: row.enabled,
+      configured: true,
+    };
+  }
+
+  async upsertOutboundEmail(
+    tenantId: string,
+    input: {
+      fromAddress: string;
+      fromName?: string;
+      replyTo?: string;
+      enabled?: boolean;
+    },
+  ) {
+    const row = await this.prisma.tenantOutboundEmail.upsert({
+      where: { tenantId },
+      create: {
+        tenantId,
+        fromAddress: input.fromAddress.trim(),
+        fromName: input.fromName?.trim() || null,
+        replyTo: input.replyTo?.trim() || null,
+        enabled: input.enabled ?? true,
+      },
+      update: {
+        fromAddress: input.fromAddress.trim(),
+        fromName: input.fromName?.trim() || null,
+        replyTo: input.replyTo?.trim() || null,
+        ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+      },
+    });
+    return {
+      fromAddress: row.fromAddress,
+      fromName: row.fromName,
+      replyTo: row.replyTo,
+      enabled: row.enabled,
+      configured: true,
+    };
+  }
 }

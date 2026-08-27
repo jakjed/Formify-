@@ -26,11 +26,27 @@ export type UserRecord = {
   passwordHash: string | null;
   role: UserRole;
   status: UserStatus;
+  canAccessDirectory: boolean;
+  canApprove: boolean;
   failedLoginCount: number;
   lockedUntil: string | null;
   createdAt: string;
   defaultEntityId?: string | null;
   entityMemberships?: EntityMembershipSummary[];
+};
+
+export type ApprovalDelegationRecord = {
+  id: string;
+  tenantId: string;
+  fromUserId: string;
+  toUserId: string;
+  startsAt: string;
+  endsAt: string;
+  reason: string | null;
+  active: boolean;
+  createdAt: string;
+  fromUser?: { id: string; email: string; displayName: string };
+  toUser?: { id: string; email: string; displayName: string };
 };
 
 export type RequestUser = Omit<UserRecord, 'passwordHash'> & {

@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, PurchaseRequestStatus } from '@prisma/client';
+import { buildScopedEntityWhere } from '../../../common/entity-scope';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
 import { TenancyService } from '../../tenancy/application/tenancy.service';
@@ -42,9 +43,21 @@ export class PurchaseRequestsService {
     private readonly tenancy: TenancyService,
   ) {}
 
-  list(tenantId: string) {
+  async list(
+    tenantId: string,
+    opts?: {
+      entityId?: string | null;
+      userId?: string;
+      role?: string;
+    },
+  ) {
+    const entityWhere = await buildScopedEntityWhere(this.prisma, tenantId, {
+      entityId: opts?.entityId,
+      userId: opts?.userId,
+      role: opts?.role,
+    });
     return this.prisma.purchaseRequest.findMany({
-      where: { tenantId },
+      where: { tenantId, ...entityWhere },
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: prInclude,
@@ -82,7 +95,7 @@ export class PurchaseRequestsService {
     },
   ) {
     const existing = await this.get(tenantId, id);
-    if (existing.status !== 'draft' && existing.status !== 'in_approval') {
+    if (existing.status !== 'draft') {
       throw new BadRequestException(
         `Cannot update PR in status ${existing.status}`,
       );

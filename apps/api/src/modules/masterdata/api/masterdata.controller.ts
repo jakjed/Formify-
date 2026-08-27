@@ -9,17 +9,24 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { GlAccountType } from '@prisma/client';
 import { MasterdataService } from '../application/masterdata.service';
-import { CurrentTenantId } from '../../../common/current-user.decorator';
+import {
+  CurrentTenantId,
+  CurrentUser,
+} from '../../../common/current-user.decorator';
 import { RequireScopes } from '../../../common/scopes.decorator';
+import type { RequestUser } from '../../identity/domain/identity.types';
 import {
   CreateCodeNameDto,
   CreateExpenseCategoryDto,
+  CreateGlAccountDto,
   CreatePaymentTermDto,
   CreateTaxCodeDto,
   CreateVendorDto,
   UpdateCodeNameDto,
   UpdateExpenseCategoryDto,
+  UpdateGlAccountDto,
   UpdatePaymentTermDto,
   UpdateTaxCodeDto,
   UpdateVendorDto,
@@ -30,15 +37,40 @@ import {
 export class MasterdataController {
   constructor(private readonly masterdata: MasterdataService) {}
 
+  private listOpts(
+    user: RequestUser,
+    query: {
+      includeInactive?: string;
+      entityId?: string;
+      q?: string;
+      accountType?: string;
+    },
+  ) {
+    return {
+      includeInactive: query.includeInactive === 'true',
+      entityId: query.entityId,
+      q: query.q,
+      accountType: query.accountType as GlAccountType | undefined,
+      userId: user.id,
+      role: user.role,
+    };
+  }
+
   // Vendors
   @ApiTags('vendors')
   @Get('vendors')
   @ApiOperation({ summary: 'List vendors' })
   listVendors(
     @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Query('includeInactive') includeInactive?: string,
+    @Query('entityId') entityId?: string,
+    @Query('q') q?: string,
   ) {
-    return this.masterdata.listVendors(tenantId, includeInactive === 'true');
+    return this.masterdata.listVendors(
+      tenantId,
+      this.listOpts(user, { includeInactive, entityId, q }),
+    );
   }
 
   @ApiTags('vendors')
@@ -88,9 +120,16 @@ export class MasterdataController {
   @ApiOperation({ summary: 'List GL accounts' })
   listGl(
     @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Query('includeInactive') includeInactive?: string,
+    @Query('entityId') entityId?: string,
+    @Query('q') q?: string,
+    @Query('accountType') accountType?: string,
   ) {
-    return this.masterdata.listGlAccounts(tenantId, includeInactive === 'true');
+    return this.masterdata.listGlAccounts(
+      tenantId,
+      this.listOpts(user, { includeInactive, entityId, q, accountType }),
+    );
   }
 
   @ApiTags('masterdata')
@@ -99,7 +138,7 @@ export class MasterdataController {
   @ApiOperation({ summary: 'Create GL account' })
   createGl(
     @CurrentTenantId() tenantId: string,
-    @Body() dto: CreateCodeNameDto,
+    @Body() dto: CreateGlAccountDto,
   ) {
     return this.masterdata.createGlAccount(tenantId, dto);
   }
@@ -111,7 +150,7 @@ export class MasterdataController {
   updateGl(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,
-    @Body() dto: UpdateCodeNameDto,
+    @Body() dto: UpdateGlAccountDto,
   ) {
     return this.masterdata.updateGlAccount(tenantId, id, dto);
   }
@@ -122,9 +161,15 @@ export class MasterdataController {
   @ApiOperation({ summary: 'List cost centers' })
   listCc(
     @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Query('includeInactive') includeInactive?: string,
+    @Query('entityId') entityId?: string,
+    @Query('q') q?: string,
   ) {
-    return this.masterdata.listCostCenters(tenantId, includeInactive === 'true');
+    return this.masterdata.listCostCenters(
+      tenantId,
+      this.listOpts(user, { includeInactive, entityId, q }),
+    );
   }
 
   @ApiTags('masterdata')
@@ -156,9 +201,15 @@ export class MasterdataController {
   @ApiOperation({ summary: 'List tax codes' })
   listTax(
     @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Query('includeInactive') includeInactive?: string,
+    @Query('entityId') entityId?: string,
+    @Query('q') q?: string,
   ) {
-    return this.masterdata.listTaxCodes(tenantId, includeInactive === 'true');
+    return this.masterdata.listTaxCodes(
+      tenantId,
+      this.listOpts(user, { includeInactive, entityId, q }),
+    );
   }
 
   @ApiTags('masterdata')
@@ -190,11 +241,14 @@ export class MasterdataController {
   @ApiOperation({ summary: 'List payment terms' })
   listTerms(
     @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Query('includeInactive') includeInactive?: string,
+    @Query('entityId') entityId?: string,
+    @Query('q') q?: string,
   ) {
     return this.masterdata.listPaymentTerms(
       tenantId,
-      includeInactive === 'true',
+      this.listOpts(user, { includeInactive, entityId, q }),
     );
   }
 

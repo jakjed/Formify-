@@ -117,6 +117,8 @@ export class ApiKeysService {
       displayName: `API key (${row.name})`,
       role: 'admin',
       status: 'active',
+      canAccessDirectory: true,
+      canApprove: true,
       failedLoginCount: 0,
       lockedUntil: null,
       createdAt: row.createdAt.toISOString(),

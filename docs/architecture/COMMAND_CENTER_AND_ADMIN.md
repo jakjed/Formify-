@@ -9,9 +9,14 @@ Cross-module command surfaces and admin capabilities that sit on top of Phase 1 
 - Brand + entity switcher stay pinned at the top
 - Nav links scroll independently when the list grows
 - Sign-out / muted links stay in a footer block
-- Main content scrolls in `.shell__main`
+- Main content scrolls in `.shell__main` and expands fluidly (`minmax(0, 1fr)`)
+- Nav can collapse to a narrow rail (persisted in session)
 
-Nav groups: **Command** (Command Center, Operations), **Workspaces** (module-gated), **Platform**.
+Nav groups: **Command** (Command Center, Operations), **Workspaces** (Contracts → Requisitions → Orders → Invoices), **Platform**. Exceptions is not a top-level Workspace item — open from Invoices via the Open exceptions view.
+
+Entity switcher first option is **All** (union of entities the user can access). Assignment to entities restricts both the switcher and list APIs.
+
+See also: `MULTI_ENTITY_AND_RBAC.md`.
 
 ## Command Center (`/`)
 

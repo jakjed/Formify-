@@ -163,6 +163,8 @@ export class OAuthService {
       displayName: `OAuth app (${row.client.name})`,
       role: 'admin',
       status: 'active',
+      canAccessDirectory: true,
+      canApprove: true,
       failedLoginCount: 0,
       lockedUntil: null,
       createdAt: row.client.createdAt.toISOString(),

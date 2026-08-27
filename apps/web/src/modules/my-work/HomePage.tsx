@@ -117,6 +117,9 @@ export function HomePage() {
           <Link className="btn btn--primary" to="/invoices">
             Open invoices
           </Link>
+          <Link className="btn btn--ghost" to="/account/delegation">
+            My delegation
+          </Link>
           <Link className="btn btn--ghost" to="/ops">
             Operations
           </Link>
@@ -266,7 +269,7 @@ export function HomePage() {
       </div>
 
       {cc && (
-        <div className="stat-grid" style={{ marginTop: '1.25rem' }}>
+        <div className="stat-grid stat-grid--panels" style={{ marginTop: '1.25rem' }}>
           <div className="panel">
             <h3>Invoices</h3>
             <dl className="kv">

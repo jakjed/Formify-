@@ -19,6 +19,12 @@ enum UserRole {
   approver
 }
 
+/// GL account qualifier: Liability (vendor defaults) vs Expense (line coding).
+enum GlAccountType {
+  liability
+  expense
+}
+
 enum UserStatus {
   invited
   active
@@ -64,6 +70,7 @@ model Tenant {
   sodPolicies    SodPolicy[]
   integrationJobs IntegrationJob[]
   captureMailbox CaptureMailbox?
+  outboundEmail  TenantOutboundEmail?
   emailIngests   EmailIngest[]
   notifications  Notification[]
   auditEvents    AuditEvent[]
@@ -81,6 +88,7 @@ model Tenant {
   apAccruals     ApAccrual[]
   webhookEndpoints WebhookEndpoint[]
   connectorConnections ConnectorConnection[]
+  approvalDelegations ApprovalDelegation[]
 }
 
 model ModuleLicense {
@@ -105,6 +113,11 @@ model Entity {
   contracts         Contract[]
   expenseCategories ExpenseCategory[]
   userMemberships   UserEntityMembership[]
+  vendors           Vendor[]
+  glAccounts        GlAccount[]
+  costCenters       CostCenter[]
+  taxCodes          TaxCode[]
+  paymentTerms      PaymentTerm[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -118,6 +131,10 @@ model User {
   passwordHash     String?
   role             UserRole   @default(admin)
   status           UserStatus @default(active)
+  /// Capability: open Directory master-data (not a separate role).
+  canAccessDirectory Boolean  @default(false)
+  /// Capability: act as approver in addition to primary role (e.g. ap_clerk + approve).
+  canApprove       Boolean    @default(false)
   failedLoginCount Int        @default(0)
   lockedUntil      DateTime?
   createdAt        DateTime   @default(now())
@@ -127,6 +144,8 @@ model User {
   invites        UserInvite[]
   passwordResets PasswordResetToken[]
   entityMemberships UserEntityMembership[]
+  delegationsFrom   ApprovalDelegation[] @relation("DelegationFrom")
+  delegationsTo     ApprovalDelegation[] @relation("DelegationTo")
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -212,61 +231,91 @@ model AuthProviderConfig {
 }
 
 model Vendor {
-  id           String   @id @default(uuid()) @db.Uuid
-  tenantId     String   @db.Uuid
-  code         String
-  name         String
-  email        String?
-  taxId        String?
-  paymentTermId String? @db.Uuid
-  externalId   String?
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  entityId      String?  @db.Uuid
+  code          String
+  name          String
+  email         String?
+  taxId         String?
+  /// Address
+  addressLine1  String?
+  addressLine2  String?
+  city          String?
+  region        String?
+  postalCode    String?
+  country       String?
+  /// Bank
+  bankName      String?
+  bankAccount   String?
+  bankIban      String?
+  bankSwift     String?
+  paymentTermId String?  @db.Uuid
+  taxCodeId     String?  @db.Uuid
+  /// Default AP / liability GL
+  glAccountId   String?  @db.Uuid
+  externalId    String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entity      Entity?      @relation(fields: [entityId], references: [id], onDelete: SetNull)
   paymentTerm PaymentTerm? @relation(fields: [paymentTermId], references: [id], onDelete: SetNull)
+  taxCode     TaxCode?     @relation(fields: [taxCodeId], references: [id], onDelete: SetNull)
+  glAccount   GlAccount?   @relation(fields: [glAccountId], references: [id], onDelete: SetNull)
   contracts   Contract[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
   @@index([tenantId, name])
+  @@index([tenantId, entityId])
 }
 
 model GlAccount {
-  id        String   @id @default(uuid()) @db.Uuid
-  tenantId  String   @db.Uuid
-  code      String
-  name      String
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String        @id @default(uuid()) @db.Uuid
+  tenantId    String        @db.Uuid
+  entityId    String?       @db.Uuid
+  code        String
+  name        String
+  accountType GlAccountType @default(expense)
+  active      Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
   tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entity            Entity?            @relation(fields: [entityId], references: [id], onDelete: SetNull)
   expenseCategories ExpenseCategory[]
+  vendors           Vendor[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
+  @@index([tenantId, entityId])
+  @@index([tenantId, accountType])
 }
 
 model CostCenter {
   id        String   @id @default(uuid()) @db.Uuid
   tenantId  String   @db.Uuid
+  entityId  String?  @db.Uuid
   code      String
   name      String
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entity Entity? @relation(fields: [entityId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, code])
   @@index([tenantId])
+  @@index([tenantId, entityId])
 }
 
 model TaxCode {
   id        String   @id @default(uuid()) @db.Uuid
   tenantId  String   @db.Uuid
+  entityId  String?  @db.Uuid
   code      String
   name      String
   rateBps   Int      @default(0) // basis points, e.g. 2300 = 23.00%
@@ -274,10 +323,13 @@ model TaxCode {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entity  Entity?  @relation(fields: [entityId], references: [id], onDelete: SetNull)
+  vendors Vendor[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
+  @@index([tenantId, entityId])
 }
 
 /// Per-entity spend category → default GL account (OCR keyword hints optional).
@@ -305,6 +357,7 @@ model ExpenseCategory {
 model PaymentTerm {
   id          String   @id @default(uuid()) @db.Uuid
   tenantId    String   @db.Uuid
+  entityId    String?  @db.Uuid
   code        String
   name        String
   netDays     Int      @default(30)
@@ -313,10 +366,33 @@ model PaymentTerm {
   updatedAt   DateTime @updatedAt
 
   tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entity  Entity?  @relation(fields: [entityId], references: [id], onDelete: SetNull)
   vendors Vendor[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
+  @@index([tenantId, entityId])
+}
+
+/// Temporary hand-off of approval rights while a user is away.
+model ApprovalDelegation {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  fromUserId String   @db.Uuid
+  toUserId   String   @db.Uuid
+  startsAt   DateTime
+  endsAt     DateTime
+  reason     String?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fromUser User   @relation("DelegationFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User   @relation("DelegationTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, fromUserId])
+  @@index([tenantId, toUserId])
+  @@index([tenantId, active, startsAt, endsAt])
 }
 
 enum InvoiceStatus {
@@ -636,6 +712,22 @@ model CaptureMailbox {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId])
+  @@index([tenantId])
+}
+
+/// Outbound From address for approval and workflow email (Phase 1: config only; SMTP relay later).
+model TenantOutboundEmail {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @unique @db.Uuid
+  fromAddress String
+  fromName    String?
+  replyTo     String?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   @@index([tenantId])
 }
 
@@ -1013,6 +1105,17 @@ model OidcAuthState {
   redirectTo   String?
   createdAt    DateTime @default(now())
   expiresAt    DateTime
+
+  @@index([expiresAt])
+}
+
+model SamlAuthState {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  relayState String   @unique
+  redirectTo String?
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
 
   @@index([expiresAt])
 }

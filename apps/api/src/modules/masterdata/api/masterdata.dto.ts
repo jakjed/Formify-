@@ -1,6 +1,7 @@
 import {
   IsBoolean,
   IsEmail,
+  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -20,6 +21,10 @@ export class CreateVendorDto {
   name!: string;
 
   @IsOptional()
+  @IsUUID()
+  entityId?: string;
+
+  @IsOptional()
   @IsEmail()
   email?: string;
 
@@ -28,8 +33,56 @@ export class CreateVendorDto {
   taxId?: string;
 
   @IsOptional()
+  @IsString()
+  addressLine1?: string;
+
+  @IsOptional()
+  @IsString()
+  addressLine2?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @IsOptional()
+  @IsString()
+  postalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @IsOptional()
+  @IsString()
+  bankAccount?: string;
+
+  @IsOptional()
+  @IsString()
+  bankIban?: string;
+
+  @IsOptional()
+  @IsString()
+  bankSwift?: string;
+
+  @IsOptional()
   @IsUUID()
   paymentTermId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  taxCodeId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  glAccountId?: string;
 
   @IsOptional()
   @IsString()
@@ -43,6 +96,11 @@ export class UpdateVendorDto {
   name?: string;
 
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  entityId?: string | null;
+
+  @IsOptional()
   @IsEmail()
   email?: string;
 
@@ -51,9 +109,59 @@ export class UpdateVendorDto {
   taxId?: string;
 
   @IsOptional()
+  @IsString()
+  addressLine1?: string;
+
+  @IsOptional()
+  @IsString()
+  addressLine2?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @IsOptional()
+  @IsString()
+  postalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
+
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @IsOptional()
+  @IsString()
+  bankAccount?: string;
+
+  @IsOptional()
+  @IsString()
+  bankIban?: string;
+
+  @IsOptional()
+  @IsString()
+  bankSwift?: string;
+
+  @IsOptional()
   @ValidateIf((_, v) => v !== null)
   @IsUUID()
   paymentTermId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  taxCodeId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  glAccountId?: string | null;
 
   @IsOptional()
   @IsString()
@@ -72,6 +180,10 @@ export class CreateCodeNameDto {
   @IsString()
   @MinLength(1)
   name!: string;
+
+  @IsOptional()
+  @IsUUID()
+  entityId?: string;
 }
 
 export class UpdateCodeNameDto {
@@ -81,8 +193,25 @@ export class UpdateCodeNameDto {
   name?: string;
 
   @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  entityId?: string | null;
+
+  @IsOptional()
   @IsBoolean()
   active?: boolean;
+}
+
+export class CreateGlAccountDto extends CreateCodeNameDto {
+  @IsOptional()
+  @IsEnum(['liability', 'expense'])
+  accountType?: 'liability' | 'expense';
+}
+
+export class UpdateGlAccountDto extends UpdateCodeNameDto {
+  @IsOptional()
+  @IsEnum(['liability', 'expense'])
+  accountType?: 'liability' | 'expense';
 }
 
 export class CreateTaxCodeDto extends CreateCodeNameDto {

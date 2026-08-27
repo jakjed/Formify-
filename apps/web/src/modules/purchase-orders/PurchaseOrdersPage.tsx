@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../../shared/lib/api';
+import { appendEntityParam, formatEntityCell } from '../../shared/lib/entity';
 import {
   ACCRUAL_APPROVAL_CHAIN,
   AccrualStatusBadge,
@@ -26,6 +27,7 @@ type Po = {
   status: string;
   currency: string;
   totalMinor: number | null;
+  entityId?: string | null;
   invoicedMinor?: number;
   remainingMinor?: number;
   purchaseRequest: {
@@ -62,18 +64,28 @@ export function PurchaseOrdersPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
+    const params = new URLSearchParams();
+    appendEntityParam(params);
     const [pos, acc] = await Promise.all([
-      apiFetch<Po[]>('/api/purchase-orders'),
+      apiFetch<Po[]>(`/api/purchase-orders?${params}`),
       apiFetch<Accrual[]>('/api/accruals').catch(() => [] as Accrual[]),
     ]);
     setRows(pos);
     setAccruals(acc);
-  }
+  }, []);
 
   useEffect(() => {
     void refresh().catch((err: Error) => setError(err.message));
-  }, []);
+  }, [refresh]);
+
+  useEffect(() => {
+    const onEntityChange = () => {
+      void refresh().catch((err: Error) => setError(err.message));
+    };
+    window.addEventListener('aptora:entity-change', onEntityChange);
+    return () => window.removeEventListener('aptora:entity-change', onEntityChange);
+  }, [refresh]);
 
   const kpis = useMemo(() => {
     const open = rows.filter((r) =>
@@ -284,6 +296,7 @@ export function PurchaseOrdersPage() {
                 <thead>
                   <tr>
                     <th>PO</th>
+                    <th>Entity</th>
                     <th>Vendor / title</th>
                     <th>PO value</th>
                     <th>Invoiced</th>
@@ -301,6 +314,9 @@ export function PurchaseOrdersPage() {
                     return (
                       <tr key={po.id}>
                         <td className="procure__mono">{po.number}</td>
+                        <td className="procure__mono">
+                          {formatEntityCell(po.entityId)}
+                        </td>
                         <td>
                           <div>{po.title}</div>
                           {po.purchaseRequest && (
@@ -408,7 +424,7 @@ export function PurchaseOrdersPage() {
                   })}
                   {rows.length === 0 && (
                     <tr>
-                      <td colSpan={8}>
+                      <td colSpan={9}>
                         <div className="procure__empty">No purchase orders yet</div>
                       </td>
                     </tr>

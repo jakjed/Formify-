@@ -11,6 +11,7 @@ import { RequireAuth } from '../modules/auth/RequireAuth';
 import { InvoicesPage } from '../modules/invoices/InvoicesPage';
 import { InvoiceWorkspacePage } from '../modules/invoices/InvoiceWorkspacePage';
 import { IntegrationCenterPage } from '../modules/integration-center/IntegrationCenterPage';
+import { DelegationPage } from '../modules/account/DelegationPage';
 import { AdminPage } from '../modules/admin/AdminPage';
 import { DirectoryPage } from '../modules/directory/DirectoryPage';
 import { ExceptionsPage } from '../modules/ops/ExceptionsPage';
@@ -47,6 +48,7 @@ export function App() {
           <Route path="/purchase-requests" element={<PurchaseRequestsPage />} />
           <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
           <Route path="/integration" element={<IntegrationCenterPage />} />
+          <Route path="/account/delegation" element={<DelegationPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Route>
       </Route>

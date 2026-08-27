@@ -9,6 +9,7 @@ import {
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { CURRENCY_CODES } from '@aptora/types';
 import { apiFetch, apiFetchBlob, getToken } from '../../shared/lib/api';
+import { FileSelect } from '../../shared/components/FileSelect';
 import { InvoiceStatusBadge, StatusBadge } from '../../shared/ui/StatusBadge';
 import { ocrConfidenceTone } from '../../shared/ui/status';
 import { bestVendorMatch } from '../../shared/ui/vendorMatch';
@@ -531,6 +532,7 @@ export function InvoiceWorkspacePage() {
   const [editLines, setEditLines] = useState<InvoiceLine[]>([]);
   const [attachFile, setAttachFile] = useState<File | null>(null);
   const [attachLabel, setAttachLabel] = useState('');
+  const [attachInputKey, setAttachInputKey] = useState(0);
 
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [vendorNameRaw, setVendorNameRaw] = useState('');
@@ -607,7 +609,9 @@ export function InvoiceWorkspacePage() {
             '/api/modules',
           ).catch(() => [] as { moduleKey: string; enabled: boolean }[]),
           apiFetch<TaxCode[]>('/api/tax-codes').catch(() => [] as TaxCode[]),
-          apiFetch<CodeName[]>('/api/gl-accounts').catch(() => [] as CodeName[]),
+          apiFetch<CodeName[]>('/api/gl-accounts?accountType=expense').catch(
+            () => [] as CodeName[],
+          ),
           apiFetch<CodeName[]>('/api/cost-centers').catch(
             () => [] as CodeName[],
           ),
@@ -882,6 +886,7 @@ export function InvoiceWorkspacePage() {
       }
       setAttachFile(null);
       setAttachLabel('');
+      setAttachInputKey((k) => k + 1);
       await loadSidePanels(id);
       setMessage('Attachment uploaded');
     } catch (err) {
@@ -918,6 +923,21 @@ export function InvoiceWorkspacePage() {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submit failed');
+    }
+  }
+
+  async function onRecall() {
+    if (!id) return;
+    setError(null);
+    try {
+      const inv = await apiFetch<Invoice>(`/api/invoices/${id}/recall`, {
+        method: 'POST',
+      });
+      setInvoice(inv);
+      setEditLines(mapEditLines(inv.lines ?? []));
+      setMessage('Recalled — back to Needs review');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Recall failed');
     }
   }
 
@@ -964,6 +984,14 @@ export function InvoiceWorkspacePage() {
     );
   }
 
+  const fieldsLocked = [
+    'in_approval',
+    'approved',
+    'exported',
+    'paid',
+    'void',
+  ].includes(invoice.status);
+
   return (
     <section className="page page--hitl">
       <header className="hitl-header">
@@ -986,9 +1014,29 @@ export function InvoiceWorkspacePage() {
           <button type="button" className="btn btn--ghost" onClick={() => navigate('/invoices')}>
             Back
           </button>
-          <button type="button" className="btn btn--primary" onClick={() => void onSubmit()}>
-            Submit
-          </button>
+          {invoice.status === 'in_approval' ? (
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => void onRecall()}
+            >
+              Recall
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => void onSubmit()}
+              disabled={
+                invoice.status === 'approved' ||
+                invoice.status === 'exported' ||
+                invoice.status === 'paid' ||
+                invoice.status === 'void'
+              }
+            >
+              Submit
+            </button>
+          )}
           <button
             type="button"
             className="btn btn--ghost"
@@ -1098,6 +1146,15 @@ export function InvoiceWorkspacePage() {
             )}
 
           <form className="workspace-form hitl-form" onSubmit={onSave}>
+            <fieldset disabled={fieldsLocked} className="hitl-fieldset">
+            {fieldsLocked && (
+              <p className="muted span-2">
+                Fields are read-only while status is {invoice.status.replace(/_/g, ' ')}.
+                {invoice.status === 'in_approval'
+                  ? ' Use Recall to return to Needs review.'
+                  : ''}
+              </p>
+            )}
             <DropField
               label="Invoice number"
               fieldKey="invoiceNumber"
@@ -1423,10 +1480,13 @@ export function InvoiceWorkspacePage() {
             {message && <p className="ok span-2">{message}</p>}
 
             <div className="span-2 actions">
-              <button type="submit" className="btn btn--primary">
-                Save fields
-              </button>
+              {!fieldsLocked && (
+                <button type="submit" className="btn btn--primary">
+                  Save fields
+                </button>
+              )}
             </div>
+            </fieldset>
           </form>
 
           <div className="hitl-sidepanel">
@@ -1455,9 +1515,9 @@ export function InvoiceWorkspacePage() {
                 className="inline-form"
                 onSubmit={(e) => void onUploadAttachment(e)}
               >
-                <input
-                  type="file"
-                  onChange={(e) => setAttachFile(e.target.files?.[0] ?? null)}
+                <FileSelect
+                  key={attachInputKey}
+                  onChange={(files) => setAttachFile(files?.[0] ?? null)}
                 />
                 <input
                   value={attachLabel}
