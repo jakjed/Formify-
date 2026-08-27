@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Header,
@@ -19,6 +20,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
+import { IsIn, IsOptional, IsString, MinLength } from 'class-validator';
 import { IntegrationService } from '../application/integration.service';
 import {
   CurrentTenantId,
@@ -26,6 +28,33 @@ import {
 } from '../../../common/current-user.decorator';
 import type { RequestUser } from '../../identity/domain/identity.types';
 import { RequireScopes } from '../../../common/scopes.decorator';
+
+class ConnectNetsuiteDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  accountId?: string;
+
+  @IsOptional()
+  @IsIn(['mock', 'live'])
+  mode?: 'mock' | 'live';
+
+  @IsOptional()
+  @IsString()
+  clientId?: string;
+
+  @IsOptional()
+  @IsString()
+  clientSecret?: string;
+
+  @IsOptional()
+  @IsString()
+  tokenId?: string;
+
+  @IsOptional()
+  @IsString()
+  tokenSecret?: string;
+}
 
 @ApiTags('integration')
 @ApiBearerAuth('bearer')
@@ -101,6 +130,36 @@ export class IntegrationController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.integration.syncDemoErp(tenantId, user.id);
+  }
+
+  @Post('connections/netsuite/connect')
+  @ApiOperation({
+    summary: 'Connect NetSuite (mock token or live TBA credentials)',
+  })
+  connectNetsuite(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: ConnectNetsuiteDto,
+  ) {
+    return this.integration.connectNetsuite(tenantId, user.id, dto);
+  }
+
+  @Post('connections/netsuite/disconnect')
+  @ApiOperation({ summary: 'Disconnect NetSuite' })
+  disconnectNetsuite(@CurrentTenantId() tenantId: string) {
+    return this.integration.disconnectNetsuite(tenantId);
+  }
+
+  @Post('connections/netsuite/sync')
+  @RequireScopes('exports:read')
+  @ApiOperation({
+    summary: 'Stub sync: push approved invoices as NetSuite vendor-bill stubs',
+  })
+  syncNetsuite(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.integration.syncNetsuite(tenantId, user.id);
   }
 
   @Post('exports/approved-invoices')

@@ -543,6 +543,7 @@ enum IntegrationJobType {
   import_vendors
   import_gl_accounts
   sync_demo_erp
+  sync_netsuite
 }
 
 enum IntegrationJobStatus {

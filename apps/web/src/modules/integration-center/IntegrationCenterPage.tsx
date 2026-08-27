@@ -46,6 +46,7 @@ export function IntegrationCenterPage() {
   const [packs, setPacks] = useState<ConnectorPack[]>([]);
   const [connections, setConnections] = useState<ConnectorConnection[]>([]);
   const [demoToken, setDemoToken] = useState<string | null>(null);
+  const [nsToken, setNsToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -230,12 +231,83 @@ export function IntegrationCenterPage() {
     }
   }
 
+  async function onConnectNetsuite(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    setNsToken(null);
+    try {
+      const res = await apiFetch<{
+        accessToken?: string;
+        message?: string;
+      }>('/api/integration/connections/netsuite/connect', {
+        method: 'POST',
+        body: JSON.stringify({
+          accountId: data.get('accountId') || undefined,
+          mode: data.get('mode') || 'mock',
+          clientId: data.get('clientId') || undefined,
+          clientSecret: data.get('clientSecret') || undefined,
+          tokenId: data.get('tokenId') || undefined,
+          tokenSecret: data.get('tokenSecret') || undefined,
+        }),
+      });
+      if (res.accessToken) setNsToken(res.accessToken);
+      setMessage(res.message ?? 'NetSuite connected');
+      form.reset();
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Connect failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disconnectNetsuite() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch('/api/integration/connections/netsuite/disconnect', {
+        method: 'POST',
+      });
+      setNsToken(null);
+      setMessage('NetSuite disconnected');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Disconnect failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function syncNetsuite() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await apiFetch<{ message: string; rowCount: number }>(
+        '/api/integration/connections/netsuite/sync',
+        { method: 'POST' },
+      );
+      setMessage(res.message ?? `Synced ${res.rowCount} rows`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sync failed');
+      await refresh().catch(() => undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="page">
       <h1>Integration Center</h1>
       <p className="lede">
-        Templates, CSV import/export, and connector runtime — Demo ERP is
-        available now; other packs remain planned.
+        Templates, CSV import/export, and connector runtime — Demo ERP and
+        NetSuite are available; other packs remain planned.
       </p>
 
       {error && <p className="error">{error}</p>}
@@ -244,19 +316,30 @@ export function IntegrationCenterPage() {
       <div className="panel">
         <h2>Connector packs</h2>
         <p className="muted">
-          Connect Demo ERP with mock credentials, then run a stub sync of
-          approved invoices. Live NetSuite/QBO OAuth comes later.
+          Connect Demo ERP or NetSuite, then run a stub sync of approved
+          invoices. Live SuiteTalk HTTP is deferred; credentials are stored
+          hashed for the next runtime epic.
         </p>
         {demoToken && (
           <p className="ok">
             Demo access token (copy once): <code>{demoToken}</code>
           </p>
         )}
+        {nsToken && (
+          <p className="ok">
+            NetSuite mock token (copy once): <code>{nsToken}</code>
+          </p>
+        )}
         <ul className="task-list">
           {packs.map((pack) => {
             const conn = connectionFor(pack.key);
             const isDemo = pack.key === 'demo-erp';
+            const isNs = pack.key === 'netsuite';
             const connected = conn?.status === 'connected';
+            const settings = (conn?.settings ?? {}) as {
+              mode?: string;
+              accountId?: string;
+            };
             return (
               <li key={pack.key}>
                 <div>
@@ -264,9 +347,13 @@ export function IntegrationCenterPage() {
                   <span className="muted">
                     {' '}
                     · {pack.status}
-                    {isDemo && conn
-                      ? ` · ${conn.status}`
-                      : isDemo
+                    {(isDemo || isNs) && conn
+                      ? ` · ${conn.status}${
+                          settings.mode ? ` (${settings.mode})` : ''
+                        }${
+                          settings.accountId ? ` · ${settings.accountId}` : ''
+                        }`
+                      : isDemo || isNs
                         ? ' · not connected'
                         : ''}
                   </span>
@@ -303,11 +390,81 @@ export function IntegrationCenterPage() {
                     )}
                   </div>
                 )}
+                {isNs && pack.status === 'available' && connected && (
+                  <div className="actions">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void syncNetsuite()}
+                    >
+                      Run sync
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-btn"
+                      disabled={busy}
+                      onClick={() => void disconnectNetsuite()}
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                )}
               </li>
             );
           })}
           {packs.length === 0 && <li className="muted">No packs listed.</li>}
         </ul>
+
+        <h3>Connect NetSuite</h3>
+        <form
+          className="workspace-form"
+          onSubmit={(e) => void onConnectNetsuite(e)}
+        >
+          <label>
+            Account ID
+            <input
+              name="accountId"
+              placeholder="TSTDRV0000000"
+              defaultValue="TSTDRV0000000"
+            />
+          </label>
+          <label>
+            Mode
+            <select name="mode" defaultValue="mock">
+              <option value="mock">mock</option>
+              <option value="live">live (store TBA secrets)</option>
+            </select>
+          </label>
+          <label>
+            Client ID / consumer key
+            <input name="clientId" placeholder="live mode" />
+          </label>
+          <label>
+            Client secret / consumer secret
+            <input
+              name="clientSecret"
+              type="password"
+              placeholder="live mode"
+            />
+          </label>
+          <label>
+            Token ID
+            <input name="tokenId" placeholder="optional TBA" />
+          </label>
+          <label>
+            Token secret
+            <input
+              name="tokenSecret"
+              type="password"
+              placeholder="optional TBA"
+            />
+          </label>
+          <div className="span-2 actions">
+            <button type="submit" disabled={busy}>
+              Connect NetSuite
+            </button>
+          </div>
+        </form>
       </div>
 
       <div className="panel">

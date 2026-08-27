@@ -8,11 +8,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { ModuleKey } from '@aptora/types';
-import { IntegrationJobType } from '@prisma/client';
+import { IntegrationJobType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { TenancyService } from '../../tenancy/application/tenancy.service';
 
 export const DEMO_ERP_PACK_KEY = 'demo-erp';
+export const NETSUITE_PACK_KEY = 'netsuite';
 
 function hashSecret(raw: string) {
   return createHash('sha256').update(raw).digest('hex');
@@ -176,10 +177,11 @@ export class IntegrationService {
           'Sandbox connector (mock OAuth). Connect, then sync approved invoices as a stub push job.',
       },
       {
-        key: 'netsuite',
+        key: NETSUITE_PACK_KEY,
         name: 'NetSuite',
-        status: 'planned',
-        description: 'Vendor bills + PO sync via SuiteTalk (later connector pack).',
+        status: 'available',
+        description:
+          'Push approved invoices as vendor-bill stubs. Mock connect for local/dev; live mode stores TBA/OAuth client settings (SuiteTalk call deferred).',
       },
       {
         key: 'quickbooks',
@@ -365,6 +367,217 @@ export class IntegrationService {
       });
       throw new BadRequestException({
         message: 'Demo ERP sync failed',
+        jobId: job.id,
+      });
+    }
+  }
+
+  async connectNetsuite(
+    tenantId: string,
+    userId: string,
+    input: {
+      accountId?: string;
+      mode?: 'mock' | 'live';
+      clientId?: string;
+      clientSecret?: string;
+      tokenId?: string;
+      tokenSecret?: string;
+    },
+  ) {
+    const mode = input.mode === 'live' ? 'live' : 'mock';
+    const accountId = (input.accountId ?? 'TSTDRV0000000').trim();
+    if (!accountId) {
+      throw new BadRequestException('accountId is required');
+    }
+
+    let accessToken: string | undefined;
+    let credentialsHash: string;
+
+    if (mode === 'mock') {
+      accessToken = `ns_${randomBytes(24).toString('base64url')}`;
+      credentialsHash = hashSecret(accessToken);
+    } else {
+      const clientId = input.clientId?.trim();
+      const clientSecret = input.clientSecret?.trim();
+      if (!clientId || !clientSecret) {
+        throw new BadRequestException(
+          'live mode requires clientId and clientSecret (TBA consumer key/secret)',
+        );
+      }
+      // Store hash of consumer + token material; SuiteTalk call deferred to later epic
+      const material = [
+        clientId,
+        clientSecret,
+        input.tokenId?.trim() ?? '',
+        input.tokenSecret?.trim() ?? '',
+      ].join(':');
+      credentialsHash = hashSecret(material);
+    }
+
+    const settings = {
+      mode,
+      accountId,
+      clientIdSet: mode === 'live' ? Boolean(input.clientId?.trim()) : false,
+      tokenIdSet: mode === 'live' ? Boolean(input.tokenId?.trim()) : false,
+    } satisfies Prisma.InputJsonObject;
+
+    const now = new Date();
+    const row = await this.prisma.connectorConnection.upsert({
+      where: {
+        tenantId_packKey: { tenantId, packKey: NETSUITE_PACK_KEY },
+      },
+      create: {
+        tenantId,
+        packKey: NETSUITE_PACK_KEY,
+        status: 'connected',
+        credentialsHash,
+        settings,
+        connectedAt: now,
+        disconnectedAt: null,
+        createdById: userId,
+      },
+      update: {
+        status: 'connected',
+        credentialsHash,
+        settings,
+        connectedAt: now,
+        disconnectedAt: null,
+        createdById: userId,
+      },
+    });
+
+    return {
+      id: row.id,
+      packKey: row.packKey,
+      status: row.status,
+      settings: row.settings,
+      connectedAt: row.connectedAt,
+      ...(accessToken ? { accessToken } : {}),
+      message:
+        mode === 'mock'
+          ? 'NetSuite connected in mock mode'
+          : 'NetSuite credentials stored (live SuiteTalk push still stubbed on sync)',
+    };
+  }
+
+  async disconnectNetsuite(tenantId: string) {
+    const existing = await this.prisma.connectorConnection.findUnique({
+      where: {
+        tenantId_packKey: { tenantId, packKey: NETSUITE_PACK_KEY },
+      },
+    });
+    if (!existing) {
+      throw new NotFoundException('NetSuite connection not found');
+    }
+    return this.prisma.connectorConnection.update({
+      where: { id: existing.id },
+      data: {
+        status: 'disconnected',
+        credentialsHash: null,
+        disconnectedAt: new Date(),
+      },
+      select: {
+        id: true,
+        packKey: true,
+        status: true,
+        disconnectedAt: true,
+      },
+    });
+  }
+
+  async syncNetsuite(tenantId: string, userId: string) {
+    const connection = await this.prisma.connectorConnection.findUnique({
+      where: {
+        tenantId_packKey: { tenantId, packKey: NETSUITE_PACK_KEY },
+      },
+    });
+    if (!connection || connection.status !== 'connected' || !connection.credentialsHash) {
+      throw new BadRequestException('Connect NetSuite before running sync');
+    }
+
+    const settings = (connection.settings ?? {}) as Record<string, unknown>;
+    const mode = settings.mode === 'live' ? 'live' : 'mock';
+    const accountId =
+      typeof settings.accountId === 'string' ? settings.accountId : 'unknown';
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: { tenantId, status: 'approved' },
+      orderBy: { approvedAt: 'asc' },
+    });
+
+    const lines = [
+      [
+        'invoice_id',
+        'invoice_number',
+        'total_minor',
+        'currency',
+        'approved_at',
+        'netsuite_account',
+        'vendor_bill_external_id',
+        'mode',
+      ].join(','),
+    ];
+    for (const inv of invoices) {
+      lines.push(
+        [
+          inv.id,
+          csv(inv.invoiceNumber),
+          String(inv.totalMinor ?? ''),
+          csv(inv.currency),
+          inv.approvedAt?.toISOString() ?? '',
+          csv(accountId),
+          `NS-VB-${inv.id.slice(0, 8)}`,
+          mode,
+        ].join(','),
+      );
+    }
+    const content = `${lines.join('\n')}\n`;
+    const fileName = `netsuite-sync-${Date.now()}.csv`;
+
+    try {
+      const result = await this.finishExport({
+        tenantId,
+        userId,
+        type: 'sync_netsuite',
+        fileName,
+        content,
+        rowCount: invoices.length,
+        afterWrite: async () => {
+          await this.prisma.invoice.updateMany({
+            where: {
+              tenantId,
+              status: 'approved',
+              exportedAt: null,
+            },
+            data: { exportedAt: new Date() },
+          });
+        },
+      });
+      return {
+        job: result.job,
+        packKey: NETSUITE_PACK_KEY,
+        rowCount: result.rowCount,
+        fileName: result.fileName,
+        mode,
+        message:
+          mode === 'mock'
+            ? `Stub-pushed ${result.rowCount} vendor bill(s) to NetSuite (mock)`
+            : `Recorded ${result.rowCount} vendor bill stub(s) for account ${accountId} (live SuiteTalk deferred)`,
+      };
+    } catch (err) {
+      const job = await this.prisma.integrationJob.create({
+        data: {
+          tenantId,
+          type: 'sync_netsuite',
+          status: 'failed',
+          rowCount: 0,
+          errorMessage: err instanceof Error ? err.message : 'Sync failed',
+          createdById: userId,
+          finishedAt: new Date(),
+        },
+      });
+      throw new BadRequestException({
+        message: 'NetSuite sync failed',
         jobId: job.id,
       });
     }
