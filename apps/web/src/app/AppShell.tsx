@@ -1,30 +1,46 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { PRODUCT_NAME } from '@aptora/types';
 import { apiFetch, clearSession, getToken } from '../shared/lib/api';
 import { CommandPalette } from '../shared/components/CommandPalette';
 
-const links = [
-  { to: '/', label: 'My Work' },
-  { to: '/invoices', label: 'Invoices' },
-  { to: '/exceptions', label: 'Exceptions' },
-  { to: '/ops', label: 'Dashboard' },
-  { to: '/directory', label: 'Directory' },
-  { to: '/integration', label: 'Integration Center' },
-  { to: '/admin', label: 'Admin' },
-];
+type ModuleRow = { moduleKey: string; enabled: boolean };
+type EntityRow = { id: string; name: string; code: string };
 
 const ENTITY_KEY = 'aptora_entity_id';
 
-type EntityRow = { id: string; name: string; code: string };
+const BASE_LINKS = [
+  { to: '/', label: 'My Work', module: null as string | null },
+  { to: '/invoices', label: 'Invoices', module: 'invoices' },
+  { to: '/exceptions', label: 'Exceptions', module: 'invoices' },
+  { to: '/ops', label: 'Dashboard', module: 'invoices' },
+  { to: '/contracts', label: 'Contracts', module: 'contracts' },
+  { to: '/purchase-requests', label: 'Requests', module: 'purchase_requests' },
+  { to: '/purchase-orders', label: 'Orders', module: 'purchase_orders' },
+  { to: '/directory', label: 'Directory', module: null },
+  { to: '/integration', label: 'Integration Center', module: null },
+  { to: '/admin', label: 'Admin', module: null },
+];
 
 export function AppShell() {
   const navigate = useNavigate();
   const [unread, setUnread] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [entities, setEntities] = useState<EntityRow[]>([]);
+  const [modules, setModules] = useState<ModuleRow[]>([]);
   const [entityId, setEntityId] = useState(
     () => sessionStorage.getItem(ENTITY_KEY) ?? '',
+  );
+
+  const enabled = useMemo(() => {
+    const map = new Map(modules.map((m) => [m.moduleKey, m.enabled]));
+    // Default invoices on if license row missing (legacy tenants)
+    if (!map.has('invoices')) map.set('invoices', true);
+    return map;
+  }, [modules]);
+
+  const links = BASE_LINKS.filter(
+    (link) => !link.module || enabled.get(link.module) === true,
   );
 
   useEffect(() => {
@@ -32,13 +48,15 @@ export function AppShell() {
     let cancelled = false;
     async function load() {
       try {
-        const [rows, ents] = await Promise.all([
+        const [rows, ents, mods] = await Promise.all([
           apiFetch<{ id: string }[]>('/api/notifications?unreadOnly=true'),
-          apiFetch<EntityRow[]>('/api/entities'),
+          apiFetch<EntityRow[]>('/api/entities').catch(() => [] as EntityRow[]),
+          apiFetch<ModuleRow[]>('/api/modules').catch(() => [] as ModuleRow[]),
         ]);
         if (cancelled) return;
         setUnread(rows.length);
         setEntities(ents);
+        setModules(mods);
         if (!sessionStorage.getItem(ENTITY_KEY) && ents[0]) {
           sessionStorage.setItem(ENTITY_KEY, ents[0].id);
           setEntityId(ents[0].id);

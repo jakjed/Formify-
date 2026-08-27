@@ -17,6 +17,7 @@ Formerly working name: Formify.
 
 - **[docs/PRODUCT_BLUEPRINT.md](docs/PRODUCT_BLUEPRINT.md)** — full product, UX, architecture, hosting, packaging, roadmap
 - **[docs/PHASE1_PRD.md](docs/PHASE1_PRD.md)** — Phase 1 PRD + screen inventory (Aptora AP web wedge)
+- **[docs/PHASE2_PRD.md](docs/PHASE2_PRD.md)** — Phase 2 Procure (Contracts + PR + PO)
 - [docs/architecture/MONOREPO.md](docs/architecture/MONOREPO.md) — folder & module rules
 - [docs/architecture/E0_FOUNDATION.md](docs/architecture/E0_FOUNDATION.md) — run the foundation locally
 - [docs/architecture/HOSTING.md](docs/architecture/HOSTING.md) — where to host & what to do first
@@ -35,6 +36,7 @@ Formerly working name: Formify.
 - [docs/architecture/RESIDENCY.md](docs/architecture/RESIDENCY.md) — US/EU data residency pin
 - [docs/architecture/E13_PHASE1_E2E.md](docs/architecture/E13_PHASE1_E2E.md) — J1–J3 journeys & Playwright
 - [docs/architecture/PHASE1_COMPLETE.md](docs/architecture/PHASE1_COMPLETE.md) — Phase 1 track complete
+- [docs/architecture/P2_E0_PROCURE_FOUNDATION.md](docs/architecture/P2_E0_PROCURE_FOUNDATION.md) — Phase 2 procure foundation
 
 ## Workspace
 

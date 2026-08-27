@@ -21,7 +21,12 @@ export class TenancyService {
           slug: input.slug,
           region: input.region ?? 'us',
           moduleLicenses: {
-            create: [{ moduleKey: 'invoices', enabled: true }],
+            create: [
+              { moduleKey: 'invoices', enabled: true },
+              { moduleKey: 'contracts', enabled: false },
+              { moduleKey: 'purchase_requests', enabled: false },
+              { moduleKey: 'purchase_orders', enabled: false },
+            ],
           },
           entities: {
             create: [{ name: `${input.name} Entity`, code: 'MAIN' }],
@@ -188,6 +193,31 @@ export class TenancyService {
       where: { tenantId_moduleKey: { tenantId, moduleKey } },
     });
     return Boolean(license?.enabled);
+  }
+
+  async listModules(tenantId: string) {
+    await this.getTenant(tenantId);
+    const rows = await this.prisma.moduleLicense.findMany({
+      where: { tenantId },
+      orderBy: { moduleKey: 'asc' },
+    });
+    return rows.map((r) => ({
+      moduleKey: r.moduleKey,
+      enabled: r.enabled,
+    }));
+  }
+
+  async setModuleEnabled(
+    tenantId: string,
+    moduleKey: string,
+    enabled: boolean,
+  ) {
+    await this.getTenant(tenantId);
+    return this.prisma.moduleLicense.upsert({
+      where: { tenantId_moduleKey: { tenantId, moduleKey } },
+      create: { tenantId, moduleKey, enabled },
+      update: { enabled },
+    });
   }
 
   private toTenantRecord(tenant: {
