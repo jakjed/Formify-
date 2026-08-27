@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { App } from './app/App';
 import '@aptora/ui/tokens/ledger-light.css';
 import './shared/styles/app.css';
+import './shared/styles/procure.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Root element missing');
