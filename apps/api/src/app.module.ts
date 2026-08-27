@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './health/health.module';
 import { TenancyModule } from './modules/tenancy/tenancy.module';
@@ -12,6 +13,7 @@ import { IntegrationModule } from './modules/integration/integration.module';
 import { UsageModule } from './modules/usage/usage.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AuthGuard } from './common/auth.guard';
 
 @Module({
   imports: [
@@ -31,6 +33,12 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     UsageModule,
     AuditModule,
     NotificationsModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
   ],
 })
 export class AppModule {}

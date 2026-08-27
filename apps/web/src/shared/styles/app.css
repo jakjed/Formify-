@@ -49,6 +49,15 @@
   font-weight: 400;
 }
 
+.shell__signout {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  cursor: pointer;
+}
+
 .shell__main {
   padding: 2.5rem 2rem;
 }
@@ -172,6 +181,99 @@
 .muted {
   color: var(--aptora-muted);
   font-size: 0.85rem;
+}
+
+.auth__card select {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--aptora-border);
+  border-radius: var(--aptora-radius);
+  font: inherit;
+  background: white;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1.25rem 0 1rem;
+}
+
+.tabs__btn {
+  border: 1px solid var(--aptora-border);
+  background: white;
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font: inherit;
+  cursor: pointer;
+  color: var(--aptora-muted);
+}
+
+.tabs__btn--active {
+  border-color: rgb(15 118 110 / 35%);
+  background: rgb(15 118 110 / 12%);
+  color: var(--aptora-teal);
+  font-weight: 600;
+}
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.inline-form input {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--aptora-border);
+  border-radius: var(--aptora-radius);
+  font: inherit;
+  min-width: 8rem;
+}
+
+.inline-form button {
+  border: 0;
+  border-radius: var(--aptora-radius);
+  padding: 0.55rem 0.9rem;
+  background: var(--aptora-teal);
+  color: white;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.table-wrap {
+  overflow: auto;
+  border: 1px solid var(--aptora-border);
+  border-radius: calc(var(--aptora-radius) + 2px);
+  background: rgb(255 255 255 / 85%);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid var(--aptora-border);
+  text-align: left;
+}
+
+.data-table th {
+  color: var(--aptora-muted);
+  font-weight: 600;
+  background: rgb(15 25 20 / 2%);
+}
+
+.linkish {
+  border: 0;
+  background: transparent;
+  color: var(--aptora-teal);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
 }
 
 @media (max-width: 800px) {

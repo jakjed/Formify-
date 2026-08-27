@@ -1,33 +1,37 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PRODUCT_NAME } from '@aptora/types';
+import { apiFetch, setSession } from '../../shared/lib/api';
+
+type LoginResponse = {
+  token: string;
+  user: { tenantId: string; email: string; displayName: string };
+};
 
 export function LoginPage() {
   const navigate = useNavigate();
   const [tenantId, setTenantId] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@acme.test');
+  const [password, setPassword] = useState('password1');
   const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setMessage(null);
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenantId, email, password }),
-    });
-    if (!res.ok) {
-      const body = (await res.json().catch(() => ({}))) as { message?: string | string[] };
-      const msg = Array.isArray(body.message)
-        ? body.message.join(', ')
-        : body.message ?? 'Login failed';
-      setMessage(msg);
-      return;
+    setBusy(true);
+    try {
+      const data = await apiFetch<LoginResponse>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ tenantId, email, password }),
+      });
+      setSession(data.token, data.user.tenantId);
+      navigate('/');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Login failed');
+    } finally {
+      setBusy(false);
     }
-    const data = (await res.json()) as { token: string };
-    sessionStorage.setItem('aptora_token', data.token);
-    navigate('/');
   }
 
   return (
@@ -59,10 +63,11 @@ export function LoginPage() {
           />
         </label>
         {message && <p className="error">{message}</p>}
-        <button type="submit">Sign in</button>
+        <button type="submit" disabled={busy}>
+          {busy ? 'Signing in…' : 'Sign in'}
+        </button>
         <p className="muted">
-          Dev bootstrap: create a tenant via <code>POST /api/tenants</code>, then{' '}
-          <code>POST /api/auth/register</code>. <Link to="/">Back</Link>
+          Need a tenant? <Link to="/bootstrap">Bootstrap workspace</Link>
         </p>
       </form>
     </div>

@@ -16,3 +16,5 @@ export type UserRecord = {
   role: 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
   createdAt: string;
 };
+
+export type RequestUser = Omit<UserRecord, 'passwordHash'>;
