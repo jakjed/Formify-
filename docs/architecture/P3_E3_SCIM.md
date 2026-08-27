@@ -44,4 +44,4 @@ Content-Type responses: `application/scim+json`.
 
 ## Next
 
-P3-E4 Connector runtime · P3-E5 Advanced SoD
+P3-E4 Connector runtime ✅ · P3-E5 Advanced SoD

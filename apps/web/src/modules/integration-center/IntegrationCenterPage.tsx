@@ -30,11 +30,22 @@ type ConnectorPack = {
   description: string;
 };
 
+type ConnectorConnection = {
+  id: string;
+  packKey: string;
+  status: string;
+  settings: Record<string, unknown>;
+  connectedAt: string | null;
+  hasCredentials: boolean;
+};
+
 export function IntegrationCenterPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [modules, setModules] = useState<ModuleRow[]>([]);
   const [packs, setPacks] = useState<ConnectorPack[]>([]);
+  const [connections, setConnections] = useState<ConnectorConnection[]>([]);
+  const [demoToken, setDemoToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -43,19 +54,27 @@ export function IntegrationCenterPage() {
     return modules.some((m) => m.moduleKey === key && m.enabled);
   }
 
+  function connectionFor(packKey: string) {
+    return connections.find((c) => c.packKey === packKey) ?? null;
+  }
+
   async function refresh() {
-    const [t, j, m, p] = await Promise.all([
+    const [t, j, m, p, c] = await Promise.all([
       apiFetch<Template[]>('/api/integration/templates'),
       apiFetch<Job[]>('/api/integration/jobs'),
       apiFetch<ModuleRow[]>('/api/modules').catch(() => [] as ModuleRow[]),
       apiFetch<ConnectorPack[]>('/api/integration/connector-packs').catch(
         () => [] as ConnectorPack[],
       ),
+      apiFetch<ConnectorConnection[]>('/api/integration/connections').catch(
+        () => [] as ConnectorConnection[],
+      ),
     ]);
     setTemplates(t);
     setJobs(j);
     setModules(m);
     setPacks(p);
+    setConnections(c);
   }
 
   useEffect(() => {
@@ -154,12 +173,69 @@ export function IntegrationCenterPage() {
     }
   }
 
+  async function connectDemoErp() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    setDemoToken(null);
+    try {
+      const res = await apiFetch<{ accessToken: string }>(
+        '/api/integration/connections/demo-erp/connect',
+        { method: 'POST' },
+      );
+      setDemoToken(res.accessToken);
+      setMessage('Demo ERP connected — copy access token now');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Connect failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disconnectDemoErp() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch('/api/integration/connections/demo-erp/disconnect', {
+        method: 'POST',
+      });
+      setDemoToken(null);
+      setMessage('Demo ERP disconnected');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Disconnect failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function syncDemoErp() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await apiFetch<{ message: string; rowCount: number }>(
+        '/api/integration/connections/demo-erp/sync',
+        { method: 'POST' },
+      );
+      setMessage(res.message ?? `Synced ${res.rowCount} rows`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sync failed');
+      await refresh().catch(() => undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="page">
       <h1>Integration Center</h1>
       <p className="lede">
-        Templates, CSV import/export, webhook-ready APIs — connector packs are
-        registered below (runtime later).
+        Templates, CSV import/export, and connector runtime — Demo ERP is
+        available now; other packs remain planned.
       </p>
 
       {error && <p className="error">{error}</p>}
@@ -168,18 +244,68 @@ export function IntegrationCenterPage() {
       <div className="panel">
         <h2>Connector packs</h2>
         <p className="muted">
-          Registry only — OAuth/runtime connectors land in later Phase 3 slices.
+          Connect Demo ERP with mock credentials, then run a stub sync of
+          approved invoices. Live NetSuite/QBO OAuth comes later.
         </p>
+        {demoToken && (
+          <p className="ok">
+            Demo access token (copy once): <code>{demoToken}</code>
+          </p>
+        )}
         <ul className="task-list">
-          {packs.map((pack) => (
-            <li key={pack.key}>
-              <div>
-                <strong>{pack.name}</strong>
-                <span className="muted"> · {pack.status}</span>
-                <p className="muted">{pack.description}</p>
-              </div>
-            </li>
-          ))}
+          {packs.map((pack) => {
+            const conn = connectionFor(pack.key);
+            const isDemo = pack.key === 'demo-erp';
+            const connected = conn?.status === 'connected';
+            return (
+              <li key={pack.key}>
+                <div>
+                  <strong>{pack.name}</strong>
+                  <span className="muted">
+                    {' '}
+                    · {pack.status}
+                    {isDemo && conn
+                      ? ` · ${conn.status}`
+                      : isDemo
+                        ? ' · not connected'
+                        : ''}
+                  </span>
+                  <p className="muted">{pack.description}</p>
+                </div>
+                {isDemo && pack.status === 'available' && (
+                  <div className="actions">
+                    {!connected ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void connectDemoErp()}
+                      >
+                        Connect
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void syncDemoErp()}
+                        >
+                          Run sync
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-btn"
+                          disabled={busy}
+                          onClick={() => void disconnectDemoErp()}
+                        >
+                          Disconnect
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
           {packs.length === 0 && <li className="muted">No packs listed.</li>}
         </ul>
       </div>

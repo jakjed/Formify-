@@ -76,6 +76,7 @@ model Tenant {
   purchaseRequests PurchaseRequest[]
   purchaseOrders PurchaseOrder[]
   webhookEndpoints WebhookEndpoint[]
+  connectorConnections ConnectorConnection[]
 }
 
 model ModuleLicense {
@@ -515,12 +516,18 @@ enum IntegrationJobType {
   export_purchase_orders
   import_vendors
   import_gl_accounts
+  sync_demo_erp
 }
 
 enum IntegrationJobStatus {
   pending
   succeeded
   failed
+}
+
+enum ConnectorConnectionStatus {
+  connected
+  disconnected
 }
 
 model IntegrationJob {
@@ -539,6 +546,27 @@ model IntegrationJob {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, createdAt])
+}
+
+/// Tenant connection to a connector pack (mock or live OAuth later).
+model ConnectorConnection {
+  id              String                     @id @default(uuid()) @db.Uuid
+  tenantId        String                     @db.Uuid
+  packKey         String
+  status          ConnectorConnectionStatus  @default(disconnected)
+  /// SHA-256 of mock/live access token — never return raw secret after connect
+  credentialsHash String?
+  settings        Json                       @default("{}")
+  connectedAt     DateTime?
+  disconnectedAt  DateTime?
+  createdById     String?                    @db.Uuid
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, packKey])
+  @@index([tenantId])
 }
 
 model CaptureMailbox {

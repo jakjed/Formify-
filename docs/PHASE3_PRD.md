@@ -21,8 +21,8 @@ After AP Invoices (Phase 1) and Procure (Phase 2), open Aptora to **partners and
 | P3-E0 Foundation | Webhooks + connector pack registry + PRD ✅ |
 | P3-E1 SSO OIDC | First IdP (Google or Entra) via `AuthProviderConfig` (this slice) |
 | P3-E2 Partner OAuth apps | OAuth2 client apps + scoped API access ✅ |
-| P3-E3 SCIM | User provisioning (this slice) |
-| P3-E4 Connector runtime | First ERP pack (OAuth + sync jobs) |
+| P3-E3 SCIM | User provisioning ✅ |
+| P3-E4 Connector runtime | First ERP pack (OAuth + sync jobs) (this slice) |
 | P3-E5 Advanced SoD | Segregation-of-duties policies beyond Phase 1 approvals |
 
 ## 4. Non-goals (foundation)
@@ -61,3 +61,11 @@ After AP Invoices (Phase 1) and Procure (Phase 2), open Aptora to **partners and
 - [x] `/api/scim/v2/Users` GET/POST/PATCH + DELETE→deactivate  
 - [x] Map to existing `User`; SSO-ready active users (null password)  
 - [x] Docs: `P3_E3_SCIM.md`  
+
+## 9. Exit (P3-E4)
+
+- [x] `ConnectorConnection` + `demo-erp` pack available  
+- [x] Mock connect/disconnect (hashed credentials)  
+- [x] Sync creates runnable `IntegrationJob` (`sync_demo_erp`)  
+- [x] Integration Center connect + sync + job status  
+- [x] Docs: `P3_E4_CONNECTOR_RUNTIME.md`  
