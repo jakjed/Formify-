@@ -50,6 +50,10 @@ export function InvoiceWorkspacePage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [validationIssues, setValidationIssues] = useState<
+    { code: string; message: string; blocking: boolean }[]
+  >([]);
+  const [duplicateOfId, setDuplicateOfId] = useState<string | null>(null);
 
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [vendorNameRaw, setVendorNameRaw] = useState('');
@@ -66,22 +70,30 @@ export function InvoiceWorkspacePage() {
     if (!id) return;
     void (async () => {
       try {
-        const [inv, vendorList] = await Promise.all([
+        const [inv, vendorList, validation] = await Promise.all([
           apiFetch<Invoice>(`/api/invoices/${id}`),
           apiFetch<Vendor[]>('/api/vendors'),
+          apiFetch<{
+            issues: { code: string; message: string; blocking: boolean }[];
+            duplicateOfId: string | null;
+            invoice: Invoice;
+          }>(`/api/invoices/${id}/validation`),
         ]);
-        setInvoice(inv);
+        setInvoice(validation.invoice ?? inv);
         setVendors(vendorList);
-        setInvoiceNumber(inv.invoiceNumber ?? '');
-        setVendorNameRaw(inv.vendorNameRaw ?? '');
-        setVendorId(inv.vendorId ?? '');
-        setCurrency(inv.currency);
-        setInvoiceDate(toDateInput(inv.invoiceDate));
-        setDueDate(toDateInput(inv.dueDate));
-        setSubtotal(toMajor(inv.subtotalMinor));
-        setTax(toMajor(inv.taxMinor));
-        setTotal(toMajor(inv.totalMinor));
-        setNotes(inv.notes ?? '');
+        setValidationIssues(validation.issues);
+        setDuplicateOfId(validation.duplicateOfId);
+        const current = validation.invoice ?? inv;
+        setInvoiceNumber(current.invoiceNumber ?? '');
+        setVendorNameRaw(current.vendorNameRaw ?? '');
+        setVendorId(current.vendorId ?? '');
+        setCurrency(current.currency);
+        setInvoiceDate(toDateInput(current.invoiceDate));
+        setDueDate(toDateInput(current.dueDate));
+        setSubtotal(toMajor(current.subtotalMinor));
+        setTax(toMajor(current.taxMinor));
+        setTotal(toMajor(current.totalMinor));
+        setNotes(current.notes ?? '');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load');
       }
@@ -110,7 +122,20 @@ export function InvoiceWorkspacePage() {
         }),
       });
       setInvoice(inv);
-      setMessage('Saved');
+      const validation = await apiFetch<{
+        issues: { code: string; message: string; blocking: boolean }[];
+        duplicateOfId: string | null;
+        blocking: boolean;
+        invoice: Invoice;
+      }>(`/api/invoices/${id}/validation`);
+      setValidationIssues(validation.issues);
+      setDuplicateOfId(validation.duplicateOfId);
+      setInvoice(validation.invoice);
+      setMessage(
+        validation.blocking
+          ? 'Saved — blocking validation issues remain'
+          : 'Saved — ready to submit',
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     }
@@ -191,11 +216,31 @@ export function InvoiceWorkspacePage() {
                 </li>
               ))}
           </ul>
+          {duplicateOfId && (
+            <p className="error">
+              Duplicate of{' '}
+              <Link to={`/invoices/${duplicateOfId}`}>open original</Link>
+            </p>
+          )}
           <button type="button" className="secondary-btn" onClick={() => void onResolve()}>
             Mark exceptions resolved
           </button>
         </div>
       )}
+
+      {validationIssues.length > 0 &&
+        !invoice.exceptions.some((x) => !x.resolved) && (
+          <div className="panel">
+            <h2>Validation</h2>
+            <ul>
+              {validationIssues.map((x) => (
+                <li key={`${x.code}-${x.message}`}>
+                  <strong>{x.code}</strong> — {x.message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
       <form className="workspace-form" onSubmit={onSave}>
         <label>

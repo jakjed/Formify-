@@ -58,6 +58,24 @@ export class InvoicesController {
     return this.invoices.listExceptionQueue(tenantId, code);
   }
 
+  @Get(':id/validation')
+  @RequireScopes('invoices:read')
+  validation(
+    @CurrentTenantId() tenantId: string,
+    @Param('id') id: string,
+  ) {
+    return this.invoices.validate(tenantId, id);
+  }
+
+  @Post(':id/validate')
+  @RequireScopes('invoices:write')
+  revalidate(
+    @CurrentTenantId() tenantId: string,
+    @Param('id') id: string,
+  ) {
+    return this.invoices.validate(tenantId, id);
+  }
+
   @Get(':id')
   @RequireScopes('invoices:read')
   get(@CurrentTenantId() tenantId: string, @Param('id') id: string) {

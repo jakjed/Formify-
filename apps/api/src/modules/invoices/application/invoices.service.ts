@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InvoiceStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
+import { InvoiceValidationService } from '../../invoice-rules/application/invoice-validation.service';
 import { UsageService } from '../../usage/application/usage.service';
 import { WorkflowService } from '../../workflow/application/workflow.service';
 
@@ -23,6 +24,7 @@ export class InvoicesService {
     private readonly prisma: PrismaService,
     private readonly usage: UsageService,
     private readonly workflow: WorkflowService,
+    private readonly validation: InvoiceValidationService,
   ) {}
 
   list(tenantId: string, query: InvoiceListQuery = {}) {
@@ -249,7 +251,7 @@ export class InvoicesService {
     },
   ) {
     await this.get(tenantId, id);
-    return this.prisma.invoice.update({
+    await this.prisma.invoice.update({
       where: { id },
       data: {
         vendorId: data.vendorId,
@@ -271,12 +273,16 @@ export class InvoicesService {
         totalMinor: data.totalMinor,
         notes: data.notes,
       },
-      include: {
-        fileAsset: true,
-        exceptions: true,
-        lines: { orderBy: { lineNo: 'asc' } },
-      },
     });
+    await this.validation.syncExceptions(tenantId, id);
+    return this.get(tenantId, id);
+  }
+
+  async validate(tenantId: string, id: string) {
+    await this.get(tenantId, id);
+    const result = await this.validation.syncExceptions(tenantId, id);
+    const invoice = await this.get(tenantId, id);
+    return { ...result, invoice };
   }
 
   async resolveExceptions(tenantId: string, id: string) {
@@ -285,10 +291,25 @@ export class InvoicesService {
       where: { invoiceId: id, resolved: false },
       data: { resolved: true },
     });
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id, tenantId },
+    });
+    if (invoice?.status === 'exception') {
+      await this.prisma.invoice.update({
+        where: { id },
+        data: { status: 'needs_review' },
+      });
+    }
     return this.get(tenantId, id);
   }
 
   async submit(tenantId: string, id: string, actorUserId: string) {
+    const gate = await this.validation.assertReadyForApproval(tenantId, id);
+    if (gate.blocking) {
+      throw new BadRequestException(
+        `Cannot submit: ${gate.summary}. Fix exceptions and save again.`,
+      );
+    }
     return this.workflow.submitInvoice(tenantId, id, actorUserId);
   }
 
@@ -299,12 +320,11 @@ export class InvoicesService {
         `Cannot approve invoice in status ${invoice.status}`,
       );
     }
-    if (invoice.totalMinor == null) {
-      throw new BadRequestException('Total amount is required before approval');
-    }
-    if (!invoice.invoiceNumber) {
+
+    const gate = await this.validation.assertReadyForApproval(tenantId, id);
+    if (gate.blocking) {
       throw new BadRequestException(
-        'Invoice number is required before approval',
+        `Cannot approve: ${gate.summary}. Fix exceptions and save again.`,
       );
     }
 
