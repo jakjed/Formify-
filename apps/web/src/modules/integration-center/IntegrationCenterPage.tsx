@@ -47,6 +47,7 @@ export function IntegrationCenterPage() {
   const [connections, setConnections] = useState<ConnectorConnection[]>([]);
   const [demoToken, setDemoToken] = useState<string | null>(null);
   const [nsToken, setNsToken] = useState<string | null>(null);
+  const [qboToken, setQboToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -303,12 +304,85 @@ export function IntegrationCenterPage() {
     }
   }
 
+  async function onConnectQbo(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    setQboToken(null);
+    try {
+      const res = await apiFetch<{
+        accessToken?: string;
+        message?: string;
+      }>('/api/integration/connections/quickbooks/connect', {
+        method: 'POST',
+        body: JSON.stringify({
+          realmId: data.get('realmId') || undefined,
+          mode: data.get('mode') || 'mock',
+          accessToken: data.get('accessToken') || undefined,
+          refreshToken: data.get('refreshToken') || undefined,
+          environment: data.get('environment') || 'sandbox',
+          expenseAccountId: data.get('expenseAccountId') || undefined,
+          baseUrl: data.get('baseUrl') || undefined,
+        }),
+      });
+      if (res.accessToken) setQboToken(res.accessToken);
+      setMessage(res.message ?? 'QuickBooks Online connected');
+      form.reset();
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Connect failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function disconnectQbo() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch('/api/integration/connections/quickbooks/disconnect', {
+        method: 'POST',
+      });
+      setQboToken(null);
+      setMessage('QuickBooks Online disconnected');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Disconnect failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function syncQbo() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await apiFetch<{ message: string; rowCount: number }>(
+        '/api/integration/connections/quickbooks/sync',
+        { method: 'POST' },
+      );
+      setMessage(res.message ?? `Synced ${res.rowCount} rows`);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Sync failed');
+      await refresh().catch(() => undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="page">
       <h1>Integration Center</h1>
       <p className="lede">
-        Templates, CSV import/export, and connector runtime — Demo ERP and
-        NetSuite are available; other packs remain planned.
+        Templates, CSV import/export, and connector runtime — Demo ERP,
+        NetSuite, and QuickBooks Online are available; other packs remain
+        planned.
       </p>
 
       {error && <p className="error">{error}</p>}
@@ -317,8 +391,9 @@ export function IntegrationCenterPage() {
       <div className="panel">
         <h2>Connector packs</h2>
         <p className="muted">
-          Connect Demo ERP or NetSuite, then run sync. NetSuite live mode uses
-          SuiteTalk REST + TBA (HMAC-SHA256) to create vendor bills.
+          Connect Demo ERP, NetSuite, or QuickBooks Online, then run sync.
+          NetSuite live mode uses SuiteTalk REST + TBA; QBO live mode uses
+          OAuth bearer bills API.
         </p>
         {demoToken && (
           <p className="ok">
@@ -330,16 +405,24 @@ export function IntegrationCenterPage() {
             NetSuite mock token (copy once): <code>{nsToken}</code>
           </p>
         )}
+        {qboToken && (
+          <p className="ok">
+            QuickBooks mock token (copy once): <code>{qboToken}</code>
+          </p>
+        )}
         <ul className="task-list">
           {packs.map((pack) => {
             const conn = connectionFor(pack.key);
             const isDemo = pack.key === 'demo-erp';
             const isNs = pack.key === 'netsuite';
+            const isQbo = pack.key === 'quickbooks';
             const connected = conn?.status === 'connected';
             const settings = (conn?.settings ?? {}) as {
               mode?: string;
               accountId?: string;
+              realmId?: string;
             };
+            const showConn = isDemo || isNs || isQbo;
             return (
               <li key={pack.key}>
                 <div>
@@ -347,13 +430,17 @@ export function IntegrationCenterPage() {
                   <span className="muted">
                     {' '}
                     · {pack.status}
-                    {(isDemo || isNs) && conn
+                    {showConn && conn
                       ? ` · ${conn.status}${
                           settings.mode ? ` (${settings.mode})` : ''
                         }${
-                          settings.accountId ? ` · ${settings.accountId}` : ''
+                          settings.accountId
+                            ? ` · ${settings.accountId}`
+                            : settings.realmId
+                              ? ` · ${settings.realmId}`
+                              : ''
                         }`
-                      : isDemo || isNs
+                      : showConn
                         ? ' · not connected'
                         : ''}
                   </span>
@@ -404,6 +491,25 @@ export function IntegrationCenterPage() {
                       className="secondary-btn"
                       disabled={busy}
                       onClick={() => void disconnectNetsuite()}
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                )}
+                {isQbo && pack.status === 'available' && connected && (
+                  <div className="actions">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void syncQbo()}
+                    >
+                      Run sync
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-btn"
+                      disabled={busy}
+                      onClick={() => void disconnectQbo()}
                     >
                       Disconnect
                     </button>
@@ -469,6 +575,67 @@ export function IntegrationCenterPage() {
           <div className="span-2 actions">
             <button type="submit" disabled={busy}>
               Connect NetSuite
+            </button>
+          </div>
+        </form>
+
+        <h3>Connect QuickBooks Online</h3>
+        <form
+          className="workspace-form"
+          onSubmit={(e) => void onConnectQbo(e)}
+        >
+          <label>
+            Company / realm ID
+            <input
+              name="realmId"
+              placeholder="123145263000000"
+              defaultValue="123145263000000"
+            />
+          </label>
+          <label>
+            Mode
+            <select name="mode" defaultValue="mock">
+              <option value="mock">mock</option>
+              <option value="live">live (OAuth bearer)</option>
+            </select>
+          </label>
+          <label>
+            Environment
+            <select name="environment" defaultValue="sandbox">
+              <option value="sandbox">sandbox</option>
+              <option value="production">production</option>
+            </select>
+          </label>
+          <label>
+            Expense account ID
+            <input name="expenseAccountId" placeholder="1" defaultValue="1" />
+          </label>
+          <label>
+            Access token
+            <input
+              name="accessToken"
+              type="password"
+              placeholder="required for live"
+            />
+          </label>
+          <label>
+            Refresh token (optional)
+            <input
+              name="refreshToken"
+              type="password"
+              placeholder="stored if provided"
+            />
+          </label>
+          <label className="span-2">
+            QBO API base URL override (optional)
+            <input
+              name="baseUrl"
+              placeholder="https://sandbox-quickbooks.api.intuit.com"
+            />
+          </label>
+          <div className="span-2 actions">
+            <button type="submit" disabled={busy}>
+              Connect QuickBooks
             </button>
           </div>
         </form>

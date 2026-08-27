@@ -26,4 +26,4 @@ Successful invoices get `exportedAt` set.
 
 ## Next
 
-P4-E2 QuickBooks Online · P4-E3 Go-live harden
+P4-E2 QuickBooks Online ✅ · P4-E3 Go-live harden
