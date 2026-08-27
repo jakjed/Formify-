@@ -1,23 +1,14 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../../shared/lib/api';
-
-const DEPARTMENTS = [
-  'G&A',
-  'R&D',
-  'Sales & Marketing',
-  'Finance',
-  'Operations',
-] as const;
-
-const EXPENSE_CATEGORIES = [
-  'Software & SaaS',
-  'Professional Services',
-  'Marketing',
-  'Facilities',
-  'Travel & Entertainment',
-  'Consulting',
-] as const;
+import {
+  DEPARTMENTS,
+  EXPENSE_CATEGORIES,
+  PrStatusBadge,
+  ProcureKpis,
+  ProcureTabs,
+  formatMoney,
+} from '../procure/shared';
 
 type LinkedPo = {
   id: string;
@@ -32,9 +23,10 @@ type Pr = {
   title: string;
   status: string;
   totalMinor: number | null;
-  vendorId: string | null;
+  currency?: string;
   department: string | null;
   category: string | null;
+  vendorId?: string | null;
   purchaseOrders: LinkedPo[];
 };
 
@@ -42,22 +34,16 @@ type Proposal = {
   id: string;
   number: string;
   title: string;
+  status: string;
   valueMinor: number | null;
   currency: string;
   vendor: { id: string; code: string; name: string } | null;
 };
 
 type Vendor = { id: string; code: string; name: string };
-
 type ModuleRow = { moduleKey: string; enabled: boolean };
-
 type Tab = 'proposals' | 'requests';
-type StatusFilter = 'All' | 'draft' | 'in_approval' | 'approved';
-
-function formatMoney(minor: number | null, currency = 'EUR') {
-  if (minor == null) return '—';
-  return `${(minor / 100).toFixed(2)} ${currency}`;
-}
+type Filter = 'All' | 'draft' | 'in_approval' | 'approved' | 'converted';
 
 export function PurchaseRequestsPage() {
   const [tab, setTab] = useState<Tab>('requests');
@@ -65,29 +51,14 @@ export function PurchaseRequestsPage() {
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [poLicensed, setPoLicensed] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
-  const [proposalDept, setProposalDept] = useState<Record<string, string>>({});
-  const [proposalCat, setProposalCat] = useState<Record<string, string>>({});
-  const [proposalTotal, setProposalTotal] = useState<Record<string, string>>(
-    {},
-  );
+  const [filter, setFilter] = useState<Filter>('All');
+  const [showNew, setShowNew] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const vendorById = useMemo(() => {
-    const map = new Map<string, Vendor>();
-    for (const v of vendors) map.set(v.id, v);
-    return map;
-  }, [vendors]);
-
-  const filteredRows = useMemo(() => {
-    if (statusFilter === 'All') return rows;
-    return rows.filter((r) => r.status === statusFilter);
-  }, [rows, statusFilter]);
-
   async function refresh() {
-    const [prs, mods, vendorRows, proposalRows] = await Promise.all([
+    const [prs, mods, vendorRows, props] = await Promise.all([
       apiFetch<Pr[]>('/api/purchase-requests'),
       apiFetch<ModuleRow[]>('/api/modules').catch(() => [] as ModuleRow[]),
       apiFetch<Vendor[]>('/api/vendors').catch(() => [] as Vendor[]),
@@ -96,25 +67,62 @@ export function PurchaseRequestsPage() {
       ),
     ]);
     setRows(prs);
+    setProposals(props);
+    setVendors(vendorRows);
     setPoLicensed(
       mods.some((m) => m.moduleKey === 'purchase_orders' && m.enabled),
     );
-    setVendors(vendorRows);
-    setProposals(proposalRows);
   }
 
   useEffect(() => {
     void refresh().catch((err: Error) => setError(err.message));
   }, []);
 
-  async function onCreate(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const data = new FormData(form);
+  const filtered = useMemo(
+    () => (filter === 'All' ? rows : rows.filter((r) => r.status === filter)),
+    [rows, filter],
+  );
+
+  const kpis = useMemo(
+    () => [
+      { label: 'Proposals', value: proposals.length },
+      {
+        label: 'In approval',
+        value: rows.filter((r) => r.status === 'in_approval').length,
+      },
+      {
+        label: 'Approved',
+        value: rows.filter((r) => r.status === 'approved').length,
+      },
+      {
+        label: 'Converted',
+        value: rows.filter((r) => r.status === 'converted').length,
+      },
+    ],
+    [rows, proposals],
+  );
+
+  async function run(fn: () => Promise<void>, ok?: string) {
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
+      await fn();
+      if (ok) setMessage(ok);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Action failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onCreate(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const total = Number(data.get('totalMinor') || 0) || undefined;
+    await run(async () => {
       await apiFetch('/api/purchase-requests', {
         method: 'POST',
         body: JSON.stringify({
@@ -123,367 +131,321 @@ export function PurchaseRequestsPage() {
           vendorId: data.get('vendorId') || undefined,
           department: data.get('department') || undefined,
           category: data.get('category') || undefined,
-          totalMinor: Number(data.get('totalMinor') || 0) || undefined,
+          totalMinor: total,
           lines: [
             {
               description: String(data.get('lineDesc') || 'Line 1'),
               quantity: Number(data.get('qty') || 1) || 1,
-              unitPriceMinor:
-                Number(data.get('unitPriceMinor') || 0) || undefined,
-              amountMinor: Number(data.get('totalMinor') || 0) || undefined,
+              unitPriceMinor: Number(data.get('unitPriceMinor') || 0) || undefined,
+              amountMinor: total,
             },
           ],
         }),
       });
       form.reset();
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Create failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function transition(id: string, status: string) {
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      await apiFetch(`/api/purchase-requests/${id}/transition`, {
-        method: 'POST',
-        body: JSON.stringify({ status }),
-      });
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Transition failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function convert(id: string, vendorId?: string) {
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const result = await apiFetch<{
-        purchaseOrder: { id: string; number: string };
-      }>(`/api/purchase-requests/${id}/convert`, {
-        method: 'POST',
-        body: JSON.stringify({
-          vendorId: vendorId || undefined,
-        }),
-      });
-      setMessage(
-        `Converted to ${result.purchaseOrder.number} — open Orders to issue.`,
-      );
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Convert failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function acceptProposal(contractId: string) {
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      const totalRaw = (proposalTotal[contractId] ?? '').trim();
-      await apiFetch(`/api/purchase-requests/proposals/${contractId}/accept`, {
-        method: 'POST',
-        body: JSON.stringify({
-          department: proposalDept[contractId] || undefined,
-          category: proposalCat[contractId] || undefined,
-          totalMinor: totalRaw
-            ? Math.round(parseFloat(totalRaw) * 100)
-            : undefined,
-        }),
-      });
-      setMessage('Proposal accepted — PR created in approval.');
-      setTab('requests');
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Accept failed');
-    } finally {
-      setBusy(false);
-    }
+      setShowNew(false);
+    }, 'Purchase request created');
   }
 
   return (
-    <section className="page">
-      <p className="eyebrow">Procure</p>
-      <h1>Purchase requests</h1>
-      <p className="lede">
-        Review contract proposals, raise requests, then convert to a PO draft.
-      </p>
+    <section className="page procure">
+      <div className="procure__header">
+        <div className="procure__header-copy">
+          <p className="eyebrow">Procure</p>
+          <h1>Purchase requests</h1>
+          <p className="lede">
+            Review AI proposals from signed contracts, approve spend, then convert to
+            a purchase order.
+          </p>
+        </div>
+      </div>
+
+      <ProcureKpis items={kpis} />
       {error && <p className="error">{error}</p>}
       {message && <p className="ok">{message}</p>}
 
-      <div className="tabs">
-        {(
-          [
-            ['proposals', 'Proposals'],
-            ['requests', 'Purchase Requests'],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            className={tab === id ? 'tabs__btn tabs__btn--active' : 'tabs__btn'}
-            onClick={() => setTab(id)}
-          >
-            {label}
-            {id === 'proposals' && proposals.length > 0
-              ? ` · ${proposals.length}`
-              : ''}
-          </button>
-        ))}
-      </div>
+      <ProcureTabs
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: 'proposals', label: 'PR proposals', count: proposals.length },
+          { id: 'requests', label: 'Purchase requests', count: rows.length },
+        ]}
+      />
 
       {tab === 'proposals' && (
-        <div className="panel">
-          <p className="muted">
-            Active contracts without a linked PR — accept to create an
-            in-approval request.
-          </p>
-          <ul className="task-list">
+        <>
+          <div className="procure__notice procure__notice--info">
+            Proposals are drafted from active signed contracts that do not yet have a
+            linked purchase request. Adjust coding, then send into approval.
+          </div>
+          <div className="procure__stack">
             {proposals.map((p) => (
-              <li key={p.id}>
-                <div>
-                  <strong>
-                    {p.number} · {p.title}
-                  </strong>
-                  <span className="muted">
-                    {' '}
-                    · {p.vendor?.name ?? '—'} ·{' '}
-                    {formatMoney(p.valueMinor, p.currency)}
-                  </span>
-                  <div className="actions" style={{ marginTop: '0.5rem' }}>
-                    <select
-                      value={proposalDept[p.id] ?? ''}
-                      onChange={(e) =>
-                        setProposalDept((m) => ({
-                          ...m,
-                          [p.id]: e.target.value,
-                        }))
-                      }
-                      aria-label="Department"
-                    >
-                      <option value="">Department</option>
-                      {DEPARTMENTS.map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={proposalCat[p.id] ?? ''}
-                      onChange={(e) =>
-                        setProposalCat((m) => ({
-                          ...m,
-                          [p.id]: e.target.value,
-                        }))
-                      }
-                      aria-label="Category"
-                    >
-                      <option value="">Category</option>
-                      {EXPENSE_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      placeholder="Total (major)"
-                      inputMode="decimal"
-                      value={proposalTotal[p.id] ?? ''}
-                      onChange={(e) =>
-                        setProposalTotal((m) => ({
-                          ...m,
-                          [p.id]: e.target.value,
-                        }))
-                      }
-                      style={{ width: '8rem' }}
-                    />
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void acceptProposal(p.id)}
-                    >
-                      Accept
-                    </button>
+              <div key={p.id} className="procure__card">
+                <div className="procure__card-head">
+                  <div>
+                    <h3 className="procure__card-title">
+                      {p.number} · {p.vendor?.name ?? p.title}
+                    </h3>
+                    <p className="procure__card-sub">
+                      {formatMoney(p.valueMinor, p.currency)} · from signed agreement
+                    </p>
                   </div>
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        await apiFetch(
+                          `/api/purchase-requests/proposals/${p.id}/accept`,
+                          {
+                            method: 'POST',
+                            body: JSON.stringify({
+                              department: 'R&D',
+                              category: 'Software & SaaS',
+                              totalMinor: p.valueMinor ?? undefined,
+                            }),
+                          },
+                        );
+                        setTab('requests');
+                      }, 'Proposal accepted into approval')
+                    }
+                  >
+                    Send for approval
+                  </button>
                 </div>
-              </li>
+                <p className="procure__muted" style={{ margin: 0 }}>
+                  {p.title}
+                </p>
+              </div>
             ))}
             {proposals.length === 0 && (
-              <li className="muted">No proposals waiting for review.</li>
+              <div className="procure__empty procure__card">
+                <div className="procure__empty-icon">✓</div>
+                No AI proposals waiting — execute a contract to seed one
+              </div>
             )}
-          </ul>
-        </div>
+          </div>
+        </>
       )}
 
       {tab === 'requests' && (
         <>
-          <div className="view-chips" style={{ marginBottom: '1rem' }}>
-            {(
-              ['All', 'draft', 'in_approval', 'approved'] as const
-            ).map((s) => (
+          <div className="procure__toolbar">
+            <div className="procure__toolbar-left">
+              {(['All', 'draft', 'in_approval', 'approved', 'converted'] as Filter[]).map(
+                (f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    className={`procure__tab${filter === f ? ' procure__tab--active' : ''}`}
+                    onClick={() => setFilter(f)}
+                  >
+                    {f === 'All' ? 'All' : f.replace(/_/g, ' ')}
+                  </button>
+                ),
+              )}
+            </div>
+            <div className="procure__toolbar-right">
+              <span className="procure__muted">
+                {filtered.length} requests ·{' '}
+                {formatMoney(
+                  filtered.reduce((s, r) => s + (r.totalMinor ?? 0), 0),
+                )}
+              </span>
               <button
-                key={s}
                 type="button"
-                className={
-                  statusFilter === s
-                    ? 'view-chip view-chip--active'
-                    : 'view-chip'
-                }
-                onClick={() => setStatusFilter(s)}
+                className="btn btn--primary"
+                onClick={() => setShowNew((v) => !v)}
               >
-                {s === 'All' ? 'All' : s}
-              </button>
-            ))}
-          </div>
-
-          <ul className="task-list">
-            {filteredRows.map((row) => {
-              const linked = row.purchaseOrders?.[0];
-              const vendor =
-                row.vendorId != null ? vendorById.get(row.vendorId) : null;
-              return (
-                <li key={row.id}>
-                  <div>
-                    <strong>
-                      {row.number} · {row.title}
-                    </strong>
-                    <span className="muted"> · {row.status}</span>
-                    {row.department && (
-                      <span className="muted"> · {row.department}</span>
-                    )}
-                    {row.category && (
-                      <span className="muted"> · {row.category}</span>
-                    )}
-                    {vendor && (
-                      <span className="muted"> · {vendor.name}</span>
-                    )}
-                    {linked && (
-                      <span className="muted">
-                        {' '}
-                        · PO{' '}
-                        <Link to="/purchase-orders">{linked.number}</Link> (
-                        {linked.status})
-                      </span>
-                    )}
-                  </div>
-                  <div className="actions">
-                    {row.status === 'draft' && (
-                      <button
-                        type="button"
-                        className="secondary-btn"
-                        disabled={busy}
-                        onClick={() => void transition(row.id, 'in_approval')}
-                      >
-                        Submit
-                      </button>
-                    )}
-                    {row.status === 'in_approval' && (
-                      <button
-                        type="button"
-                        className="secondary-btn"
-                        disabled={busy}
-                        onClick={() => void transition(row.id, 'approved')}
-                      >
-                        Approve
-                      </button>
-                    )}
-                    {row.status === 'approved' && poLicensed && (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void convert(row.id)}
-                      >
-                        Convert to PO
-                      </button>
-                    )}
-                    {row.status === 'approved' && !poLicensed && (
-                      <span className="muted">
-                        Enable Orders module to convert
-                      </span>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-            {filteredRows.length === 0 && (
-              <li className="muted">No purchase requests yet.</li>
-            )}
-          </ul>
-
-          <form className="workspace-form" onSubmit={(e) => void onCreate(e)}>
-            <label>
-              Number
-              <input name="number" required placeholder="PR-1001" />
-            </label>
-            <label>
-              Title
-              <input name="title" required minLength={2} />
-            </label>
-            <label>
-              Vendor
-              <select name="vendorId" defaultValue="">
-                <option value="">— none —</option>
-                {vendors.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.code} — {v.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Department
-              <select name="department" defaultValue="">
-                <option value="">— none —</option>
-                {DEPARTMENTS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Category
-              <select name="category" defaultValue="">
-                <option value="">— none —</option>
-                {EXPENSE_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Line description
-              <input name="lineDesc" placeholder="Laptops" />
-            </label>
-            <label>
-              Qty
-              <input name="qty" type="number" min={1} defaultValue={1} />
-            </label>
-            <label>
-              Unit price (minor)
-              <input name="unitPriceMinor" type="number" min={0} />
-            </label>
-            <label>
-              Total (minor)
-              <input name="totalMinor" type="number" min={0} />
-            </label>
-            <div className="span-2 actions">
-              <button type="submit" disabled={busy}>
-                Create draft
+                + New purchase request
               </button>
             </div>
-          </form>
+          </div>
+
+          {showNew && (
+            <div className="procure__composer">
+              <h3>New purchase request</h3>
+              <form className="workspace-form" onSubmit={(e) => void onCreate(e)}>
+                <label>
+                  Number
+                  <input name="number" required placeholder="PR-5010" />
+                </label>
+                <label>
+                  Title
+                  <input name="title" required placeholder="Cloud capacity Q4" />
+                </label>
+                <label>
+                  Vendor
+                  <select name="vendorId" defaultValue="">
+                    <option value="">—</option>
+                    {vendors.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Department
+                  <select name="department" defaultValue={DEPARTMENTS[0]}>
+                    {DEPARTMENTS.map((d) => (
+                      <option key={d}>{d}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Category
+                  <select name="category" defaultValue={EXPENSE_CATEGORIES[0]}>
+                    {EXPENSE_CATEGORIES.map((c) => (
+                      <option key={c}>{c}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Amount (minor)
+                  <input name="totalMinor" type="number" placeholder="4200000" />
+                </label>
+                <label className="span-2">
+                  Line description
+                  <input name="lineDesc" placeholder="Subscription" />
+                </label>
+                <input type="hidden" name="qty" value="1" />
+                <input type="hidden" name="unitPriceMinor" value="" />
+                <div className="span-2 actions">
+                  <button type="button" className="btn btn--ghost" onClick={() => setShowNew(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn--primary" disabled={busy}>
+                    Create draft
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className="procure__table-card">
+            <div className="procure__table-wrap">
+              <table className="procure__table">
+                <thead>
+                  <tr>
+                    <th>PR</th>
+                    <th>Title</th>
+                    <th>Department</th>
+                    <th>Category</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>PO</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((p) => {
+                    const po = p.purchaseOrders?.[0];
+                    return (
+                      <tr key={p.id}>
+                        <td className="procure__mono">{p.number}</td>
+                        <td>{p.title}</td>
+                        <td>{p.department ?? '—'}</td>
+                        <td>{p.category ?? '—'}</td>
+                        <td className="procure__mono">
+                          {formatMoney(p.totalMinor, p.currency ?? 'EUR')}
+                        </td>
+                        <td>
+                          <PrStatusBadge status={p.status} />
+                        </td>
+                        <td className="procure__mono">
+                          {po ? (
+                            <Link to="/purchase-orders">{po.number}</Link>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td>
+                          <div className="procure__actions">
+                            {p.status === 'draft' && (
+                              <button
+                                type="button"
+                                className="btn btn--ghost"
+                                disabled={busy}
+                                onClick={() =>
+                                  void run(async () => {
+                                    await apiFetch(
+                                      `/api/purchase-requests/${p.id}/transition`,
+                                      {
+                                        method: 'POST',
+                                        body: JSON.stringify({
+                                          status: 'in_approval',
+                                        }),
+                                      },
+                                    );
+                                  })
+                                }
+                              >
+                                Submit
+                              </button>
+                            )}
+                            {p.status === 'in_approval' && (
+                              <button
+                                type="button"
+                                className="btn btn--primary"
+                                disabled={busy}
+                                onClick={() =>
+                                  void run(async () => {
+                                    await apiFetch(
+                                      `/api/purchase-requests/${p.id}/transition`,
+                                      {
+                                        method: 'POST',
+                                        body: JSON.stringify({
+                                          status: 'approved',
+                                        }),
+                                      },
+                                    );
+                                  }, 'Approved')
+                                }
+                              >
+                                Approve
+                              </button>
+                            )}
+                            {p.status === 'approved' && poLicensed && !po && (
+                              <button
+                                type="button"
+                                className="btn btn--primary"
+                                disabled={busy}
+                                onClick={() =>
+                                  void run(async () => {
+                                    await apiFetch(
+                                      `/api/purchase-requests/${p.id}/convert`,
+                                      {
+                                        method: 'POST',
+                                        body: JSON.stringify({
+                                          vendorId: p.vendorId || undefined,
+                                        }),
+                                      },
+                                    );
+                                  }, 'Converted to PO')
+                                }
+                              >
+                                Convert to PO
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={8}>
+                        <div className="procure__empty">No purchase requests here</div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </>
       )}
     </section>
