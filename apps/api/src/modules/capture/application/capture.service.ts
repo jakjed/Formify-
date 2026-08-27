@@ -6,6 +6,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
 import { InvoiceValidationService } from '../../invoice-rules/application/invoice-validation.service';
@@ -272,6 +273,7 @@ export class CaptureService {
         taxMinor: stub.taxMinor,
         totalMinor: stub.totalMinor,
         ocrConfidence: stub.confidence,
+        ocrPayload: stub.payload as unknown as Prisma.InputJsonValue,
         notes: `ocr:${stub.provider};source:${options?.source ?? 'upload'}`,
         lines: {
           create: stub.lines.map((line, idx) => ({

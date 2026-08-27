@@ -312,6 +312,8 @@ model Invoice {
   vendorNameRaw  String?
   notes          String?
   ocrConfidence  Float?
+  /// Structured OCR hits + normalized geometry for HITL overlays (versioned JSON)
+  ocrPayload     Json?
   approvedAt     DateTime?
   exportedAt     DateTime?
   createdAt      DateTime      @default(now())
