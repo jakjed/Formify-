@@ -60,6 +60,105 @@ export class PurchaseRequestsService {
     return row;
   }
 
+  async update(
+    tenantId: string,
+    id: string,
+    actorId: string,
+    input: {
+      title?: string;
+      notes?: string;
+      department?: string;
+      category?: string;
+      vendorId?: string | null;
+      entityId?: string | null;
+      totalMinor?: number;
+      lines?: {
+        lineNo?: number;
+        description?: string;
+        quantity?: number;
+        unitPriceMinor?: number;
+        amountMinor?: number;
+      }[];
+    },
+  ) {
+    const existing = await this.get(tenantId, id);
+    if (existing.status !== 'draft' && existing.status !== 'in_approval') {
+      throw new BadRequestException(
+        `Cannot update PR in status ${existing.status}`,
+      );
+    }
+    if (input.vendorId) {
+      await this.assertVendor(tenantId, input.vendorId);
+    }
+    if (input.entityId) {
+      const entity = await this.prisma.entity.findFirst({
+        where: { id: input.entityId, tenantId },
+        select: { id: true },
+      });
+      if (!entity) throw new BadRequestException('Entity not found');
+    }
+
+    const row = await this.prisma.$transaction(async (tx) => {
+      if (input.lines?.length) {
+        for (const line of input.lines) {
+          const lineNo = line.lineNo;
+          if (lineNo == null) continue;
+          const match = existing.lines.find((l) => l.lineNo === lineNo);
+          if (!match) {
+            throw new BadRequestException(`Unknown lineNo ${lineNo}`);
+          }
+          await tx.purchaseRequestLine.update({
+            where: { id: match.id },
+            data: {
+              description: line.description,
+              quantity: line.quantity,
+              unitPriceMinor: line.unitPriceMinor,
+              amountMinor: line.amountMinor,
+            },
+          });
+        }
+      } else if (
+        input.totalMinor !== undefined &&
+        existing.lines.length === 1
+      ) {
+        const onlyLine = existing.lines[0]!;
+        await tx.purchaseRequestLine.update({
+          where: { id: onlyLine.id },
+          data: { amountMinor: input.totalMinor },
+        });
+      }
+
+      return tx.purchaseRequest.update({
+        where: { id },
+        data: {
+          title: input.title?.trim(),
+          notes: input.notes,
+          department: input.department,
+          category: input.category,
+          ...(input.vendorId !== undefined
+            ? { vendorId: input.vendorId }
+            : {}),
+          ...(input.entityId !== undefined
+            ? { entityId: input.entityId }
+            : {}),
+          ...(input.totalMinor !== undefined
+            ? { totalMinor: input.totalMinor }
+            : {}),
+        },
+        include: prInclude,
+      });
+    });
+
+    await this.audit.record({
+      tenantId,
+      actorId,
+      action: 'pr.updated',
+      entityType: 'PurchaseRequest',
+      entityId: id,
+    });
+    return row;
+  }
+
   async create(
     tenantId: string,
     actorId: string,

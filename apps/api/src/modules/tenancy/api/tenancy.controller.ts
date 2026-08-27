@@ -111,8 +111,15 @@ export class TenancyController {
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
   ) {
-    assertAdmin(user);
-    return this.tenancy.listEntities(tenantId);
+    return this.tenancy.listEntitiesFiltered(tenantId, user.id, user.role);
+  }
+
+  @Get('me/entities')
+  listMyEntities(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.tenancy.listEntitiesFiltered(tenantId, user.id, user.role);
   }
 
   @Post('entities')

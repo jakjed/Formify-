@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   IsArray,
@@ -10,6 +10,7 @@ import {
   IsUUID,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -26,6 +27,31 @@ import {
 } from '../../../common/module-license.guard';
 
 class PrLineDto {
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsNumber()
+  quantity?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  unitPriceMinor?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  amountMinor?: number;
+}
+
+class UpdatePrLineDto {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  lineNo?: number;
+
   @IsOptional()
   @IsString()
   description?: string;
@@ -97,6 +123,46 @@ class CreatePrDto {
   @ValidateNested({ each: true })
   @Type(() => PrLineDto)
   lines?: PrLineDto[];
+}
+
+class UpdatePrDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  vendorId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  entityId?: string | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  totalMinor?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdatePrLineDto)
+  lines?: UpdatePrLineDto[];
 }
 
 class TransitionDto {
@@ -188,6 +254,19 @@ export class PurchaseRequestsController {
   @ApiOperation({ summary: 'Get purchase request' })
   get(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
     return this.prs.get(tenantId, id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({
+    summary: 'Update draft or in_approval purchase request fields',
+  })
+  update(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: UpdatePrDto,
+  ) {
+    return this.prs.update(tenantId, id, user.id, dto);
   }
 
   @Post(':id/convert')

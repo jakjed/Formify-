@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsBoolean,
   IsEmail,
   IsIn,
@@ -56,6 +57,15 @@ export class CreateTenantUserDto {
 
   @IsIn(['admin', 'ap_manager', 'ap_clerk', 'approver'])
   role!: 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  entityIds?: string[];
+
+  @IsOptional()
+  @IsUUID()
+  defaultEntityId?: string;
 }
 
 export class InviteUserDto {
@@ -68,6 +78,15 @@ export class InviteUserDto {
 
   @IsIn(['admin', 'ap_manager', 'ap_clerk', 'approver'])
   role!: 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  entityIds?: string[];
+
+  @IsOptional()
+  @IsUUID()
+  defaultEntityId?: string;
 }
 
 export class AcceptInviteDto {
@@ -109,9 +128,22 @@ export class UpdateTenantUserDto {
   role?: 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
 
   @IsOptional()
+  @IsIn(['invited', 'active', 'locked'])
+  status?: 'invited' | 'active' | 'locked';
+
+  @IsOptional()
   @IsString()
   @MinLength(8)
   password?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  entityIds?: string[];
+
+  @IsOptional()
+  @IsUUID()
+  defaultEntityId?: string;
 }
 
 export class OidcSettingsDto {

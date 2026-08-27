@@ -39,11 +39,44 @@ export class TenancyService {
             ],
           },
           approvalPolicies: {
-            create: {
-              name: 'Default invoice policy',
-              enabled: true,
-              autoApproveUnderMinor: 10000, // €100.00
-            },
+            create: [
+              {
+                moduleKey: 'invoices',
+                name: 'Default invoice policy',
+                enabled: true,
+                autoApproveUnderMinor: 10000, // €100.00
+              },
+              {
+                moduleKey: 'contracts',
+                name: 'Default contracts policy',
+                enabled: true,
+                chainJson: [
+                  'Budget Owner',
+                  'Legal',
+                  'Tax',
+                  'Compliance',
+                  'Finance',
+                ],
+              },
+              {
+                moduleKey: 'purchase_requests',
+                name: 'Default purchase request policy',
+                enabled: true,
+                chainJson: ['Budget Owner', 'Finance', 'CFO'],
+              },
+              {
+                moduleKey: 'purchase_orders',
+                name: 'Default purchase order policy',
+                enabled: true,
+                chainJson: ['AP Manager'],
+              },
+              {
+                moduleKey: 'accruals',
+                name: 'Default accruals policy',
+                enabled: true,
+                chainJson: ['AP Manager', 'Controller'],
+              },
+            ],
           },
           captureMailbox: {
             create: {
@@ -87,6 +120,32 @@ export class TenancyService {
       tenantId: e.tenantId,
       name: e.name,
       code: e.code,
+    }));
+  }
+
+  /**
+   * Admins see all tenant entities; other roles only see memberships.
+   * API-key / oauth principals without a session userId see none unless admin-scoped.
+   */
+  async listEntitiesFiltered(
+    tenantId: string,
+    userId: string,
+    role: string,
+  ): Promise<EntityRecord[]> {
+    if (role === 'admin') {
+      return this.listEntities(tenantId);
+    }
+    await this.getTenant(tenantId);
+    const memberships = await this.prisma.userEntityMembership.findMany({
+      where: { tenantId, userId },
+      include: { entity: true },
+      orderBy: { entity: { code: 'asc' } },
+    });
+    return memberships.map((m) => ({
+      id: m.entity.id,
+      tenantId: m.entity.tenantId,
+      name: m.entity.name,
+      code: m.entity.code,
     }));
   }
 

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   IsArray,
@@ -10,6 +10,7 @@ import {
   IsUUID,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -43,6 +44,32 @@ class PoLineDto {
   @IsInt()
   @Min(0)
   amountMinor?: number;
+}
+
+class UpdatePoDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  title?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  vendorId?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  entityId?: string | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  totalMinor?: number;
 }
 
 class CreatePoDto {
@@ -141,6 +168,17 @@ export class PurchaseOrdersController {
   @ApiOperation({ summary: 'Get purchase order' })
   get(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
     return this.pos.get(tenantId, id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update draft purchase order fields' })
+  update(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: UpdatePoDto,
+  ) {
+    return this.pos.update(tenantId, id, user.id, dto);
   }
 
   @Post(':id/receive')
