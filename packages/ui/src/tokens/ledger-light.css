@@ -1,0 +1,29 @@
+:root {
+  --aptora-ink: #0f1914;
+  --aptora-paper: #f7f6f2;
+  --aptora-teal: #0f766e;
+  --aptora-teal-hover: #0d9488;
+  --aptora-amber: #d97706;
+  --aptora-danger: #b91c1c;
+  --aptora-border: #e2e0d8;
+  --aptora-muted: #5c6b63;
+  --aptora-font-display: "Newsreader", "Georgia", serif;
+  --aptora-font-ui: "IBM Plex Sans", "Segoe UI", sans-serif;
+  --aptora-radius: 8px;
+  --aptora-shadow: 0 1px 2px rgb(15 25 20 / 6%), 0 8px 24px rgb(15 25 20 / 6%);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--aptora-paper);
+  color: var(--aptora-ink);
+  font-family: var(--aptora-font-ui);
+}

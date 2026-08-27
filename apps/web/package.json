@@ -2,11 +2,28 @@
   "name": "@aptora/web",
   "private": true,
   "version": "0.0.0",
+  "type": "module",
   "scripts": {
-    "dev": "echo \"Web scaffold — Vite app not bootstrapped yet\"",
-    "build": "echo \"noop\"",
-    "lint": "echo \"noop\"",
-    "test": "echo \"noop\"",
-    "typecheck": "echo \"noop\""
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
+    "lint": "echo \"lint pending\"",
+    "test": "echo \"no tests yet\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aptora/types": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.1"
+  },
+  "devDependencies": {
+    "@aptora/config-typescript": "workspace:*",
+    "@aptora/ui": "workspace:*",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.6"
   }
 }

@@ -18,12 +18,15 @@ Formerly working name: Formify.
 - **[docs/PRODUCT_BLUEPRINT.md](docs/PRODUCT_BLUEPRINT.md)** — full product, UX, architecture, hosting, packaging, roadmap
 - **[docs/PHASE1_PRD.md](docs/PHASE1_PRD.md)** — Phase 1 PRD + screen inventory (Aptora AP web wedge)
 - [docs/architecture/MONOREPO.md](docs/architecture/MONOREPO.md) — folder & module rules
+- [docs/architecture/E0_FOUNDATION.md](docs/architecture/E0_FOUNDATION.md) — run the foundation locally
+- [docs/architecture/HOSTING.md](docs/architecture/HOSTING.md) — where to host & what to do first
 
 ## Workspace
 
 ```bash
 pnpm install
-pnpm dev          # turbo: api + web
+pnpm --filter @aptora/types build
+pnpm dev          # API :3001 + web :5173
 pnpm build
 pnpm lint
 pnpm test

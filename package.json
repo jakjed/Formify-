@@ -6,13 +6,16 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "turbo run dev --parallel",
+    "dev": "turbo run dev --parallel --filter=@aptora/api --filter=@aptora/web",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "dev:api": "pnpm --filter @aptora/api dev",
+    "dev:web": "pnpm --filter @aptora/web dev"
   },
   "devDependencies": {
+    "@types/node": "^22.10.2",
     "turbo": "^2.3.3",
     "typescript": "^5.7.2"
   }
