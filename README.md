@@ -31,6 +31,8 @@ Formerly working name: Formify.
 - [docs/architecture/E9_COMMENTS_ACTIVITY.md](docs/architecture/E9_COMMENTS_ACTIVITY.md) — comments + activity timeline
 - [docs/architecture/E10_INVITE_RESET.md](docs/architecture/E10_INVITE_RESET.md) — invites, password reset, lockout
 - [docs/architecture/E11_OPENAPI.md](docs/architecture/E11_OPENAPI.md) — OpenAPI 3 + Swagger UI
+- [docs/architecture/E12_HARDENING.md](docs/architecture/E12_HARDENING.md) — rate limits, residency, CSV export, search
+- [docs/architecture/RESIDENCY.md](docs/architecture/RESIDENCY.md) — US/EU data residency pin
 
 ## Workspace
 

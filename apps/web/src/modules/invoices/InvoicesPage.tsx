@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { apiFetch } from '../../shared/lib/api';
+import { apiFetch, getToken } from '../../shared/lib/api';
 
 type InvoiceListItem = {
   id: string;
@@ -168,7 +168,7 @@ export function InvoicesPage() {
     try {
       const body = new FormData();
       body.append('file', file);
-      const token = sessionStorage.getItem('aptora_token');
+      const token = getToken();
       const res = await fetch('/api/capture/upload', {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -184,6 +184,34 @@ export function InvoicesPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportCsv() {
+    setBusy(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (q) params.set('q', q);
+      if (hasOpenExceptions) params.set('hasOpenExceptions', 'true');
+      if (sort) params.set('sort', sort);
+      const token = getToken();
+      const res = await fetch(`/api/invoices/export.csv?${params}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (!res.ok) throw new Error(`Export failed (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'invoices-export.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Export failed');
     } finally {
       setBusy(false);
     }
@@ -225,6 +253,14 @@ export function InvoicesPage() {
         />
         <button type="submit" disabled={busy}>
           {busy ? 'Uploading…' : 'Upload & extract'}
+        </button>
+        <button
+          type="button"
+          className="secondary-btn"
+          disabled={busy}
+          onClick={() => void exportCsv()}
+        >
+          Export CSV
         </button>
         <input
           type="search"

@@ -2,13 +2,16 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Param,
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InvoiceStatus } from '@prisma/client';
+import type { Response } from 'express';
 import { InvoicesService } from '../application/invoices.service';
 import {
   CurrentTenantId,
@@ -50,6 +53,41 @@ export class InvoicesController {
       sort,
       limit: limit ? Number(limit) : undefined,
     });
+  }
+
+  /** Must stay above `:id` routes */
+  @Get('export.csv')
+  @RequireScopes('invoices:read')
+  @ApiOperation({ summary: 'CSV export of current worklist filters' })
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  async exportCsv(
+    @Res({ passthrough: true }) res: Response,
+    @CurrentTenantId() tenantId: string,
+    @Query('status') status?: InvoiceStatus | InvoiceStatus[],
+    @Query('q') q?: string,
+    @Query('exceptionCode') exceptionCode?: string,
+    @Query('hasOpenExceptions') hasOpenExceptions?: string,
+    @Query('sort')
+    sort?:
+      | 'created_desc'
+      | 'created_asc'
+      | 'total_desc'
+      | 'total_asc'
+      | 'age_desc',
+  ) {
+    const csv = await this.invoices.exportCsv(tenantId, {
+      status,
+      q,
+      exceptionCode,
+      hasOpenExceptions: hasOpenExceptions === 'true',
+      sort,
+      limit: 500,
+    });
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="invoices-export.csv"`,
+    );
+    return csv;
   }
 
   /** Must stay above `:id` routes */

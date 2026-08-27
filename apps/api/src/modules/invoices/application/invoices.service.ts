@@ -77,7 +77,7 @@ export class InvoicesService {
     };
 
     const orderBy = sortToOrderBy(query.sort ?? 'created_desc');
-    const take = Math.min(Math.max(query.limit ?? 100, 1), 200);
+    const take = Math.min(Math.max(query.limit ?? 100, 1), 500);
 
     return this.prisma.invoice.findMany({
       where,
@@ -89,6 +89,43 @@ export class InvoicesService {
         lines: { orderBy: { lineNo: 'asc' } },
       },
     });
+  }
+
+  async exportCsv(tenantId: string, query: InvoiceListQuery = {}) {
+    const rows = await this.list(tenantId, { ...query, limit: query.limit ?? 500 });
+    const header = [
+      'id',
+      'status',
+      'invoiceNumber',
+      'vendorName',
+      'currency',
+      'subtotalMinor',
+      'taxMinor',
+      'totalMinor',
+      'invoiceDate',
+      'dueDate',
+      'exceptionCodes',
+      'createdAt',
+    ];
+    const lines = rows.map((row) =>
+      [
+        row.id,
+        row.status,
+        row.invoiceNumber ?? '',
+        row.vendorNameRaw ?? '',
+        row.currency,
+        row.subtotalMinor ?? '',
+        row.taxMinor ?? '',
+        row.totalMinor ?? '',
+        row.invoiceDate?.toISOString().slice(0, 10) ?? '',
+        row.dueDate?.toISOString().slice(0, 10) ?? '',
+        row.exceptions.map((e) => e.code).join('|'),
+        row.createdAt.toISOString(),
+      ]
+        .map(csvEscape)
+        .join(','),
+    );
+    return `${header.join(',')}\n${lines.join('\n')}\n`;
   }
 
   async listExceptionQueue(tenantId: string, exceptionCode?: string) {
@@ -534,4 +571,12 @@ function sortToOrderBy(
     default:
       return { createdAt: 'desc' };
   }
+}
+
+function csvEscape(value: string | number): string {
+  const raw = String(value ?? '');
+  if (/[",\n]/.test(raw)) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
 }
