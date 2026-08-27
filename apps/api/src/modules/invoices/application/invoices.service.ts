@@ -753,7 +753,7 @@ export class InvoicesService {
     return this.workflow.submitInvoice(tenantId, id, actorUserId);
   }
 
-  async approve(tenantId: string, id: string) {
+  async approve(tenantId: string, id: string, actorUserId: string) {
     const invoice = await this.get(tenantId, id);
     if (['void', 'exported'].includes(invoice.status)) {
       throw new BadRequestException(
@@ -767,6 +767,8 @@ export class InvoicesService {
         `Cannot approve: ${gate.summary}. Fix exceptions and save again.`,
       );
     }
+
+    await this.workflow.assertCanApprove(tenantId, id, actorUserId);
 
     const usage = await this.usage.getUsageSummary(tenantId);
     if (usage.hardBlocked) {

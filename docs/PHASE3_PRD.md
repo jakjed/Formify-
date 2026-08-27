@@ -22,8 +22,8 @@ After AP Invoices (Phase 1) and Procure (Phase 2), open Aptora to **partners and
 | P3-E1 SSO OIDC | First IdP (Google or Entra) via `AuthProviderConfig` (this slice) |
 | P3-E2 Partner OAuth apps | OAuth2 client apps + scoped API access ✅ |
 | P3-E3 SCIM | User provisioning ✅ |
-| P3-E4 Connector runtime | First ERP pack (OAuth + sync jobs) (this slice) |
-| P3-E5 Advanced SoD | Segregation-of-duties policies beyond Phase 1 approvals |
+| P3-E4 Connector runtime | First ERP pack (OAuth + sync jobs) ✅ |
+| P3-E5 Advanced SoD | Segregation-of-duties policies beyond Phase 1 approvals (this slice) |
 
 ## 4. Non-goals (foundation)
 
@@ -69,3 +69,11 @@ After AP Invoices (Phase 1) and Procure (Phase 2), open Aptora to **partners and
 - [x] Sync creates runnable `IntegrationJob` (`sync_demo_erp`)  
 - [x] Integration Center connect + sync + job status  
 - [x] Docs: `P3_E4_CONNECTOR_RUNTIME.md`  
+
+## 10. Exit (P3-E5)
+
+- [x] `SodPolicy` + `Invoice.submittedById` + migration  
+- [x] Enforce on submit (filter assignees; no empty-pool self-approve when SoD on)  
+- [x] Enforce on `decideTask` / force approve  
+- [x] Admin → Approvals SoD section  
+- [x] Docs: `P3_E5_ADVANCED_SOD.md`  
