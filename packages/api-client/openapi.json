@@ -3179,6 +3179,52 @@
         ]
       }
     },
+    "/api/purchase-orders/{id}/receive": {
+      "post": {
+        "operationId": "receive",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceivePoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Receive against PO lines (partial or full); omit lines to receive all remaining",
+        "tags": [
+          "purchase-orders"
+        ]
+      }
+    },
     "/api/purchase-orders/{id}/transition": {
       "post": {
         "operationId": "transition",
@@ -3219,7 +3265,7 @@
             "bearer": []
           }
         ],
-        "summary": "Transition PO status",
+        "summary": "Transition PO status (issue / cancel / close)",
         "tags": [
           "purchase-orders"
         ]
@@ -3884,6 +3930,10 @@
         "properties": {}
       },
       "CreatePoDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ReceivePoDto": {
         "type": "object",
         "properties": {}
       }

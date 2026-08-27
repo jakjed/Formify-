@@ -1,3 +1,5 @@
-# purchase-orders
+# Purchase orders
 
-Phase 2 — issue and receive purchase orders; invoice match comes later.
+Issue → receive → close.
+
+`POST /api/purchase-orders/:id/receive` updates `receivedQty` and derives `partially_received` / `received` (P2-E3).
