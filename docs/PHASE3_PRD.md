@@ -20,7 +20,7 @@ After AP Invoices (Phase 1) and Procure (Phase 2), open Aptora to **partners and
 |---|---|
 | P3-E0 Foundation | Webhooks + connector pack registry + PRD ✅ |
 | P3-E1 SSO OIDC | First IdP (Google or Entra) via `AuthProviderConfig` (this slice) |
-| P3-E2 Partner OAuth apps | OAuth2 client apps + scoped API access |
+| P3-E2 Partner OAuth apps | OAuth2 client apps + scoped API access (this slice) |
 | P3-E3 SCIM | User provisioning |
 | P3-E4 Connector runtime | First ERP pack (OAuth + sync jobs) |
 | P3-E5 Advanced SoD | Segregation-of-duties policies beyond Phase 1 approvals |
@@ -45,3 +45,12 @@ After AP Invoices (Phase 1) and Procure (Phase 2), open Aptora to **partners and
 - [x] OIDC start/callback + session mint  
 - [x] Login SSO button + `/auth/callback`  
 - [x] Docs: `P3_E1_SSO_OIDC.md`  
+
+## 7. Exit (P3-E2)
+
+- [x] `OAuthClient` / `OAuthAccessToken` models + migration  
+- [x] Admin CRUD + revoke for partner apps  
+- [x] `POST /api/oauth/token` client_credentials → scoped bearer  
+- [x] AuthGuard resolves `aptoauth_` tokens with `@RequireScopes`  
+- [x] Admin → OAuth apps UI  
+- [x] Docs: `P3_E2_PARTNER_OAUTH.md`  

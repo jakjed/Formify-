@@ -7,6 +7,7 @@ type Tab =
   | 'entities'
   | 'modules'
   | 'keys'
+  | 'oauth'
   | 'usage'
   | 'mailbox'
   | 'webhooks'
@@ -96,6 +97,16 @@ type ApiKeyRow = {
   createdAt: string;
 };
 
+type OAuthClientRow = {
+  id: string;
+  name: string;
+  clientId: string;
+  scopes: string[];
+  revokedAt: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+};
+
 type Usage = {
   approvedInvoices: number;
   approvedInvoicesMtd: number;
@@ -149,6 +160,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'entities', label: 'Entities' },
   { id: 'modules', label: 'Modules' },
   { id: 'keys', label: 'API keys' },
+  { id: 'oauth', label: 'OAuth apps' },
   { id: 'usage', label: 'Usage' },
   { id: 'mailbox', label: 'Mailbox' },
   { id: 'webhooks', label: 'Webhooks' },
@@ -170,6 +182,12 @@ export function AdminPage() {
   const [entities, setEntities] = useState<EntityRow[]>([]);
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [scopes, setScopes] = useState<string[]>([]);
+  const [oauthClients, setOauthClients] = useState<OAuthClientRow[]>([]);
+  const [oauthScopes, setOauthScopes] = useState<string[]>([]);
+  const [newOauthCreds, setNewOauthCreds] = useState<{
+    clientId: string;
+    clientSecret: string;
+  } | null>(null);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [moduleRows, setModuleRows] = useState<ModuleRow[]>([]);
   const [webhookEndpoints, setWebhookEndpoints] = useState<WebhookEndpoint[]>(
@@ -199,6 +217,8 @@ export function AdminPage() {
       e,
       k,
       s,
+      oauthList,
+      oauthScopeList,
       usageRow,
       mods,
       wh,
@@ -216,6 +236,10 @@ export function AdminPage() {
       apiFetch<EntityRow[]>('/api/entities'),
       apiFetch<ApiKeyRow[]>('/api/api-keys'),
       apiFetch<string[]>('/api/api-keys/scopes'),
+      apiFetch<OAuthClientRow[]>('/api/oauth/clients').catch(
+        () => [] as OAuthClientRow[],
+      ),
+      apiFetch<string[]>('/api/oauth/scopes').catch(() => [] as string[]),
       apiFetch<Usage>('/api/usage/summary'),
       apiFetch<ModuleRow[]>('/api/modules'),
       apiFetch<WebhookEndpoint[]>('/api/webhooks/endpoints').catch(
@@ -243,6 +267,8 @@ export function AdminPage() {
     setEntities(e);
     setKeys(k);
     setScopes(s);
+    setOauthClients(oauthList);
+    setOauthScopes(oauthScopeList.length ? oauthScopeList : s);
     setUsage(usageRow);
     setModuleRows(mods);
     setWebhookEndpoints(wh);
@@ -425,6 +451,56 @@ export function AdminPage() {
     try {
       await apiFetch(`/api/api-keys/${id}/revoke`, { method: 'POST' });
       setMessage('API key revoked');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Revoke failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onCreateOauthClient(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const selected = oauthScopes.filter(
+      (s) => data.get(`oauth-scope-${s}`) === 'on',
+    );
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    setNewOauthCreds(null);
+    try {
+      const created = await apiFetch<{
+        clientId: string;
+        clientSecret: string;
+      }>('/api/oauth/clients', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: data.get('name'),
+          scopes: selected,
+        }),
+      });
+      form.reset();
+      setNewOauthCreds({
+        clientId: created.clientId,
+        clientSecret: created.clientSecret,
+      });
+      setMessage('OAuth app created — copy client secret now');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Create OAuth app failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revokeOauthClient(id: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch(`/api/oauth/clients/${id}/revoke`, { method: 'POST' });
+      setMessage('OAuth app revoked');
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Revoke failed');
@@ -804,6 +880,82 @@ export function AdminPage() {
             <div className="span-2 actions">
               <button type="submit" disabled={busy}>
                 Create key
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {tab === 'oauth' && (
+        <div className="panel">
+          <h2>OAuth apps</h2>
+          <p className="lede">
+            Partner apps use OAuth2 client credentials. Exchange client id/secret
+            at <code>POST /api/oauth/token</code> for a short-lived access token.
+          </p>
+          {newOauthCreds && (
+            <p className="ok">
+              Client id: <code>{newOauthCreds.clientId}</code>
+              <br />
+              Client secret (copy once): <code>{newOauthCreds.clientSecret}</code>
+            </p>
+          )}
+          <ul className="task-list">
+            {oauthClients.map((c) => (
+              <li key={c.id}>
+                <div>
+                  <strong>{c.name}</strong>
+                  <span className="muted">
+                    {' '}
+                    · {c.clientId} · {c.scopes.join(', ')}
+                    {c.revokedAt ? ' · revoked' : ''}
+                  </span>
+                </div>
+                {!c.revokedAt && (
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    disabled={busy}
+                    onClick={() => void revokeOauthClient(c.id)}
+                  >
+                    Revoke
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+          <form
+            className="workspace-form"
+            onSubmit={(e) => void onCreateOauthClient(e)}
+          >
+            <label className="span-2">
+              Name
+              <input
+                name="name"
+                required
+                minLength={2}
+                placeholder="Partner integration"
+              />
+            </label>
+            <div className="span-2">
+              <p className="muted">Scopes</p>
+              {oauthScopes.map((s) => (
+                <label
+                  key={s}
+                  style={{ display: 'block', marginBottom: '0.35rem' }}
+                >
+                  <input
+                    type="checkbox"
+                    name={`oauth-scope-${s}`}
+                    defaultChecked={s === 'invoices:read'}
+                  />{' '}
+                  {s}
+                </label>
+              ))}
+            </div>
+            <div className="span-2 actions">
+              <button type="submit" disabled={busy}>
+                Create OAuth app
               </button>
             </div>
           </form>

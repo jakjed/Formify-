@@ -27,4 +27,4 @@ Redirect URI: `{API_PUBLIC_URL}/api/auth/oidc/callback`
 
 ## Next
 
-P3-E2 Partner OAuth · P3-E3 SCIM · P3-E4 Connector runtime
+P3-E2 Partner OAuth ✅ · P3-E3 SCIM · P3-E4 Connector runtime
