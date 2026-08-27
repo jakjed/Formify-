@@ -8,6 +8,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { MasterdataService } from '../application/masterdata.service';
 import { CurrentTenantId } from '../../../common/current-user.decorator';
 import { RequireScopes } from '../../../common/scopes.decorator';
@@ -22,12 +23,15 @@ import {
   UpdateVendorDto,
 } from './masterdata.dto';
 
+@ApiBearerAuth('bearer')
 @Controller()
 export class MasterdataController {
   constructor(private readonly masterdata: MasterdataService) {}
 
   // Vendors
+  @ApiTags('vendors')
   @Get('vendors')
+  @ApiOperation({ summary: 'List vendors' })
   listVendors(
     @CurrentTenantId() tenantId: string,
     @Query('includeInactive') includeInactive?: string,
@@ -35,13 +39,17 @@ export class MasterdataController {
     return this.masterdata.listVendors(tenantId, includeInactive === 'true');
   }
 
+  @ApiTags('vendors')
   @Get('vendors/:id')
+  @ApiOperation({ summary: 'Get vendor by id' })
   getVendor(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
     return this.masterdata.getVendor(tenantId, id);
   }
 
+  @ApiTags('vendors')
   @Post('vendors')
   @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Create vendor' })
   createVendor(
     @CurrentTenantId() tenantId: string,
     @Body() dto: CreateVendorDto,
@@ -49,8 +57,10 @@ export class MasterdataController {
     return this.masterdata.createVendor(tenantId, dto);
   }
 
+  @ApiTags('vendors')
   @Patch('vendors/:id')
   @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Update vendor' })
   updateVendor(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,
@@ -59,8 +69,10 @@ export class MasterdataController {
     return this.masterdata.updateVendor(tenantId, id, dto);
   }
 
+  @ApiTags('vendors')
   @Delete('vendors/:id')
   @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Deactivate vendor' })
   deactivateVendor(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,
@@ -69,7 +81,9 @@ export class MasterdataController {
   }
 
   // GL
+  @ApiTags('masterdata')
   @Get('gl-accounts')
+  @ApiOperation({ summary: 'List GL accounts' })
   listGl(
     @CurrentTenantId() tenantId: string,
     @Query('includeInactive') includeInactive?: string,
@@ -77,8 +91,10 @@ export class MasterdataController {
     return this.masterdata.listGlAccounts(tenantId, includeInactive === 'true');
   }
 
+  @ApiTags('masterdata')
   @Post('gl-accounts')
   @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Create GL account' })
   createGl(
     @CurrentTenantId() tenantId: string,
     @Body() dto: CreateCodeNameDto,
@@ -86,8 +102,10 @@ export class MasterdataController {
     return this.masterdata.createGlAccount(tenantId, dto);
   }
 
+  @ApiTags('masterdata')
   @Patch('gl-accounts/:id')
   @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Update GL account' })
   updateGl(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,
@@ -97,7 +115,9 @@ export class MasterdataController {
   }
 
   // Cost centers
+  @ApiTags('masterdata')
   @Get('cost-centers')
+  @ApiOperation({ summary: 'List cost centers' })
   listCc(
     @CurrentTenantId() tenantId: string,
     @Query('includeInactive') includeInactive?: string,
@@ -105,8 +125,10 @@ export class MasterdataController {
     return this.masterdata.listCostCenters(tenantId, includeInactive === 'true');
   }
 
+  @ApiTags('masterdata')
   @Post('cost-centers')
   @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Create cost center' })
   createCc(
     @CurrentTenantId() tenantId: string,
     @Body() dto: CreateCodeNameDto,
@@ -114,8 +136,10 @@ export class MasterdataController {
     return this.masterdata.createCostCenter(tenantId, dto);
   }
 
+  @ApiTags('masterdata')
   @Patch('cost-centers/:id')
   @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Update cost center' })
   updateCc(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,
@@ -125,7 +149,9 @@ export class MasterdataController {
   }
 
   // Tax
+  @ApiTags('masterdata')
   @Get('tax-codes')
+  @ApiOperation({ summary: 'List tax codes' })
   listTax(
     @CurrentTenantId() tenantId: string,
     @Query('includeInactive') includeInactive?: string,
@@ -133,8 +159,10 @@ export class MasterdataController {
     return this.masterdata.listTaxCodes(tenantId, includeInactive === 'true');
   }
 
+  @ApiTags('masterdata')
   @Post('tax-codes')
   @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Create tax code' })
   createTax(
     @CurrentTenantId() tenantId: string,
     @Body() dto: CreateTaxCodeDto,
@@ -142,8 +170,10 @@ export class MasterdataController {
     return this.masterdata.createTaxCode(tenantId, dto);
   }
 
+  @ApiTags('masterdata')
   @Patch('tax-codes/:id')
   @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Update tax code' })
   updateTax(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,
@@ -153,7 +183,9 @@ export class MasterdataController {
   }
 
   // Payment terms
+  @ApiTags('masterdata')
   @Get('payment-terms')
+  @ApiOperation({ summary: 'List payment terms' })
   listTerms(
     @CurrentTenantId() tenantId: string,
     @Query('includeInactive') includeInactive?: string,
@@ -164,8 +196,10 @@ export class MasterdataController {
     );
   }
 
+  @ApiTags('masterdata')
   @Post('payment-terms')
   @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Create payment term' })
   createTerm(
     @CurrentTenantId() tenantId: string,
     @Body() dto: CreatePaymentTermDto,
@@ -173,8 +207,10 @@ export class MasterdataController {
     return this.masterdata.createPaymentTerm(tenantId, dto);
   }
 
+  @ApiTags('masterdata')
   @Patch('payment-terms/:id')
   @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Update payment term' })
   updateTerm(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,

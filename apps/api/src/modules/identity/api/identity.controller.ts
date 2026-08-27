@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IdentityService } from '../application/identity.service';
 import {
   AcceptInviteDto,
@@ -32,6 +33,7 @@ function assertAdmin(user: RequestUser) {
   }
 }
 
+@ApiTags('auth')
 @Controller()
 export class IdentityController {
   constructor(
@@ -41,30 +43,35 @@ export class IdentityController {
 
   @Public()
   @Get('auth/providers')
+  @ApiOperation({ summary: 'List auth providers (local + SSO hooks)' })
   providers() {
     return this.identity.getAuthProviders();
   }
 
   @Public()
   @Post('auth/register')
+  @ApiOperation({ summary: 'Register first admin user for a tenant' })
   register(@Body() dto: RegisterUserDto) {
     return this.identity.register(dto);
   }
 
   @Public()
   @Post('auth/login')
+  @ApiOperation({ summary: 'Create a session (bearer token)' })
   login(@Body() dto: LoginDto) {
     return this.identity.login(dto);
   }
 
   @Public()
   @Get('auth/invite/:token')
+  @ApiOperation({ summary: 'Preview a user invite' })
   getInvite(@Param('token') token: string) {
     return this.identity.getInvite(token);
   }
 
   @Public()
   @Post('auth/invite/accept')
+  @ApiOperation({ summary: 'Accept invite and set password' })
   async acceptInvite(@Body() dto: AcceptInviteDto) {
     const result = await this.identity.acceptInvite(dto);
     await this.audit.record({
@@ -80,29 +87,36 @@ export class IdentityController {
 
   @Public()
   @Post('auth/password-reset/request')
+  @ApiOperation({ summary: 'Request password reset (enumeration-safe)' })
   requestPasswordReset(@Body() dto: PasswordResetRequestDto) {
     return this.identity.requestPasswordReset(dto);
   }
 
   @Public()
   @Get('auth/password-reset/:token')
+  @ApiOperation({ summary: 'Preview a password reset token' })
   getPasswordReset(@Param('token') token: string) {
     return this.identity.getPasswordReset(token);
   }
 
   @Public()
   @Post('auth/password-reset/confirm')
+  @ApiOperation({ summary: 'Confirm password reset' })
   async confirmPasswordReset(@Body() dto: PasswordResetConfirmDto) {
     const result = await this.identity.confirmPasswordReset(dto);
     return result;
   }
 
+  @ApiBearerAuth('bearer')
   @Get('auth/me')
+  @ApiOperation({ summary: 'Current session or API-key principal' })
   me(@CurrentUser() user: RequestUser) {
     return user;
   }
 
+  @ApiBearerAuth('bearer')
   @Get('users')
+  @ApiOperation({ summary: 'List tenant users (admin)' })
   listUsers(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
@@ -111,7 +125,9 @@ export class IdentityController {
     return this.identity.listUsers(tenantId);
   }
 
+  @ApiBearerAuth('bearer')
   @Post('users')
+  @ApiOperation({ summary: 'Create user with password (admin)' })
   async createUser(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
@@ -136,7 +152,9 @@ export class IdentityController {
     return created;
   }
 
+  @ApiBearerAuth('bearer')
   @Post('users/invite')
+  @ApiOperation({ summary: 'Invite user without password (admin)' })
   async inviteUser(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
@@ -161,7 +179,9 @@ export class IdentityController {
     return invited;
   }
 
+  @ApiBearerAuth('bearer')
   @Patch('users/:id')
+  @ApiOperation({ summary: 'Update user (admin)' })
   async updateUser(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,

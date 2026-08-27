@@ -12,16 +12,18 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "openapi:export": "prisma generate && nest build && node dist/openapi-export.js"
   },
   "dependencies": {
     "@aptora/types": "workspace:*",
+    "@aws-sdk/client-textract": "^3.758.0",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/swagger": "^11.4.7",
     "@prisma/client": "^6.1.0",
-    "@aws-sdk/client-textract": "^3.758.0",
     "argon2": "^0.41.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",

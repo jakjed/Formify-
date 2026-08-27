@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
+import { setupOpenApi } from './openapi';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -20,10 +21,14 @@ async function bootstrap() {
     }),
   );
 
+  setupOpenApi(app);
+
   const port = Number(process.env.PORT ?? 3001);
   await app.listen(port);
   // eslint-disable-next-line no-console
   console.log(`Aptora API listening on http://localhost:${port}/api`);
+  // eslint-disable-next-line no-console
+  console.log(`OpenAPI UI: http://localhost:${port}/api/docs`);
 }
 
 void bootstrap();

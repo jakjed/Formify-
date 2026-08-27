@@ -9,6 +9,13 @@ import {
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { CaptureService } from '../application/capture.service';
@@ -20,12 +27,25 @@ import { Public } from '../../../common/public.decorator';
 import type { RequestUser } from '../../identity/domain/identity.types';
 import { RequireScopes } from '../../../common/scopes.decorator';
 
+@ApiTags('capture')
 @Controller('capture')
 export class CaptureController {
   constructor(private readonly capture: CaptureService) {}
 
+  @ApiBearerAuth('bearer')
   @Post('upload')
   @RequireScopes('invoices:write')
+  @ApiOperation({ summary: 'Upload invoice file (creates FileAsset + invoice)' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -49,12 +69,16 @@ export class CaptureController {
     });
   }
 
+  @ApiBearerAuth('bearer')
   @Get('mailbox')
+  @ApiOperation({ summary: 'Get capture mailbox token/address' })
   getMailbox(@CurrentTenantId() tenantId: string) {
     return this.capture.getMailbox(tenantId);
   }
 
+  @ApiBearerAuth('bearer')
   @Post('mailbox/rotate')
+  @ApiOperation({ summary: 'Rotate mailbox ingest token' })
   rotateMailbox(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
@@ -62,7 +86,9 @@ export class CaptureController {
     return this.capture.rotateMailbox(tenantId, user.id);
   }
 
+  @ApiBearerAuth('bearer')
   @Get('email-ingests')
+  @ApiOperation({ summary: 'List recent email ingest jobs' })
   listIngests(
     @CurrentTenantId() tenantId: string,
     @Query('limit') limit?: string,
@@ -75,6 +101,8 @@ export class CaptureController {
 
   @Public()
   @Post('email/:token')
+  @ApiOperation({ summary: 'Public email ingest webhook (multipart)' })
+  @ApiConsumes('multipart/form-data')
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
