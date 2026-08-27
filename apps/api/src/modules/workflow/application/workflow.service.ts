@@ -193,8 +193,11 @@ export class WorkflowService {
     let candidates = await this.prisma.user.findMany({
       where: {
         tenantId,
-        role: { in: [...roleFilter] },
         status: 'active',
+        OR: [
+          { role: { in: [...roleFilter] } },
+          { canApprove: true },
+        ],
       },
     });
 
@@ -217,6 +220,8 @@ export class WorkflowService {
         sod,
       );
     }
+
+    candidates = await this.applyDelegationReplacements(tenantId, candidates);
 
     if (candidates.length === 0) {
       if (blockOwn) {
@@ -275,6 +280,51 @@ export class WorkflowService {
         lines: { orderBy: { lineNo: 'asc' } },
       },
     });
+  }
+
+  async recallInvoice(
+    tenantId: string,
+    invoiceId: string,
+    actorUserId: string,
+  ) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, tenantId },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    if (invoice.status !== 'in_approval') {
+      throw new BadRequestException(
+        `Cannot recall invoice in status ${invoice.status}`,
+      );
+    }
+
+    await this.prisma.approvalTask.updateMany({
+      where: { invoiceId, status: 'pending' },
+      data: {
+        status: 'rejected',
+        comment: 'Recalled',
+        decidedAt: new Date(),
+      },
+    });
+
+    const updated = await this.prisma.invoice.update({
+      where: { id: invoiceId },
+      data: { status: 'needs_review', submittedById: null },
+      include: {
+        fileAsset: true,
+        exceptions: true,
+        lines: { orderBy: { lineNo: 'asc' } },
+      },
+    });
+
+    await this.audit.record({
+      tenantId,
+      actorId: actorUserId,
+      action: 'invoice.recalled',
+      entityType: 'Invoice',
+      entityId: invoiceId,
+    });
+
+    return updated;
   }
 
   private async findMatchingRule(
@@ -659,6 +709,53 @@ export class WorkflowService {
       }
       return true;
     });
+  }
+
+  /** Replace assignees who have an active outgoing delegation covering now. */
+  private async applyDelegationReplacements<
+    T extends { id: string; role: string },
+  >(tenantId: string, candidates: T[]): Promise<T[]> {
+    if (candidates.length === 0) return candidates;
+
+    const now = new Date();
+    const delegations = await this.prisma.approvalDelegation.findMany({
+      where: {
+        tenantId,
+        active: true,
+        fromUserId: { in: candidates.map((c) => c.id) },
+        startsAt: { lte: now },
+        endsAt: { gte: now },
+      },
+      include: {
+        toUser: { select: { id: true, role: true, status: true } },
+      },
+    });
+    const delegationByFrom = new Map(
+      delegations.map((d) => [d.fromUserId, d]),
+    );
+
+    const resolved: T[] = [];
+    const seen = new Set<string>();
+
+    for (const candidate of candidates) {
+      const delegation = delegationByFrom.get(candidate.id);
+      if (delegation?.toUser.status === 'active') {
+        const assignee = {
+          ...candidate,
+          id: delegation.toUser.id,
+          role: delegation.toUser.role,
+        };
+        if (!seen.has(assignee.id)) {
+          seen.add(assignee.id);
+          resolved.push(assignee);
+        }
+      } else if (!seen.has(candidate.id)) {
+        seen.add(candidate.id);
+        resolved.push(candidate);
+      }
+    }
+
+    return resolved;
   }
 
   private async finalizeApprove(

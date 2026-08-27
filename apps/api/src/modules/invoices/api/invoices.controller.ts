@@ -37,6 +37,7 @@ export class InvoicesController {
   @ApiOperation({ summary: 'List invoices with filters' })
   list(
     @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Query('status') status?: InvoiceStatus | InvoiceStatus[],
     @Query('q') q?: string,
     @Query('exceptionCode') exceptionCode?: string,
@@ -49,6 +50,7 @@ export class InvoicesController {
       | 'total_asc'
       | 'age_desc',
     @Query('limit') limit?: string,
+    @Query('entityId') entityId?: string,
   ) {
     return this.invoices.list(tenantId, {
       status,
@@ -57,6 +59,9 @@ export class InvoicesController {
       hasOpenExceptions: hasOpenExceptions === 'true',
       sort,
       limit: limit ? Number(limit) : undefined,
+      entityId,
+      userId: user.id,
+      role: user.role,
     });
   }
 
@@ -68,6 +73,7 @@ export class InvoicesController {
   async exportCsv(
     @Res({ passthrough: true }) res: Response,
     @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Query('status') status?: InvoiceStatus | InvoiceStatus[],
     @Query('q') q?: string,
     @Query('exceptionCode') exceptionCode?: string,
@@ -79,6 +85,7 @@ export class InvoicesController {
       | 'total_desc'
       | 'total_asc'
       | 'age_desc',
+    @Query('entityId') entityId?: string,
   ) {
     const csv = await this.invoices.exportCsv(tenantId, {
       status,
@@ -87,6 +94,9 @@ export class InvoicesController {
       hasOpenExceptions: hasOpenExceptions === 'true',
       sort,
       limit: 500,
+      entityId,
+      userId: user.id,
+      role: user.role,
     });
     res.setHeader(
       'Content-Disposition',
@@ -267,6 +277,17 @@ export class InvoicesController {
     @Param('id') id: string,
   ) {
     return this.invoices.resolveExceptions(tenantId, id, user.id);
+  }
+
+  @Post(':id/recall')
+  @RequireScopes('invoices:write')
+  @ApiOperation({ summary: 'Recall invoice from approval back to needs_review' })
+  recall(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.invoices.recall(tenantId, id, user.id);
   }
 
   @Post(':id/submit')

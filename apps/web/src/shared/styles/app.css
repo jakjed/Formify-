@@ -1,6 +1,6 @@
 .shell {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 260px minmax(0, 1fr);
   min-height: 100vh;
   height: 100vh;
   overflow: hidden;
@@ -9,6 +9,11 @@
     radial-gradient(760px 460px at 100% 0%, rgb(245 158 11 / 24%), transparent 52%),
     radial-gradient(640px 420px at 78% 100%, rgb(8 145 178 / 18%), transparent 48%),
     linear-gradient(165deg, #f4fbf8 0%, #eef6f2 40%, #f7f3ea 100%);
+  transition: grid-template-columns 0.2s ease;
+}
+
+.shell--nav-collapsed {
+  grid-template-columns: 72px minmax(0, 1fr);
 }
 
 .shell__nav {
@@ -26,6 +31,32 @@
   top: 0;
   align-self: start;
   overflow: hidden;
+  width: 100%;
+  min-width: 0;
+}
+
+.shell__collapse-btn {
+  align-self: flex-end;
+  border: 1px solid var(--aptora-border);
+  background: rgb(255 255 255 / 70%);
+  border-radius: 8px;
+  width: 2rem;
+  height: 2rem;
+  cursor: pointer;
+  color: var(--aptora-ink);
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.shell--nav-collapsed .shell__brand span,
+.shell--nav-collapsed .shell__entity,
+.shell--nav-collapsed .shell__nav-group {
+  display: none;
+}
+
+.shell--nav-collapsed .shell__link {
+  justify-content: center;
+  padding-inline: 0.35rem;
 }
 
 .shell__nav-top {

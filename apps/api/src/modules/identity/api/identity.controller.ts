@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   Param,
@@ -15,12 +16,14 @@ import { IdentityService } from '../application/identity.service';
 import { OidcService } from '../application/oidc.service';
 import {
   AcceptInviteDto,
+  CreateDelegationDto,
   CreateTenantUserDto,
   InviteUserDto,
   LoginDto,
   PasswordResetConfirmDto,
   PasswordResetRequestDto,
   RegisterUserDto,
+  UpdateDelegationDto,
   UpdateOidcProviderDto,
   UpdateTenantUserDto,
 } from './identity.dto';
@@ -231,6 +234,8 @@ export class IdentityController {
       role: dto.role,
       entityIds: dto.entityIds,
       defaultEntityId: dto.defaultEntityId,
+      canAccessDirectory: dto.canAccessDirectory,
+      canApprove: dto.canApprove,
     });
     await this.audit.record({
       tenantId,
@@ -260,6 +265,8 @@ export class IdentityController {
       invitedById: user.id,
       entityIds: dto.entityIds,
       defaultEntityId: dto.defaultEntityId,
+      canAccessDirectory: dto.canAccessDirectory,
+      canApprove: dto.canApprove,
     });
     await this.audit.record({
       tenantId,
@@ -292,5 +299,94 @@ export class IdentityController {
       meta: { role: updated.role, status: updated.status },
     });
     return updated;
+  }
+
+  @ApiBearerAuth('bearer')
+  @Get('delegations')
+  @ApiOperation({ summary: 'List approval delegations for current user' })
+  listDelegations(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Query('all') all?: string,
+  ) {
+    const listAll = all === 'true' || all === '1';
+    if (listAll) {
+      assertAdmin(user);
+    }
+    return this.identity.listDelegations(tenantId, user.id, {
+      all: listAll,
+      isAdmin: user.role === 'admin',
+    });
+  }
+
+  @ApiBearerAuth('bearer')
+  @Post('delegations')
+  @ApiOperation({ summary: 'Create an approval delegation from current user' })
+  async createDelegation(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateDelegationDto,
+  ) {
+    const created = await this.identity.createDelegation(tenantId, user.id, dto);
+    await this.audit.record({
+      tenantId,
+      actorId: user.id,
+      action: 'delegation.created',
+      entityType: 'ApprovalDelegation',
+      entityId: created.id,
+      meta: { toUserId: created.toUserId, startsAt: created.startsAt, endsAt: created.endsAt },
+    });
+    return created;
+  }
+
+  @ApiBearerAuth('bearer')
+  @Patch('delegations/:id')
+  @ApiOperation({ summary: 'Update an approval delegation (e.g. deactivate)' })
+  async updateDelegation(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: UpdateDelegationDto,
+  ) {
+    const updated = await this.identity.updateDelegation(
+      tenantId,
+      id,
+      user.id,
+      dto,
+      user.role === 'admin',
+    );
+    await this.audit.record({
+      tenantId,
+      actorId: user.id,
+      action: 'delegation.updated',
+      entityType: 'ApprovalDelegation',
+      entityId: id,
+      meta: { active: updated.active },
+    });
+    return updated;
+  }
+
+  @ApiBearerAuth('bearer')
+  @Delete('delegations/:id')
+  @ApiOperation({ summary: 'Revoke an approval delegation' })
+  async revokeDelegation(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    const result = await this.identity.revokeDelegation(
+      tenantId,
+      id,
+      user.id,
+      user.role === 'admin',
+    );
+    await this.audit.record({
+      tenantId,
+      actorId: user.id,
+      action: 'delegation.revoked',
+      entityType: 'ApprovalDelegation',
+      entityId: id,
+    });
+    return result;
   }
 }

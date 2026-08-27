@@ -607,7 +607,9 @@ export function InvoiceWorkspacePage() {
             '/api/modules',
           ).catch(() => [] as { moduleKey: string; enabled: boolean }[]),
           apiFetch<TaxCode[]>('/api/tax-codes').catch(() => [] as TaxCode[]),
-          apiFetch<CodeName[]>('/api/gl-accounts').catch(() => [] as CodeName[]),
+          apiFetch<CodeName[]>('/api/gl-accounts?accountType=expense').catch(
+            () => [] as CodeName[],
+          ),
           apiFetch<CodeName[]>('/api/cost-centers').catch(
             () => [] as CodeName[],
           ),
@@ -921,6 +923,21 @@ export function InvoiceWorkspacePage() {
     }
   }
 
+  async function onRecall() {
+    if (!id) return;
+    setError(null);
+    try {
+      const inv = await apiFetch<Invoice>(`/api/invoices/${id}/recall`, {
+        method: 'POST',
+      });
+      setInvoice(inv);
+      setEditLines(mapEditLines(inv.lines ?? []));
+      setMessage('Recalled — back to Needs review');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Recall failed');
+    }
+  }
+
   async function onResolve() {
     if (!id) return;
     const inv = await apiFetch<Invoice>(`/api/invoices/${id}/resolve-exceptions`, {
@@ -964,6 +981,14 @@ export function InvoiceWorkspacePage() {
     );
   }
 
+  const fieldsLocked = [
+    'in_approval',
+    'approved',
+    'exported',
+    'paid',
+    'void',
+  ].includes(invoice.status);
+
   return (
     <section className="page page--hitl">
       <header className="hitl-header">
@@ -986,9 +1011,29 @@ export function InvoiceWorkspacePage() {
           <button type="button" className="btn btn--ghost" onClick={() => navigate('/invoices')}>
             Back
           </button>
-          <button type="button" className="btn btn--primary" onClick={() => void onSubmit()}>
-            Submit
-          </button>
+          {invoice.status === 'in_approval' ? (
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => void onRecall()}
+            >
+              Recall
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn--primary"
+              onClick={() => void onSubmit()}
+              disabled={
+                invoice.status === 'approved' ||
+                invoice.status === 'exported' ||
+                invoice.status === 'paid' ||
+                invoice.status === 'void'
+              }
+            >
+              Submit
+            </button>
+          )}
           <button
             type="button"
             className="btn btn--ghost"
@@ -1098,6 +1143,15 @@ export function InvoiceWorkspacePage() {
             )}
 
           <form className="workspace-form hitl-form" onSubmit={onSave}>
+            <fieldset disabled={fieldsLocked} className="hitl-fieldset">
+            {fieldsLocked && (
+              <p className="muted span-2">
+                Fields are read-only while status is {invoice.status.replace(/_/g, ' ')}.
+                {invoice.status === 'in_approval'
+                  ? ' Use Recall to return to Needs review.'
+                  : ''}
+              </p>
+            )}
             <DropField
               label="Invoice number"
               fieldKey="invoiceNumber"
@@ -1423,10 +1477,13 @@ export function InvoiceWorkspacePage() {
             {message && <p className="ok span-2">{message}</p>}
 
             <div className="span-2 actions">
-              <button type="submit" className="btn btn--primary">
-                Save fields
-              </button>
+              {!fieldsLocked && (
+                <button type="submit" className="btn btn--primary">
+                  Save fields
+                </button>
+              )}
             </div>
+            </fieldset>
           </form>
 
           <div className="hitl-sidepanel">

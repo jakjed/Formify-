@@ -1,6 +1,7 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../../shared/lib/api';
+import { appendEntityParam, formatEntityCell } from '../../shared/lib/entity';
 import {
   DEPARTMENTS,
   EXPENSE_CATEGORIES,
@@ -29,6 +30,7 @@ type Pr = {
   department: string | null;
   category: string | null;
   vendorId?: string | null;
+  entityId?: string | null;
   approvalStage?: number;
   purchaseOrders: LinkedPo[];
 };
@@ -61,9 +63,11 @@ export function PurchaseRequestsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
+    const params = new URLSearchParams();
+    appendEntityParam(params);
     const [prs, mods, vendorRows, props] = await Promise.all([
-      apiFetch<Pr[]>('/api/purchase-requests'),
+      apiFetch<Pr[]>(`/api/purchase-requests?${params}`),
       apiFetch<ModuleRow[]>('/api/modules').catch(() => [] as ModuleRow[]),
       apiFetch<Vendor[]>('/api/vendors').catch(() => [] as Vendor[]),
       apiFetch<Proposal[]>('/api/purchase-requests/proposals').catch(
@@ -76,11 +80,19 @@ export function PurchaseRequestsPage() {
     setPoLicensed(
       mods.some((m) => m.moduleKey === 'purchase_orders' && m.enabled),
     );
-  }
+  }, []);
 
   useEffect(() => {
     void refresh().catch((err: Error) => setError(err.message));
-  }, []);
+  }, [refresh]);
+
+  useEffect(() => {
+    const onEntityChange = () => {
+      void refresh().catch((err: Error) => setError(err.message));
+    };
+    window.addEventListener('aptora:entity-change', onEntityChange);
+    return () => window.removeEventListener('aptora:entity-change', onEntityChange);
+  }, [refresh]);
 
   const filtered = useMemo(
     () => (filter === 'All' ? rows : rows.filter((r) => r.status === filter)),
@@ -433,6 +445,7 @@ export function PurchaseRequestsPage() {
                 <thead>
                   <tr>
                     <th>PR</th>
+                    <th>Entity</th>
                     <th>Title</th>
                     <th>Department</th>
                     <th>Category</th>
@@ -450,6 +463,9 @@ export function PurchaseRequestsPage() {
                     return (
                       <tr key={p.id}>
                         <td className="procure__mono">{p.number}</td>
+                        <td className="procure__mono">
+                          {formatEntityCell(p.entityId)}
+                        </td>
                         <td>
                           {p.title}
                           {p.status === 'in_approval' && (
@@ -564,7 +580,7 @@ export function PurchaseRequestsPage() {
                   })}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={8}>
+                      <td colSpan={9}>
                         <div className="procure__empty">No purchase requests here</div>
                       </td>
                     </tr>

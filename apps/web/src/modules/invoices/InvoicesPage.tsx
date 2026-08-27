@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import type { DragEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiFetch, getToken } from '../../shared/lib/api';
+import { appendEntityParam, formatEntityCell } from '../../shared/lib/entity';
 import { InvoiceStatusBadge } from '../../shared/ui/StatusBadge';
 import { ageTone } from '../../shared/ui/status';
 
@@ -10,6 +11,7 @@ type InvoiceListItem = {
   status: string;
   invoiceNumber: string | null;
   vendorNameRaw: string | null;
+  entityId: string | null;
   currency: string;
   totalMinor: number | null;
   createdAt: string;
@@ -111,16 +113,24 @@ export function InvoicesPage() {
   const refresh = useCallback(async () => {
     setError(null);
     const sp = new URLSearchParams();
+    appendEntityParam(sp);
     if (status) sp.set('status', status);
     if (q.trim()) sp.set('q', q.trim());
     if (hasOpenExceptions) sp.set('hasOpenExceptions', 'true');
     if (sort) sp.set('sort', sort);
-    const qs = sp.toString();
-    setItems(await apiFetch<InvoiceListItem[]>(`/api/invoices${qs ? `?${qs}` : ''}`));
+    setItems(await apiFetch<InvoiceListItem[]>(`/api/invoices?${sp}`));
   }, [status, q, hasOpenExceptions, sort]);
 
   useEffect(() => {
     void refresh().catch((err: Error) => setError(err.message));
+  }, [refresh]);
+
+  useEffect(() => {
+    const onEntityChange = () => {
+      void refresh().catch((err: Error) => setError(err.message));
+    };
+    window.addEventListener('aptora:entity-change', onEntityChange);
+    return () => window.removeEventListener('aptora:entity-change', onEntityChange);
   }, [refresh]);
 
   function applyView(view: SavedView) {
@@ -228,6 +238,7 @@ export function InvoicesPage() {
     setError(null);
     try {
       const params = new URLSearchParams();
+      appendEntityParam(params);
       if (status) params.set('status', status);
       if (q) params.set('q', q);
       if (hasOpenExceptions) params.set('hasOpenExceptions', 'true');
@@ -372,6 +383,7 @@ export function InvoicesPage() {
           <thead>
             <tr>
               <th>Number</th>
+              <th>Entity</th>
               <th>Vendor</th>
               <th>Total</th>
               <th>Status</th>
@@ -383,7 +395,7 @@ export function InvoicesPage() {
           <tbody>
             {items.length === 0 && (
               <tr>
-                <td colSpan={7}>
+                <td colSpan={8}>
                   <div className="empty-state" style={{ padding: '2rem 1rem' }}>
                     <div className="empty-state__orb" aria-hidden />
                     <h3>No invoices in this view</h3>
@@ -406,6 +418,7 @@ export function InvoicesPage() {
                       {inv.invoiceNumber ?? 'Draft'}
                     </Link>
                   </td>
+                  <td className="muted">{formatEntityCell(inv.entityId)}</td>
                   <td>{inv.vendorNameRaw ?? '—'}</td>
                   <td>{formatMoney(inv.totalMinor, inv.currency)}</td>
                   <td>

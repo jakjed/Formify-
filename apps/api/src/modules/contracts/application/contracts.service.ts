@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ContractStatus, Prisma } from '@prisma/client';
+import { buildScopedEntityWhere } from '../../../common/entity-scope';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
 import {
@@ -49,14 +50,26 @@ export class ContractsService {
     private readonly audit: AuditService,
   ) {}
 
-  list(
+  async list(
     tenantId: string,
-    opts?: { status?: ContractStatus; q?: string },
+    opts?: {
+      status?: ContractStatus;
+      q?: string;
+      entityId?: string | null;
+      userId?: string;
+      role?: string;
+    },
   ) {
     const q = opts?.q?.trim();
+    const entityWhere = await buildScopedEntityWhere(this.prisma, tenantId, {
+      entityId: opts?.entityId,
+      userId: opts?.userId,
+      role: opts?.role,
+    });
     return this.prisma.contract.findMany({
       where: {
         tenantId,
+        ...entityWhere,
         ...(opts?.status ? { status: opts.status } : {}),
         ...(q
           ? {
@@ -176,14 +189,13 @@ export class ContractsService {
   ) {
     const existing = await this.get(tenantId, id);
     id = existing.id;
-    if (existing.status === 'expired' || existing.status === 'cancelled') {
+    const locked: ContractStatus[] = [
+      'in_approval',
+      'pending_signature',
+    ];
+    if (locked.includes(existing.status)) {
       throw new BadRequestException(
         `Cannot update contract in status ${existing.status}`,
-      );
-    }
-    if (existing.status === 'active') {
-      throw new BadRequestException(
-        'Use amend to change an active contract',
       );
     }
     if (data.vendorId !== undefined) {

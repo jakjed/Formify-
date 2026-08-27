@@ -57,10 +57,18 @@ export class ContractsController {
   @ApiOperation({ summary: 'List contracts' })
   list(
     @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Query('status') status?: ContractStatus,
     @Query('q') q?: string,
+    @Query('entityId') entityId?: string,
   ) {
-    return this.contracts.list(tenantId, { status, q });
+    return this.contracts.list(tenantId, {
+      status,
+      q,
+      entityId,
+      userId: user.id,
+      role: user.role,
+    });
   }
 
   @Post()
@@ -202,7 +210,7 @@ export class ContractsController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update contract fields (draft / in_approval)' })
+  @ApiOperation({ summary: 'Update contract fields (draft only)' })
   update(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
