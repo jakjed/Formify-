@@ -12,7 +12,15 @@ type Tab =
   | 'webhooks'
   | 'sso'
   | 'notifications'
-  | 'audit';
+  | 'audit'
+  | 'workflow';
+
+type ApprovalPolicy = {
+  id: string;
+  name: string;
+  enabled: boolean;
+  autoApproveUnderMinor: number | null;
+};
 
 type Mailbox = {
   id: string;
@@ -135,6 +143,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'sso', label: 'SSO' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'audit', label: 'Audit' },
+  { id: 'workflow', label: 'Approvals' },
 ];
 
 const ROLES = ['admin', 'ap_manager', 'ap_clerk', 'approver'] as const;
@@ -160,6 +169,7 @@ export function AdminPage() {
   );
   const [newWebhookSecret, setNewWebhookSecret] = useState<string | null>(null);
   const [oidc, setOidc] = useState<OidcAdmin | null>(null);
+  const [policy, setPolicy] = useState<ApprovalPolicy | null>(null);
   const [newKeyToken, setNewKeyToken] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -167,7 +177,7 @@ export function AdminPage() {
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
-    const [m, i, a, n, u, e, k, s, usageRow, mods, wh, whe, whd, providers] =
+    const [m, i, a, n, u, e, k, s, usageRow, mods, wh, whe, whd, providers, pol] =
       await Promise.all([
         apiFetch<Mailbox>('/api/capture/mailbox'),
         apiFetch<EmailIngest[]>('/api/capture/email-ingests'),
@@ -189,6 +199,9 @@ export function AdminPage() {
         apiFetch<OidcAdmin[]>('/api/auth/providers/admin').catch(
           () => [] as OidcAdmin[],
         ),
+        apiFetch<ApprovalPolicy>('/api/workflow/policy').catch(
+          () => null as ApprovalPolicy | null,
+        ),
       ]);
     setMailbox(m);
     setIngests(i);
@@ -204,6 +217,7 @@ export function AdminPage() {
     setWebhookEvents(whe);
     setWebhookDeliveries(whd);
     setOidc(providers.find((p) => p.type === 'oidc') ?? null);
+    setPolicy(pol);
   }
 
   useEffect(() => {
@@ -390,6 +404,34 @@ export function AdminPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Plan update failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSavePolicy(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const majorRaw = String(data.get('autoApproveUnderMajor') ?? '').trim();
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = await apiFetch<ApprovalPolicy>('/api/workflow/policy', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: data.get('name'),
+          enabled: data.get('enabled') === 'on',
+          autoApproveUnderMinor:
+            majorRaw === '' ? null : Math.round(Number(majorRaw) * 100),
+        }),
+      });
+      setPolicy(updated);
+      setMessage('Approval policy updated');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Policy update failed');
     } finally {
       setBusy(false);
     }
@@ -1114,6 +1156,57 @@ export function AdminPage() {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {tab === 'workflow' && (
+        <div className="panel">
+          <h2>Approvals</h2>
+          <p className="lede">
+            Invoices at or under this amount auto-approve on submit; above creates
+            approval tasks for admin/approver/ap_manager roles.
+          </p>
+          {!policy && <p className="muted">Loading policy…</p>}
+          {policy && (
+            <form
+              key={policy.id}
+              className="workspace-form"
+              onSubmit={(e) => void onSavePolicy(e)}
+            >
+              <label>
+                Policy name
+                <input name="name" defaultValue={policy.name} required />
+              </label>
+              <label>
+                Auto-approve under (major currency)
+                <input
+                  name="autoApproveUnderMajor"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  defaultValue={
+                    policy.autoApproveUnderMinor != null
+                      ? (policy.autoApproveUnderMinor / 100).toFixed(2)
+                      : ''
+                  }
+                  placeholder="e.g. 100.00"
+                />
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  name="enabled"
+                  defaultChecked={policy.enabled}
+                />{' '}
+                Enabled
+              </label>
+              <div className="span-2 actions">
+                <button type="submit" disabled={busy}>
+                  Save policy
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       )}
     </section>

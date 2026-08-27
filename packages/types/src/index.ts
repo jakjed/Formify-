@@ -19,5 +19,11 @@ export {
 } from './modules/common/ids';
 export type { Money } from './modules/common/money';
 export { formatMoney } from './modules/common/money';
+export {
+  CURRENCY_CODES,
+  isCurrencyCode,
+  normalizeCurrency,
+} from './modules/common/currencies';
+export type { CurrencyCode } from './modules/common/currencies';
 export type { InvoiceStatus, BillableEventType } from './modules/invoices/status';
 export { BILLABLE_EVENT_INVOICE_APPROVED } from './modules/invoices/status';

@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import type { DragEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiFetch, getToken } from '../../shared/lib/api';
 import { InvoiceStatusBadge } from '../../shared/ui/StatusBadge';
@@ -159,12 +160,7 @@ export function InvoicesPage() {
     applyView(view);
   }
 
-  async function onUpload(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const input = form.elements.namedItem('file') as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
+  async function uploadFile(file: File) {
     setBusy(true);
     setError(null);
     try {
@@ -182,13 +178,34 @@ export function InvoicesPage() {
         };
         throw new Error(data.message ?? `Upload failed (${res.status})`);
       }
-      form.reset();
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setBusy(false);
     }
+  }
+
+  async function onUpload(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const input = form.elements.namedItem('file') as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    await uploadFile(file);
+    form.reset();
+  }
+
+  function onDropZoneDragOver(e: DragEvent) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
+
+  async function onDropZoneDrop(e: DragEvent) {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    await uploadFile(file);
   }
 
   async function exportCsv() {
@@ -251,10 +268,16 @@ export function InvoicesPage() {
         </button>
       </div>
 
-      <form className="dropzone" onSubmit={onUpload}>
+      <form
+        className="dropzone"
+        onSubmit={onUpload}
+        onDragOver={onDropZoneDragOver}
+        onDrop={(e) => void onDropZoneDrop(e)}
+      >
         <p className="dropzone__title">Upload invoice</p>
         <p className="dropzone__hint">
-          PDF, PNG, JPG, or TXT — OCR extracts fields for review.
+          Drag and drop a PDF, PNG, JPG, or TXT here — or choose a file. OCR
+          extracts fields for review.
         </p>
         <div className="inline-form" style={{ margin: 0 }}>
           <input

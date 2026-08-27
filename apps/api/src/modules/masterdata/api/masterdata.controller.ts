@@ -14,10 +14,12 @@ import { CurrentTenantId } from '../../../common/current-user.decorator';
 import { RequireScopes } from '../../../common/scopes.decorator';
 import {
   CreateCodeNameDto,
+  CreateExpenseCategoryDto,
   CreatePaymentTermDto,
   CreateTaxCodeDto,
   CreateVendorDto,
   UpdateCodeNameDto,
+  UpdateExpenseCategoryDto,
   UpdatePaymentTermDto,
   UpdateTaxCodeDto,
   UpdateVendorDto,
@@ -217,5 +219,39 @@ export class MasterdataController {
     @Body() dto: UpdatePaymentTermDto,
   ) {
     return this.masterdata.updatePaymentTerm(tenantId, id, dto);
+  }
+
+  // Expense categories
+  @ApiTags('masterdata')
+  @Get('expense-categories')
+  @ApiOperation({ summary: 'List expense categories' })
+  listExpenseCategories(
+    @CurrentTenantId() tenantId: string,
+    @Query('entityId') entityId?: string,
+  ) {
+    return this.masterdata.listExpenseCategories(tenantId, entityId);
+  }
+
+  @ApiTags('masterdata')
+  @Post('expense-categories')
+  @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Create expense category' })
+  createExpenseCategory(
+    @CurrentTenantId() tenantId: string,
+    @Body() dto: CreateExpenseCategoryDto,
+  ) {
+    return this.masterdata.createExpenseCategory(tenantId, dto);
+  }
+
+  @ApiTags('masterdata')
+  @Patch('expense-categories/:id')
+  @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Update expense category' })
+  updateExpenseCategory(
+    @CurrentTenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateExpenseCategoryDto,
+  ) {
+    return this.masterdata.updateExpenseCategory(tenantId, id, dto);
   }
 }

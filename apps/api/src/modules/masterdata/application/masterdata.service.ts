@@ -236,6 +236,83 @@ export class MasterdataService {
     });
   }
 
+  // --- Expense categories ---
+  listExpenseCategories(tenantId: string, entityId?: string) {
+    return this.prisma.expenseCategory.findMany({
+      where: { tenantId, ...(entityId ? { entityId } : {}) },
+      orderBy: [{ code: 'asc' }],
+      include: {
+        entity: { select: { id: true, code: true, name: true } },
+        glAccount: { select: { id: true, code: true, name: true } },
+      },
+    });
+  }
+
+  async createExpenseCategory(
+    tenantId: string,
+    data: {
+      code: string;
+      name: string;
+      entityId: string;
+      glAccountId: string;
+      keywords?: string;
+    },
+  ) {
+    try {
+      return await this.prisma.expenseCategory.create({
+        data: {
+          tenantId,
+          code: data.code.trim(),
+          name: data.name.trim(),
+          entityId: data.entityId,
+          glAccountId: data.glAccountId,
+          keywords: data.keywords?.trim() ?? '',
+        },
+        include: {
+          entity: { select: { id: true, code: true, name: true } },
+          glAccount: { select: { id: true, code: true, name: true } },
+        },
+      });
+    } catch (err) {
+      this.rethrowUnique(err, 'Expense category code already exists');
+    }
+  }
+
+  async updateExpenseCategory(
+    tenantId: string,
+    id: string,
+    data: {
+      name?: string;
+      entityId?: string;
+      glAccountId?: string;
+      keywords?: string;
+      active?: boolean;
+    },
+  ) {
+    const row = await this.prisma.expenseCategory.findFirst({
+      where: { id, tenantId },
+    });
+    if (!row) throw new NotFoundException('Expense category not found');
+    try {
+      return await this.prisma.expenseCategory.update({
+        where: { id },
+        data: {
+          name: data.name?.trim(),
+          entityId: data.entityId,
+          glAccountId: data.glAccountId,
+          keywords: data.keywords?.trim(),
+          active: data.active,
+        },
+        include: {
+          entity: { select: { id: true, code: true, name: true } },
+          glAccount: { select: { id: true, code: true, name: true } },
+        },
+      });
+    } catch (err) {
+      this.rethrowUnique(err, 'Expense category code already exists');
+    }
+  }
+
   private rethrowUnique(err: unknown, message: string): never {
     if (
       err instanceof Prisma.PrismaClientKnownRequestError &&

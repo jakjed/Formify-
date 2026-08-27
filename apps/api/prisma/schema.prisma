@@ -53,6 +53,8 @@ model Tenant {
   paymentTerms   PaymentTerm[]
   fileAssets     FileAsset[]
   invoices       Invoice[]
+  expenseCategories ExpenseCategory[]
+  invoiceAttachments InvoiceAttachment[]
   usageEvents    UsageEvent[]
   ocrPageMeters  OcrPageMeter[]
   approvalPolicies ApprovalPolicy[]
@@ -91,8 +93,9 @@ model Entity {
   name     String
   code     String
 
-  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  contracts Contract[]
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contracts         Contract[]
+  expenseCategories ExpenseCategory[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -212,7 +215,8 @@ model GlAccount {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  expenseCategories ExpenseCategory[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -247,6 +251,28 @@ model TaxCode {
 
   @@unique([tenantId, code])
   @@index([tenantId])
+}
+
+/// Per-entity spend category → default GL account (OCR keyword hints optional).
+model ExpenseCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  entityId    String   @db.Uuid
+  code        String
+  name        String
+  /// Comma-separated tokens matched against invoice line descriptions
+  keywords    String   @default("")
+  glAccountId String   @db.Uuid
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  entity    Entity    @relation(fields: [entityId], references: [id], onDelete: Cascade)
+  glAccount GlAccount @relation(fields: [glAccountId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, entityId, code])
+  @@index([tenantId, entityId])
 }
 
 model PaymentTerm {
@@ -288,8 +314,9 @@ model FileAsset {
   pageCount    Int      @default(1)
   createdAt    DateTime @default(now())
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  invoices Invoice[]
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoices     Invoice[]
+  attachments  InvoiceAttachment[]
 
   @@index([tenantId])
 }
@@ -325,6 +352,7 @@ model Invoice {
   lines         InvoiceLine[]
   exceptions    InvoiceException[]
   comments      InvoiceComment[]
+  attachments   InvoiceAttachment[]
 
   @@index([tenantId, status])
   @@index([tenantId, createdAt])
@@ -333,20 +361,39 @@ model Invoice {
 }
 
 model InvoiceLine {
-  id          String  @id @default(uuid()) @db.Uuid
-  invoiceId   String  @db.Uuid
-  lineNo      Int
-  description String?
-  quantity    Float?
-  unitPriceMinor Int?
-  amountMinor Int?
-  glAccountId String? @db.Uuid
-  costCenterId String? @db.Uuid
+  id                 String  @id @default(uuid()) @db.Uuid
+  invoiceId          String  @db.Uuid
+  lineNo             Int
+  description        String?
+  quantity           Float?
+  unitPriceMinor     Int?
+  amountMinor        Int?
+  taxMinor           Int?
+  taxCodeId          String? @db.Uuid
+  glAccountId        String? @db.Uuid
+  costCenterId       String? @db.Uuid
+  categoryId         String? @db.Uuid
+  purchaseOrderLineId String? @db.Uuid
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@unique([invoiceId, lineNo])
   @@index([invoiceId])
+}
+
+model InvoiceAttachment {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  invoiceId   String   @db.Uuid
+  fileAssetId String   @db.Uuid
+  label       String?
+  createdAt   DateTime @default(now())
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice   Invoice   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  fileAsset FileAsset @relation(fields: [fileAssetId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, invoiceId])
 }
 
 model InvoiceException {

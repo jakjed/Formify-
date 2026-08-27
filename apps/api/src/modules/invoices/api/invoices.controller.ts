@@ -9,10 +9,14 @@ import {
   Query,
   Res,
   StreamableFile,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InvoiceStatus } from '@prisma/client';
 import type { Response } from 'express';
+import { memoryStorage } from 'multer';
 import { InvoicesService } from '../application/invoices.service';
 import {
   CurrentTenantId,
@@ -165,6 +169,70 @@ export class InvoicesController {
     if (file.sizeBytes > 0) {
       res.setHeader('Content-Length', String(file.sizeBytes));
     }
+    return new StreamableFile(file.stream);
+  }
+
+  @Get(':id/attachments')
+  @RequireScopes('invoices:read')
+  @ApiOperation({ summary: 'List supporting attachments on invoice header' })
+  attachments(
+    @CurrentTenantId() tenantId: string,
+    @Param('id') id: string,
+  ) {
+    return this.invoices.listAttachments(tenantId, id);
+  }
+
+  @Post(':id/attachments')
+  @RequireScopes('invoices:write')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Add supporting attachment to invoice header' })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 20 * 1024 * 1024 },
+    }),
+  )
+  addAttachment(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @UploadedFile()
+    file: {
+      originalname: string;
+      mimetype: string;
+      size: number;
+      buffer: Buffer;
+    },
+    @Body('label') label?: string,
+  ) {
+    return this.invoices.addAttachment(
+      tenantId,
+      id,
+      file,
+      label,
+      user.id,
+    );
+  }
+
+  @Get(':id/attachments/:attachmentId/file')
+  @RequireScopes('invoices:read')
+  @ApiOperation({ summary: 'Stream a supporting attachment' })
+  async attachmentFile(
+    @CurrentTenantId() tenantId: string,
+    @Param('id') id: string,
+    @Param('attachmentId') attachmentId: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const file = await this.invoices.getAttachmentFile(
+      tenantId,
+      id,
+      attachmentId,
+    );
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${file.originalName.replace(/"/g, '')}"`,
+    );
     return new StreamableFile(file.stream);
   }
 

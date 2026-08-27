@@ -1,7 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '../../shared/lib/api';
 
-type Tab = 'vendors' | 'gl' | 'costCenters' | 'tax' | 'terms';
+type Tab = 'vendors' | 'gl' | 'costCenters' | 'tax' | 'terms' | 'categories';
 
 type Vendor = {
   id: string;
@@ -21,12 +21,27 @@ type CodeName = {
 type TaxCode = CodeName & { rateBps: number };
 type PaymentTerm = CodeName & { netDays: number };
 
+type EntityRow = { id: string; name: string; code: string };
+
+type ExpenseCategory = {
+  id: string;
+  code: string;
+  name: string;
+  keywords: string;
+  active: boolean;
+  entityId: string;
+  glAccountId: string;
+  entity?: { id: string; code: string; name: string };
+  glAccount?: { id: string; code: string; name: string };
+};
+
 const tabs: { id: Tab; label: string }[] = [
   { id: 'vendors', label: 'Vendors' },
   { id: 'gl', label: 'GL accounts' },
   { id: 'costCenters', label: 'Cost centers' },
   { id: 'tax', label: 'Tax codes' },
   { id: 'terms', label: 'Payment terms' },
+  { id: 'categories', label: 'Categories' },
 ];
 
 export function DirectoryPage() {
@@ -37,6 +52,8 @@ export function DirectoryPage() {
   const [costCenters, setCostCenters] = useState<CodeName[]>([]);
   const [taxCodes, setTaxCodes] = useState<TaxCode[]>([]);
   const [terms, setTerms] = useState<PaymentTerm[]>([]);
+  const [entities, setEntities] = useState<EntityRow[]>([]);
+  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
 
   const [vendorCode, setVendorCode] = useState('');
   const [vendorName, setVendorName] = useState('');
@@ -44,6 +61,9 @@ export function DirectoryPage() {
   const [name, setName] = useState('');
   const [rateBps, setRateBps] = useState('2300');
   const [netDays, setNetDays] = useState('30');
+  const [categoryEntityId, setCategoryEntityId] = useState('');
+  const [categoryGlId, setCategoryGlId] = useState('');
+  const [categoryKeywords, setCategoryKeywords] = useState('');
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -56,6 +76,17 @@ export function DirectoryPage() {
         setCostCenters(await apiFetch<CodeName[]>('/api/cost-centers?includeInactive=true'));
       } else if (tab === 'tax') {
         setTaxCodes(await apiFetch<TaxCode[]>('/api/tax-codes?includeInactive=true'));
+      } else if (tab === 'categories') {
+        const [ents, gl, cats] = await Promise.all([
+          apiFetch<EntityRow[]>('/api/entities'),
+          apiFetch<CodeName[]>('/api/gl-accounts'),
+          apiFetch<ExpenseCategory[]>('/api/expense-categories'),
+        ]);
+        setEntities(ents);
+        setGlAccounts(gl);
+        setCategories(cats);
+        setCategoryEntityId((prev) => prev || ents[0]?.id || '');
+        setCategoryGlId((prev) => prev || gl[0]?.id || '');
       } else {
         setTerms(await apiFetch<PaymentTerm[]>('/api/payment-terms?includeInactive=true'));
       }
@@ -100,6 +131,20 @@ export function DirectoryPage() {
         });
         setCode('');
         setName('');
+      } else if (tab === 'categories') {
+        await apiFetch('/api/expense-categories', {
+          method: 'POST',
+          body: JSON.stringify({
+            code,
+            name,
+            entityId: categoryEntityId,
+            glAccountId: categoryGlId,
+            keywords: categoryKeywords.trim() || undefined,
+          }),
+        });
+        setCode('');
+        setName('');
+        setCategoryKeywords('');
       } else {
         await apiFetch('/api/payment-terms', {
           method: 'POST',
@@ -153,6 +198,54 @@ export function DirectoryPage() {
               value={vendorName}
               onChange={(e) => setVendorName(e.target.value)}
               required
+            />
+          </>
+        ) : tab === 'categories' ? (
+          <>
+            <input
+              placeholder="Code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              required
+            />
+            <input
+              placeholder="Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+            <select
+              value={categoryEntityId}
+              onChange={(e) => setCategoryEntityId(e.target.value)}
+              required
+            >
+              <option value="" disabled>
+                Entity
+              </option>
+              {entities.map((ent) => (
+                <option key={ent.id} value={ent.id}>
+                  {ent.code} — {ent.name}
+                </option>
+              ))}
+            </select>
+            <select
+              value={categoryGlId}
+              onChange={(e) => setCategoryGlId(e.target.value)}
+              required
+            >
+              <option value="" disabled>
+                GL account
+              </option>
+              {glAccounts.map((gl) => (
+                <option key={gl.id} value={gl.id}>
+                  {gl.code} — {gl.name}
+                </option>
+              ))}
+            </select>
+            <input
+              placeholder="Keywords (comma-separated, for OCR)"
+              value={categoryKeywords}
+              onChange={(e) => setCategoryKeywords(e.target.value)}
             />
           </>
         ) : (
@@ -262,6 +355,40 @@ export function DirectoryPage() {
                   <td>{row.code}</td>
                   <td>{row.name}</td>
                   <td>{row.netDays}</td>
+                  <td>{row.active ? 'Active' : 'Inactive'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {tab === 'categories' && (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Name</th>
+                <th>Entity</th>
+                <th>GL</th>
+                <th>Keywords</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {categories.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.code}</td>
+                  <td>{row.name}</td>
+                  <td>
+                    {row.entity
+                      ? `${row.entity.code} — ${row.entity.name}`
+                      : row.entityId.slice(0, 8)}
+                  </td>
+                  <td>
+                    {row.glAccount
+                      ? `${row.glAccount.code} — ${row.glAccount.name}`
+                      : row.glAccountId.slice(0, 8)}
+                  </td>
+                  <td>{row.keywords || '—'}</td>
                   <td>{row.active ? 'Active' : 'Inactive'}</td>
                 </tr>
               ))}
