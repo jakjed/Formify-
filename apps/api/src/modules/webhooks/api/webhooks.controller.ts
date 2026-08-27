@@ -62,7 +62,11 @@ class UpdateWebhookDto {
 }
 
 function assertAdmin(user: RequestUser) {
-  if (user.authKind === 'api_key' || user.role !== 'admin') {
+  if (
+    user.authKind === 'api_key' ||
+    user.authKind === 'oauth_client' ||
+    user.role !== 'admin'
+  ) {
     throw new ForbiddenException('Admin session required');
   }
 }

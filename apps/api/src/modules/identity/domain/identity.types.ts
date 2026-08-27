@@ -25,7 +25,8 @@ export type UserRecord = {
 };
 
 export type RequestUser = Omit<UserRecord, 'passwordHash'> & {
-  authKind?: 'session' | 'api_key';
+  authKind?: 'session' | 'api_key' | 'oauth_client';
   scopes?: string[];
   apiKeyId?: string;
+  oauthClientId?: string;
 };

@@ -10,6 +10,7 @@ import { IS_PUBLIC_KEY } from './public.decorator';
 import { REQUIRED_SCOPES_KEY } from './scopes.decorator';
 import { IdentityService } from '../modules/identity/application/identity.service';
 import { ApiKeysService } from '../modules/apikeys/application/apikeys.service';
+import { OAuthService } from '../modules/oauth/application/oauth.service';
 import type { RequestUser } from '../modules/identity/domain/identity.types';
 
 @Injectable()
@@ -18,6 +19,7 @@ export class AuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly identity: IdentityService,
     private readonly apiKeys: ApiKeysService,
+    private readonly oauth: OAuthService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -42,19 +44,15 @@ export class AuthGuard implements CanActivate {
       const principal = await this.apiKeys.resolveBearer(token);
       if (!principal) throw new UnauthorizedException('Invalid API key');
       request.user = principal;
+      this.assertScopes(context, principal);
+      return true;
+    }
 
-      const required = this.reflector.getAllAndOverride<string[]>(
-        REQUIRED_SCOPES_KEY,
-        [context.getHandler(), context.getClass()],
-      );
-      if (required?.length) {
-        const ok = required.every((scope) => principal.scopes?.includes(scope));
-        if (!ok) {
-          throw new ForbiddenException(
-            `API key missing scope(s): ${required.join(', ')}`,
-          );
-        }
-      }
+    if (token.startsWith('aptoauth_')) {
+      const principal = await this.oauth.resolveBearer(token);
+      if (!principal) throw new UnauthorizedException('Invalid access token');
+      request.user = principal;
+      this.assertScopes(context, principal);
       return true;
     }
 
@@ -68,5 +66,19 @@ export class AuthGuard implements CanActivate {
 
     request.user = { ...user, authKind: 'session' };
     return true;
+  }
+
+  private assertScopes(context: ExecutionContext, principal: RequestUser) {
+    const required = this.reflector.getAllAndOverride<string[]>(
+      REQUIRED_SCOPES_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    if (!required?.length) return;
+    const ok = required.every((scope) => principal.scopes?.includes(scope));
+    if (!ok) {
+      throw new ForbiddenException(
+        `Missing scope(s): ${required.join(', ')}`,
+      );
+    }
   }
 }
