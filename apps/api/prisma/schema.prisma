@@ -70,6 +70,7 @@ model Tenant {
   sodPolicies    SodPolicy[]
   integrationJobs IntegrationJob[]
   captureMailbox CaptureMailbox?
+  outboundEmail  TenantOutboundEmail?
   emailIngests   EmailIngest[]
   notifications  Notification[]
   auditEvents    AuditEvent[]
@@ -714,6 +715,22 @@ model CaptureMailbox {
   @@index([tenantId])
 }
 
+/// Outbound From address for approval and workflow email (Phase 1: config only; SMTP relay later).
+model TenantOutboundEmail {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @unique @db.Uuid
+  fromAddress String
+  fromName    String?
+  replyTo     String?
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
 model EmailIngest {
   id           String   @id @default(uuid()) @db.Uuid
   tenantId     String   @db.Uuid
@@ -1088,6 +1105,17 @@ model OidcAuthState {
   redirectTo   String?
   createdAt    DateTime @default(now())
   expiresAt    DateTime
+
+  @@index([expiresAt])
+}
+
+model SamlAuthState {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  relayState String   @unique
+  redirectTo String?
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
 
   @@index([expiresAt])
 }

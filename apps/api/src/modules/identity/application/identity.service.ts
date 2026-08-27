@@ -78,13 +78,14 @@ export class IdentityService {
     });
     return rows.map((row) => {
       const settings = (row.settings ?? {}) as Record<string, unknown>;
-      const { clientSecret, ...rest } = settings;
+      const { clientSecret, idpCertificate, ...rest } = settings;
       return {
         type: row.type,
         enabled: row.enabled,
         order: row.order,
         settings: rest,
         clientSecretSet: Boolean(clientSecret),
+        idpCertificateSet: Boolean(idpCertificate),
       };
     });
   }
@@ -212,13 +213,98 @@ export class IdentityService {
     type: string,
     settings: Record<string, unknown>,
   ): Record<string, unknown> {
-    if (type !== 'oidc') return {};
+    if (type === 'oidc') {
+      return {
+        displayName:
+          typeof settings.displayName === 'string'
+            ? settings.displayName
+            : 'SSO',
+        mode: settings.mode === 'mock' ? 'mock' : 'live',
+      };
+    }
+    if (type === 'saml') {
+      return {
+        displayName:
+          typeof settings.displayName === 'string'
+            ? settings.displayName
+            : 'SAML SSO',
+        mode: settings.mode === 'mock' ? 'mock' : 'live',
+      };
+    }
+    return {};
+  }
+
+  async listDelegationCandidates(tenantId: string, userId: string) {
+    return this.prisma.user.findMany({
+      where: {
+        tenantId,
+        status: 'active',
+        NOT: { id: userId },
+      },
+      select: { id: true, email: true, displayName: true },
+      orderBy: { displayName: 'asc' },
+    });
+  }
+
+  async updateSamlProvider(
+    tenantId: string,
+    input: {
+      enabled?: boolean;
+      settings?: {
+        idpEntityId?: string;
+        idpSsoUrl?: string;
+        idpCertificate?: string | null;
+        spEntityId?: string;
+        displayName?: string;
+        mode?: 'live' | 'mock';
+        mockEmail?: string;
+      };
+    },
+  ) {
+    const existing = await this.prisma.authProviderConfig.findUnique({
+      where: { tenantId_type: { tenantId, type: 'saml' } },
+    });
+    const prev = (existing?.settings ?? {}) as Record<string, unknown>;
+    const nextSettings = { ...prev };
+    if (input.settings) {
+      for (const [key, value] of Object.entries(input.settings)) {
+        if (key === 'idpCertificate') {
+          if (value === null) {
+            delete nextSettings.idpCertificate;
+          } else if (typeof value === 'string' && value.trim()) {
+            nextSettings.idpCertificate = value.trim();
+          }
+          continue;
+        }
+        if (value !== undefined) {
+          nextSettings[key] = value;
+        }
+      }
+    }
+    const row = await this.prisma.authProviderConfig.upsert({
+      where: { tenantId_type: { tenantId, type: 'saml' } },
+      create: {
+        tenantId,
+        type: 'saml',
+        enabled: input.enabled ?? false,
+        order: 3,
+        settings: nextSettings as Prisma.InputJsonValue,
+      },
+      update: {
+        ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+        settings: nextSettings as Prisma.InputJsonValue,
+      },
+    });
+    const { idpCertificate, ...safe } = (row.settings ?? {}) as Record<
+      string,
+      unknown
+    >;
     return {
-      displayName:
-        typeof settings.displayName === 'string'
-          ? settings.displayName
-          : 'SSO',
-      mode: settings.mode === 'mock' ? 'mock' : 'live',
+      type: row.type,
+      enabled: row.enabled,
+      order: row.order,
+      settings: safe,
+      idpCertificateSet: Boolean(idpCertificate),
     };
   }
 

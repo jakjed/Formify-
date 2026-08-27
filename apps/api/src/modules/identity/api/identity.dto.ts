@@ -240,3 +240,44 @@ export class UpdateOidcProviderDto {
   @Type(() => OidcSettingsDto)
   settings?: OidcSettingsDto;
 }
+
+export class SamlSettingsDto {
+  @IsOptional()
+  @IsString()
+  idpEntityId?: string;
+
+  @IsOptional()
+  @IsString()
+  idpSsoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  idpCertificate?: string | null;
+
+  @IsOptional()
+  @IsString()
+  spEntityId?: string;
+
+  @IsOptional()
+  @IsString()
+  displayName?: string;
+
+  @IsOptional()
+  @IsIn(['live', 'mock'])
+  mode?: 'live' | 'mock';
+
+  @IsOptional()
+  @IsEmail()
+  mockEmail?: string;
+}
+
+export class UpdateSamlProviderDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SamlSettingsDto)
+  settings?: SamlSettingsDto;
+}

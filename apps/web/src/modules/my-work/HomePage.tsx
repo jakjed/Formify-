@@ -117,6 +117,9 @@ export function HomePage() {
           <Link className="btn btn--primary" to="/invoices">
             Open invoices
           </Link>
+          <Link className="btn btn--ghost" to="/account/delegation">
+            My delegation
+          </Link>
           <Link className="btn btn--ghost" to="/ops">
             Operations
           </Link>

@@ -171,10 +171,11 @@ type WebhookDelivery = {
   createdAt: string;
 };
 
-type OidcAdmin = {
+type AuthProviderAdmin = {
   type: string;
   enabled: boolean;
-  clientSecretSet: boolean;
+  clientSecretSet?: boolean;
+  idpCertificateSet?: boolean;
   settings: {
     issuer?: string;
     clientId?: string;
@@ -182,7 +183,18 @@ type OidcAdmin = {
     displayName?: string;
     mode?: string;
     mockEmail?: string;
+    idpEntityId?: string;
+    idpSsoUrl?: string;
+    spEntityId?: string;
   };
+};
+
+type OutboundEmail = {
+  fromAddress: string;
+  fromName: string | null;
+  replyTo: string | null;
+  enabled: boolean;
+  configured: boolean;
 };
 
 const TABS: { id: Tab; label: string }[] = [
@@ -248,7 +260,9 @@ export function AdminPage() {
     [],
   );
   const [newWebhookSecret, setNewWebhookSecret] = useState<string | null>(null);
-  const [oidc, setOidc] = useState<OidcAdmin | null>(null);
+  const [oidc, setOidc] = useState<AuthProviderAdmin | null>(null);
+  const [saml, setSaml] = useState<AuthProviderAdmin | null>(null);
+  const [outboundEmail, setOutboundEmail] = useState<OutboundEmail | null>(null);
   const [policy, setPolicy] = useState<ApprovalPolicy | null>(null);
   const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([]);
   const [sodPolicies, setSodPolicies] = useState<SodPolicy[]>([]);
@@ -261,24 +275,19 @@ export function AdminPage() {
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [editingEntity, setEditingEntity] = useState<EntityRow | null>(null);
   const [editingRule, setEditingRule] = useState<ApprovalRule | null>(null);
-  const [delegations, setDelegations] = useState<{
-    outgoing: Array<{
+  const [adminDelegations, setAdminDelegations] = useState<
+    Array<{
       id: string;
+      fromUserId: string;
       toUserId: string;
       startsAt: string;
       endsAt: string;
       reason: string | null;
       active: boolean;
-    }>;
-    incoming: Array<{
-      id: string;
-      fromUserId: string;
-      startsAt: string;
-      endsAt: string;
-      reason: string | null;
-      active: boolean;
-    }>;
-  }>({ outgoing: [], incoming: [] });
+      fromUser?: { id: string; email: string; displayName: string };
+      toUser?: { id: string; email: string; displayName: string };
+    }>
+  >([]);
   const [approvalModule, setApprovalModule] =
     useState<ApprovalModuleKey>('invoices');
 
@@ -300,6 +309,7 @@ export function AdminPage() {
       whe,
       whd,
       providers,
+      outbound,
       pol,
       rules,
       sod,
@@ -325,8 +335,11 @@ export function AdminPage() {
       apiFetch<WebhookDelivery[]>('/api/webhooks/deliveries').catch(
         () => [] as WebhookDelivery[],
       ),
-      apiFetch<OidcAdmin[]>('/api/auth/providers/admin').catch(
-        () => [] as OidcAdmin[],
+      apiFetch<AuthProviderAdmin[]>('/api/auth/providers/admin').catch(
+        () => [] as AuthProviderAdmin[],
+      ),
+      apiFetch<OutboundEmail>('/api/notifications/outbound-email').catch(
+        () => null as OutboundEmail | null,
       ),
       apiFetch<ApprovalPolicy>(
         `/api/workflow/policy?moduleKey=${approvalModule}`,
@@ -352,6 +365,8 @@ export function AdminPage() {
     setWebhookEvents(whe);
     setWebhookDeliveries(whd);
     setOidc(providers.find((p) => p.type === 'oidc') ?? null);
+    setSaml(providers.find((p) => p.type === 'saml') ?? null);
+    setOutboundEmail(outbound);
     setPolicy(pol);
     setApprovalRules(rules);
     setSodPolicies(sod);
@@ -398,7 +413,7 @@ export function AdminPage() {
 
   useEffect(() => {
     if (tab !== 'delegations') return;
-    void loadDelegations().catch((err: Error) => setError(err.message));
+    void loadAdminDelegations().catch((err: Error) => setError(err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -637,39 +652,11 @@ export function AdminPage() {
     }
   }
 
-  async function loadDelegations() {
-    const rows = await apiFetch<{
-      outgoing: typeof delegations.outgoing;
-      incoming: typeof delegations.incoming;
-    }>('/api/delegations');
-    setDelegations(rows);
-  }
-
-  async function onCreateDelegation(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const data = new FormData(form);
-    setBusy(true);
-    setError(null);
-    setMessage(null);
-    try {
-      await apiFetch('/api/delegations', {
-        method: 'POST',
-        body: JSON.stringify({
-          toUserId: data.get('toUserId'),
-          startsAt: new Date(String(data.get('startsAt'))).toISOString(),
-          endsAt: new Date(String(data.get('endsAt'))).toISOString(),
-          reason: String(data.get('reason') ?? '').trim() || undefined,
-        }),
-      });
-      form.reset();
-      setMessage('Delegation created');
-      await loadDelegations();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Delegation failed');
-    } finally {
-      setBusy(false);
-    }
+  async function loadAdminDelegations() {
+    const rows = await apiFetch<typeof adminDelegations>(
+      '/api/delegations?all=true',
+    );
+    setAdminDelegations(rows);
   }
 
   async function revokeDelegation(id: string) {
@@ -677,7 +664,7 @@ export function AdminPage() {
     try {
       await apiFetch(`/api/delegations/${id}`, { method: 'DELETE' });
       setMessage('Delegation revoked');
-      await loadDelegations();
+      await loadAdminDelegations();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Revoke failed');
     } finally {
@@ -1659,7 +1646,88 @@ export function AdminPage() {
       {tab === 'mailbox' && (
         <>
           <div className="panel">
-            <h2>Invoice mailbox</h2>
+            <h2>Outbound notifications</h2>
+            <p className="lede">
+              From address used when Aptora sends approval and workflow email to
+              approvers (in-app notifications always remain on).
+            </p>
+            {!outboundEmail && <p className="muted">Loading…</p>}
+            {outboundEmail && (
+              <form
+                className="workspace-form"
+                onSubmit={(e) =>
+                  void (async (ev: FormEvent<HTMLFormElement>) => {
+                    ev.preventDefault();
+                    const form = ev.currentTarget;
+                    const data = new FormData(form);
+                    setBusy(true);
+                    setError(null);
+                    setMessage(null);
+                    try {
+                      const updated = await apiFetch<OutboundEmail>(
+                        '/api/notifications/outbound-email',
+                        {
+                          method: 'PATCH',
+                          body: JSON.stringify({
+                            enabled: data.get('enabled') === 'on',
+                            fromAddress: data.get('fromAddress'),
+                            fromName: data.get('fromName') || undefined,
+                            replyTo: data.get('replyTo') || undefined,
+                          }),
+                        },
+                      );
+                      setOutboundEmail(updated);
+                      setMessage('Outbound email saved');
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Save failed');
+                    } finally {
+                      setBusy(false);
+                    }
+                  })(e)
+                }
+              >
+                <label>
+                  <input
+                    type="checkbox"
+                    name="enabled"
+                    defaultChecked={outboundEmail.enabled}
+                  />{' '}
+                  Enable outbound email
+                </label>
+                <label>
+                  From address
+                  <input
+                    name="fromAddress"
+                    type="email"
+                    required
+                    defaultValue={outboundEmail.fromAddress}
+                  />
+                </label>
+                <label>
+                  From name
+                  <input
+                    name="fromName"
+                    defaultValue={outboundEmail.fromName ?? ''}
+                  />
+                </label>
+                <label>
+                  Reply-To
+                  <input
+                    name="replyTo"
+                    type="email"
+                    defaultValue={outboundEmail.replyTo ?? ''}
+                  />
+                </label>
+                <div className="span-2 actions">
+                  <button type="submit" disabled={busy}>
+                    Save outbound email
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+          <div className="panel">
+            <h2>Invoice mailbox (inbound capture)</h2>
             {!mailbox && <p className="muted">Loading…</p>}
             {mailbox && (
               <>
@@ -1889,7 +1957,7 @@ export function AdminPage() {
 
       {tab === 'sso' && (
         <div className="panel">
-          <h2>SSO (OIDC)</h2>
+          <h2>SSO (OIDC & SAML)</h2>
           <p className="lede">
             Enable OpenID Connect for this tenant. Use mock mode for local
             tests; live mode needs issuer + client id (Google / Entra).
@@ -1910,7 +1978,7 @@ export function AdminPage() {
                 setMessage(null);
                 try {
                   const secret = String(data.get('clientSecret') || '').trim();
-                  const updated = await apiFetch<OidcAdmin>(
+                  const updated = await apiFetch<AuthProviderAdmin>(
                     '/api/auth/providers/oidc',
                     {
                       method: 'PATCH',
@@ -2004,6 +2072,127 @@ export function AdminPage() {
             <div className="span-2 actions">
               <button type="submit" disabled={busy}>
                 Save OIDC
+              </button>
+            </div>
+          </form>
+
+          <h3>SAML 2.0</h3>
+          <p className="lede">
+            Enterprise SAML alongside OIDC. Use mock mode locally; live mode stores
+            IdP metadata — ACS validates assertions in a later release.
+          </p>
+          <p className="muted">
+            ACS URL: <code>http://127.0.0.1:3001/api/auth/saml/acs</code>
+            {' · '}
+            SP metadata:{' '}
+            <code>
+              http://127.0.0.1:3001/api/auth/saml/metadata?tenantId=&lt;tenant&gt;
+            </code>
+          </p>
+          <form
+            className="workspace-form"
+            onSubmit={(e) =>
+              void (async (ev: FormEvent<HTMLFormElement>) => {
+                ev.preventDefault();
+                const form = ev.currentTarget;
+                const data = new FormData(form);
+                setBusy(true);
+                setError(null);
+                setMessage(null);
+                try {
+                  const cert = String(data.get('idpCertificate') || '').trim();
+                  const updated = await apiFetch<AuthProviderAdmin>(
+                    '/api/auth/providers/saml',
+                    {
+                      method: 'PATCH',
+                      body: JSON.stringify({
+                        enabled: data.get('enabled') === 'on',
+                        settings: {
+                          mode: data.get('mode') || 'mock',
+                          displayName: data.get('displayName') || 'SAML SSO',
+                          idpEntityId: data.get('idpEntityId') || undefined,
+                          idpSsoUrl: data.get('idpSsoUrl') || undefined,
+                          spEntityId: data.get('spEntityId') || undefined,
+                          mockEmail: data.get('mockEmail') || undefined,
+                          ...(cert ? { idpCertificate: cert } : {}),
+                        },
+                      }),
+                    },
+                  );
+                  setSaml(updated);
+                  setMessage('SAML settings saved');
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Save failed');
+                } finally {
+                  setBusy(false);
+                }
+              })(e)
+            }
+          >
+            <label>
+              <input
+                type="checkbox"
+                name="enabled"
+                defaultChecked={saml?.enabled ?? false}
+              />{' '}
+              Enable SAML
+            </label>
+            <label>
+              Mode
+              <select name="mode" defaultValue={saml?.settings.mode ?? 'mock'}>
+                <option value="mock">mock (dev)</option>
+                <option value="live">live</option>
+              </select>
+            </label>
+            <label>
+              Button label
+              <input
+                name="displayName"
+                defaultValue={saml?.settings.displayName ?? 'SAML SSO'}
+              />
+            </label>
+            <label>
+              Mock email
+              <input
+                name="mockEmail"
+                type="email"
+                defaultValue={saml?.settings.mockEmail ?? ''}
+              />
+            </label>
+            <label>
+              IdP entity ID
+              <input
+                name="idpEntityId"
+                defaultValue={saml?.settings.idpEntityId ?? ''}
+              />
+            </label>
+            <label>
+              IdP SSO URL
+              <input
+                name="idpSsoUrl"
+                defaultValue={saml?.settings.idpSsoUrl ?? ''}
+              />
+            </label>
+            <label>
+              SP entity ID (optional)
+              <input
+                name="spEntityId"
+                defaultValue={saml?.settings.spEntityId ?? ''}
+              />
+            </label>
+            <label className="span-2">
+              IdP X.509 certificate (PEM)
+              <textarea
+                name="idpCertificate"
+                rows={4}
+                placeholder={
+                  saml?.idpCertificateSet ? '(unchanged if empty)' : ''
+                }
+              />
+            </label>
+            <div className="span-2 actions">
+              <button type="submit" disabled={busy}>
+                Save SAML
               </button>
             </div>
           </form>
@@ -2482,103 +2671,43 @@ export function AdminPage() {
 
       {tab === 'delegations' && (
         <div className="panel">
-          <h2>Delegation</h2>
+          <h2>All delegations</h2>
           <p className="lede">
-            Hand off approval rights while you are away. Active delegates receive
-            your approval tasks for the selected window.
+            Admin oversight of every approval delegation in this tenant. Users
+            create their own rules from{' '}
+            <Link to="/account/delegation">My delegation</Link>.
           </p>
-          <form
-            className="workspace-form"
-            onSubmit={(e) => void onCreateDelegation(e)}
-          >
-            <label>
-              Delegate to
-              <select name="toUserId" required defaultValue="">
-                <option value="" disabled>
-                  Select user
-                </option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.displayName} ({u.email})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Starts
-              <input name="startsAt" type="datetime-local" required />
-            </label>
-            <label>
-              Ends
-              <input name="endsAt" type="datetime-local" required />
-            </label>
-            <label className="span-2">
-              Reason
-              <input name="reason" placeholder="Vacation, leave, …" />
-            </label>
-            <div className="span-2 actions">
-              <button type="submit" disabled={busy}>
-                Create delegation
-              </button>
-            </div>
-          </form>
-
-          <h3>Outgoing</h3>
           <ul className="task-list">
-            {delegations.outgoing.length === 0 && (
-              <li className="muted">No outgoing delegations.</li>
+            {adminDelegations.length === 0 && (
+              <li className="muted">No delegations yet.</li>
             )}
-            {delegations.outgoing.map((d) => {
-              const to = users.find((u) => u.id === d.toUserId);
-              return (
-                <li key={d.id}>
-                  <div>
-                    <strong>{to?.displayName ?? d.toUserId.slice(0, 8)}</strong>
-                    <span className="muted">
-                      {' '}
-                      · {new Date(d.startsAt).toLocaleString()} →{' '}
-                      {new Date(d.endsAt).toLocaleString()}
-                      {d.active ? '' : ' · revoked'}
-                    </span>
-                    {d.reason ? <div className="muted">{d.reason}</div> : null}
-                  </div>
-                  {d.active && (
-                    <button
-                      type="button"
-                      className="secondary-btn"
-                      disabled={busy}
-                      onClick={() => void revokeDelegation(d.id)}
-                    >
-                      Revoke
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-
-          <h3>Incoming</h3>
-          <ul className="task-list">
-            {delegations.incoming.length === 0 && (
-              <li className="muted">No incoming delegations.</li>
-            )}
-            {delegations.incoming.map((d) => {
-              const from = users.find((u) => u.id === d.fromUserId);
-              return (
-                <li key={d.id}>
-                  <div>
-                    <strong>
-                      From {from?.displayName ?? d.fromUserId.slice(0, 8)}
-                    </strong>
-                    <span className="muted">
-                      {' '}
-                      · {new Date(d.startsAt).toLocaleString()} →{' '}
-                      {new Date(d.endsAt).toLocaleString()}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
+            {adminDelegations.map((d) => (
+              <li key={d.id}>
+                <div>
+                  <strong>
+                    {d.fromUser?.displayName ?? d.fromUserId.slice(0, 8)} →{' '}
+                    {d.toUser?.displayName ?? d.toUserId.slice(0, 8)}
+                  </strong>
+                  <span className="muted">
+                    {' '}
+                    · {new Date(d.startsAt).toLocaleString()} →{' '}
+                    {new Date(d.endsAt).toLocaleString()}
+                    {d.active ? '' : ' · revoked'}
+                  </span>
+                  {d.reason ? <div className="muted">{d.reason}</div> : null}
+                </div>
+                {d.active && (
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    disabled={busy}
+                    onClick={() => void revokeDelegation(d.id)}
+                  >
+                    Revoke
+                  </button>
+                )}
+              </li>
+            ))}
           </ul>
         </div>
       )}

@@ -37,6 +37,6 @@ Additional **capabilities** on the user (not separate roles):
 - `canAccessDirectory` — authorized people may open Directory (admins always can).
 - `canApprove` — e.g. an `ap_clerk` who is also an approver receives approval tasks without changing their primary role.
 
-**Delegation** (`Admin → Delegation`): while away, a user can hand approval rights to another user for a date window; the workflow replaces assignees with active delegates.
+**Delegation:** Users manage their own rules at **Command Center → My delegation** (`/account/delegation`). Admins oversee all tenant delegations at **Admin → Delegation** (revoke any; no create-on-behalf in Admin).
 
 See also: `COMMAND_CENTER_AND_ADMIN.md`, `APPROVAL_RULES.md`.
