@@ -19,34 +19,69 @@ type MeUser = {
   canAccessDirectory?: boolean;
 };
 
+type NavIconId =
+  | 'command'
+  | 'ops'
+  | 'contracts'
+  | 'requisitions'
+  | 'orders'
+  | 'invoices'
+  | 'directory'
+  | 'integration'
+  | 'admin'
+  | 'search'
+  | 'signout';
+
 type NavItem = {
   to: string;
   label: string;
+  icon: NavIconId;
   module: string | null;
   group?: 'command' | 'work' | 'platform';
   requiresDirectory?: boolean;
 };
 
 const BASE_LINKS: NavItem[] = [
-  { to: '/', label: 'Command Center', module: null, group: 'command' },
-  { to: '/ops', label: 'Operations', module: null, group: 'command' },
-  { to: '/contracts', label: 'Contracts', module: 'contracts', group: 'work' },
+  {
+    to: '/',
+    label: 'Command Center',
+    icon: 'command',
+    module: null,
+    group: 'command',
+  },
+  { to: '/ops', label: 'Operations', icon: 'ops', module: null, group: 'command' },
+  {
+    to: '/contracts',
+    label: 'Contracts',
+    icon: 'contracts',
+    module: 'contracts',
+    group: 'work',
+  },
   {
     to: '/purchase-requests',
     label: 'Requisitions',
+    icon: 'requisitions',
     module: 'purchase_requests',
     group: 'work',
   },
   {
     to: '/purchase-orders',
     label: 'Orders',
+    icon: 'orders',
     module: 'purchase_orders',
     group: 'work',
   },
-  { to: '/invoices', label: 'Invoices', module: 'invoices', group: 'work' },
+  {
+    to: '/invoices',
+    label: 'Invoices',
+    icon: 'invoices',
+    module: 'invoices',
+    group: 'work',
+  },
   {
     to: '/directory',
     label: 'Directory',
+    icon: 'directory',
     module: null,
     group: 'platform',
     requiresDirectory: true,
@@ -54,10 +89,11 @@ const BASE_LINKS: NavItem[] = [
   {
     to: '/integration',
     label: 'Integration Center',
+    icon: 'integration',
     module: null,
     group: 'platform',
   },
-  { to: '/admin', label: 'Admin', module: null, group: 'platform' },
+  { to: '/admin', label: 'Admin', icon: 'admin', module: null, group: 'platform' },
 ];
 
 const GROUP_LABEL: Record<string, string> = {
@@ -65,6 +101,117 @@ const GROUP_LABEL: Record<string, string> = {
   work: 'Workspaces',
   platform: 'Platform',
 };
+
+function NavIcon({ id }: { id: NavIconId }) {
+  const common = {
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.75,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+    className: 'shell__icon',
+  };
+
+  switch (id) {
+    case 'command':
+      return (
+        <svg {...common}>
+          <rect x="3" y="3" width="7" height="7" rx="1.5" />
+          <rect x="14" y="3" width="7" height="7" rx="1.5" />
+          <rect x="3" y="14" width="7" height="7" rx="1.5" />
+          <rect x="14" y="14" width="7" height="7" rx="1.5" />
+        </svg>
+      );
+    case 'ops':
+      return (
+        <svg {...common}>
+          <path d="M4 19V5" />
+          <path d="M4 19h16" />
+          <path d="M8 16V10" />
+          <path d="M12 16V7" />
+          <path d="M16 16v-4" />
+        </svg>
+      );
+    case 'contracts':
+      return (
+        <svg {...common}>
+          <path d="M8 3h7l4 4v14H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+          <path d="M15 3v4h4" />
+          <path d="M10 12h6" />
+          <path d="M10 16h4" />
+        </svg>
+      );
+    case 'requisitions':
+      return (
+        <svg {...common}>
+          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+          <rect x="9" y="3" width="6" height="4" rx="1" />
+          <path d="M9 12h6" />
+          <path d="M9 16h4" />
+        </svg>
+      );
+    case 'orders':
+      return (
+        <svg {...common}>
+          <path d="M4 7h16l-1.2 11.2A2 2 0 0 1 16.81 20H7.19a2 2 0 0 1-1.99-1.8L4 7z" />
+          <path d="M8 7V5a4 4 0 0 1 8 0v2" />
+        </svg>
+      );
+    case 'invoices':
+      return (
+        <svg {...common}>
+          <path d="M7 3h8l4 4v14H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+          <path d="M15 3v4h4" />
+          <path d="M9 13h6" />
+          <path d="M9 17h3" />
+          <path d="M9 9h2" />
+        </svg>
+      );
+    case 'directory':
+      return (
+        <svg {...common}>
+          <path d="M4 6a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6z" />
+          <path d="M8 12h8" />
+          <path d="M8 16h5" />
+        </svg>
+      );
+    case 'integration':
+      return (
+        <svg {...common}>
+          <path d="M8 12H4v4a4 4 0 0 0 4 4" />
+          <path d="M16 12h4v-4a4 4 0 0 0-4 0" />
+          <circle cx="8" cy="12" r="3" />
+          <circle cx="16" cy="12" r="3" />
+        </svg>
+      );
+    case 'admin':
+      return (
+        <svg {...common}>
+          <circle cx="12" cy="8" r="3.5" />
+          <path d="M5 19a7 7 0 0 1 14 0" />
+        </svg>
+      );
+    case 'search':
+      return (
+        <svg {...common}>
+          <circle cx="11" cy="11" r="6" />
+          <path d="M20 20l-3.5-3.5" />
+        </svg>
+      );
+    case 'signout':
+      return (
+        <svg {...common}>
+          <path d="M10 7V5a2 2 0 0 1 2-2h7v18h-7a2 2 0 0 1-2-2v-2" />
+          <path d="M15 12H4" />
+          <path d="M7 9l-3 3 3 3" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
 
 export function AppShell() {
   const navigate = useNavigate();
@@ -202,20 +349,21 @@ export function AppShell() {
               </select>
             </label>
           )}
-          {!collapsed && (
-            <button
-              type="button"
-              className="shell__link shell__link--muted"
-              onClick={() => setPaletteOpen(true)}
-            >
-              Search (⌘K)
-            </button>
-          )}
+          <button
+            type="button"
+            className="shell__link shell__link--muted"
+            onClick={() => setPaletteOpen(true)}
+            title="Search (⌘K)"
+            aria-label="Search"
+          >
+            <NavIcon id="search" />
+            {!collapsed && <span className="shell__link-label">Search (⌘K)</span>}
+          </button>
         </div>
 
         <nav className="shell__nav-scroll" aria-label="Primary">
           {grouped.map((section) => (
-            <div key={section.group}>
+            <div key={section.group} className="shell__nav-section">
               {!collapsed && (
                 <div className="shell__nav-group">
                   {GROUP_LABEL[section.group]}
@@ -227,13 +375,23 @@ export function AppShell() {
                   to={link.to}
                   end={link.to === '/'}
                   title={link.label}
+                  aria-label={link.label}
                   className={({ isActive }) =>
                     isActive ? 'shell__link shell__link--active' : 'shell__link'
                   }
                 >
-                  {collapsed ? link.label.slice(0, 1) : link.label}
-                  {!collapsed && link.to === '/admin' && unread > 0 ? (
-                    <span className="nav-badge">{unread}</span>
+                  <NavIcon id={link.icon} />
+                  {!collapsed && (
+                    <span className="shell__link-label">{link.label}</span>
+                  )}
+                  {link.to === '/admin' && unread > 0 ? (
+                    <span
+                      className={
+                        collapsed ? 'nav-badge nav-badge--dot' : 'nav-badge'
+                      }
+                    >
+                      {collapsed ? '' : unread}
+                    </span>
                   ) : null}
                 </NavLink>
               ))}
@@ -246,8 +404,11 @@ export function AppShell() {
             type="button"
             className="shell__link shell__link--muted shell__signout"
             onClick={signOut}
+            title="Sign out"
+            aria-label="Sign out"
           >
-            {collapsed ? '⎋' : 'Sign out'}
+            <NavIcon id="signout" />
+            {!collapsed && <span className="shell__link-label">Sign out</span>}
           </button>
         </div>
       </aside>
