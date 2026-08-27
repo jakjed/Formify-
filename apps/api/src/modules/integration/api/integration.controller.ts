@@ -72,14 +72,53 @@ export class IntegrationController {
       tenantId,
       user.id,
     );
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="${result.fileName}"`,
+    return this.csvResponse(res, result);
+  }
+
+  @Post('exports/contracts')
+  @RequireScopes('exports:read')
+  @ApiOperation({ summary: 'Export contracts as CSV (requires contracts license)' })
+  async exportContracts(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.integration.exportContracts(tenantId, user.id);
+    return this.csvResponse(res, result);
+  }
+
+  @Post('exports/purchase-requests')
+  @RequireScopes('exports:read')
+  @ApiOperation({
+    summary: 'Export purchase requests as CSV (requires purchase_requests license)',
+  })
+  async exportPrs(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.integration.exportPurchaseRequests(
+      tenantId,
+      user.id,
     );
-    res.setHeader('X-Aptora-Job-Id', result.job.id);
-    res.setHeader('X-Aptora-Row-Count', String(result.rowCount));
-    return new StreamableFile(Buffer.from(result.content, 'utf8'));
+    return this.csvResponse(res, result);
+  }
+
+  @Post('exports/purchase-orders')
+  @RequireScopes('exports:read')
+  @ApiOperation({
+    summary: 'Export purchase orders as CSV (requires purchase_orders license)',
+  })
+  async exportPos(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.integration.exportPurchaseOrders(
+      tenantId,
+      user.id,
+    );
+    return this.csvResponse(res, result);
   }
 
   @Post('imports/vendors')
@@ -132,5 +171,24 @@ export class IntegrationController {
     file: { originalname: string; buffer: Buffer },
   ) {
     return this.integration.importGlAccounts(tenantId, user.id, file);
+  }
+
+  private csvResponse(
+    res: Response,
+    result: {
+      job: { id: string };
+      fileName: string;
+      content: string;
+      rowCount: number;
+    },
+  ) {
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${result.fileName}"`,
+    );
+    res.setHeader('X-Aptora-Job-Id', result.job.id);
+    res.setHeader('X-Aptora-Row-Count', String(result.rowCount));
+    return new StreamableFile(Buffer.from(result.content, 'utf8'));
   }
 }

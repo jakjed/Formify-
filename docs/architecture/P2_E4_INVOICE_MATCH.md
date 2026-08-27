@@ -24,4 +24,4 @@ Skipped entirely when Orders module is off or no `purchaseOrderId`.
 
 ## Next
 
-P2-E5 Integration templates
+P2-E5 Integration ✅ — Phase 2 Procure track complete

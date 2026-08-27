@@ -2294,6 +2294,66 @@
         ]
       }
     },
+    "/api/integration/exports/contracts": {
+      "post": {
+        "operationId": "exportContracts",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Export contracts as CSV (requires contracts license)",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/integration/exports/purchase-requests": {
+      "post": {
+        "operationId": "exportPrs",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Export purchase requests as CSV (requires purchase_requests license)",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/integration/exports/purchase-orders": {
+      "post": {
+        "operationId": "exportPos",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Export purchase orders as CSV (requires purchase_orders license)",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
     "/api/integration/imports/vendors": {
       "post": {
         "operationId": "importVendors",

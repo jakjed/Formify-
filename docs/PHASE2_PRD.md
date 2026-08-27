@@ -30,8 +30,8 @@ Default for new tenants: Phase 2 modules **off** until admin enables them. `invo
 | P2-E1 Contracts workspace | Approvals, amendments, renewals, vendor link ✅ |
 | P2-E2 PR → PO convert | Convert approved PR to PO draft; line carry-over ✅ |
 | P2-E3 Receiving | Receive against PO lines; partial receive ✅ |
-| P2-E4 Invoice match | 2/3-way match exceptions into Invoices when PO licensed (this slice) |
-| P2-E5 Integration | PR/PO/Contract templates + export jobs |
+| P2-E4 Invoice match | 2/3-way match exceptions into Invoices when PO licensed ✅ |
+| P2-E5 Integration | PR/PO/Contract templates + export jobs (this slice) |
 
 ## 5. Non-goals (foundation)
 
@@ -77,3 +77,15 @@ Default for new tenants: Phase 2 modules **off** until admin enables them. `invo
 - [x] 2/3-way match codes (`PO_TOTAL`, `PO_VENDOR`, `PO_RECEIPT`) when Orders licensed  
 - [x] Invoice workspace PO link  
 - [x] Docs: `P2_E4_INVOICE_MATCH.md`  
+
+## 11. Exit (P2-E5)
+
+- [x] Contracts / PR / PO CSV templates in Integration Center  
+- [x] License-gated export endpoints + job history  
+- [x] Web export actions when modules enabled  
+- [x] Docs: `P2_E5_INTEGRATION.md` + `PHASE2_COMPLETE.md`  
+
+## Phase 2 track status
+
+**Complete** for Contracts + PR + PO foundation (P2-E0…E5).  
+

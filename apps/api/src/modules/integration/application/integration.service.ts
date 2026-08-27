@@ -1,7 +1,13 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
+import type { ModuleKey } from '@aptora/types';
 import { PrismaService } from '../../../database/prisma.service';
+import { TenancyService } from '../../tenancy/application/tenancy.service';
 
 const APPROVED_EXPORT_HEADERS = [
   'invoice_id',
@@ -15,6 +21,7 @@ const APPROVED_EXPORT_HEADERS = [
   'tax_minor',
   'total_minor',
   'approved_at',
+  'purchase_order_id',
 ] as const;
 
 const VENDOR_IMPORT_HEADERS = [
@@ -27,6 +34,45 @@ const VENDOR_IMPORT_HEADERS = [
 
 const GL_IMPORT_HEADERS = ['code', 'name'] as const;
 
+const CONTRACT_EXPORT_HEADERS = [
+  'contract_id',
+  'number',
+  'title',
+  'status',
+  'vendor_id',
+  'entity_id',
+  'currency',
+  'value_minor',
+  'start_date',
+  'end_date',
+] as const;
+
+const PR_EXPORT_HEADERS = [
+  'pr_id',
+  'number',
+  'title',
+  'status',
+  'entity_id',
+  'currency',
+  'total_minor',
+  'line_count',
+] as const;
+
+const PO_EXPORT_HEADERS = [
+  'po_id',
+  'number',
+  'title',
+  'status',
+  'vendor_id',
+  'entity_id',
+  'contract_id',
+  'purchase_request_id',
+  'currency',
+  'total_minor',
+  'issued_at',
+  'line_count',
+] as const;
+
 @Injectable()
 export class IntegrationService {
   private readonly storageRoot = path.resolve(
@@ -34,7 +80,10 @@ export class IntegrationService {
     process.env.STORAGE_PATH ?? 'storage/uploads',
   );
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenancy: TenancyService,
+  ) {}
 
   listTemplates() {
     return [
@@ -44,6 +93,30 @@ export class IntegrationService {
         direction: 'export',
         format: 'csv',
         headers: [...APPROVED_EXPORT_HEADERS],
+      },
+      {
+        key: 'contracts-export',
+        name: 'Contracts export',
+        direction: 'export',
+        format: 'csv',
+        headers: [...CONTRACT_EXPORT_HEADERS],
+        module: 'contracts',
+      },
+      {
+        key: 'purchase-requests-export',
+        name: 'Purchase requests export',
+        direction: 'export',
+        format: 'csv',
+        headers: [...PR_EXPORT_HEADERS],
+        module: 'purchase_requests',
+      },
+      {
+        key: 'purchase-orders-export',
+        name: 'Purchase orders export',
+        direction: 'export',
+        format: 'csv',
+        headers: [...PO_EXPORT_HEADERS],
+        module: 'purchase_orders',
       },
       {
         key: 'vendors-import',
@@ -105,34 +178,129 @@ export class IntegrationService {
           inv.taxMinor ?? '',
           inv.totalMinor ?? '',
           inv.approvedAt?.toISOString() ?? '',
+          inv.purchaseOrderId ?? '',
         ].join(','),
       );
     }
     const content = `${lines.join('\n')}\n`;
     const fileName = `approved-invoices-${new Date().toISOString().slice(0, 10)}.csv`;
-    const storagePath = await this.writeArtifact(tenantId, fileName, content);
-
-    const job = await this.prisma.integrationJob.create({
-      data: {
-        tenantId,
-        type: 'export_approved_invoices',
-        status: 'succeeded',
-        fileName,
-        storagePath,
-        rowCount: invoices.length,
-        createdById: userId,
-        finishedAt: new Date(),
+    return this.finishExport({
+      tenantId,
+      userId,
+      type: 'export_approved_invoices',
+      fileName,
+      content,
+      rowCount: invoices.length,
+      afterWrite: async () => {
+        if (invoices.length > 0) {
+          await this.prisma.invoice.updateMany({
+            where: { id: { in: invoices.map((i) => i.id) } },
+            data: { status: 'exported', exportedAt: new Date() },
+          });
+        }
       },
     });
+  }
 
-    if (invoices.length > 0) {
-      await this.prisma.invoice.updateMany({
-        where: { id: { in: invoices.map((i) => i.id) } },
-        data: { status: 'exported', exportedAt: new Date() },
-      });
+  async exportContracts(tenantId: string, userId: string) {
+    await this.assertModule(tenantId, 'contracts');
+    const rows = await this.prisma.contract.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: 'asc' },
+    });
+    const lines = [CONTRACT_EXPORT_HEADERS.join(',')];
+    for (const row of rows) {
+      lines.push(
+        [
+          row.id,
+          csv(row.number),
+          csv(row.title),
+          row.status,
+          row.vendorId ?? '',
+          row.entityId ?? '',
+          row.currency,
+          row.valueMinor ?? '',
+          row.startDate?.toISOString().slice(0, 10) ?? '',
+          row.endDate?.toISOString().slice(0, 10) ?? '',
+        ].join(','),
+      );
     }
+    return this.finishExport({
+      tenantId,
+      userId,
+      type: 'export_contracts',
+      fileName: `contracts-${new Date().toISOString().slice(0, 10)}.csv`,
+      content: `${lines.join('\n')}\n`,
+      rowCount: rows.length,
+    });
+  }
 
-    return { job, fileName, content, rowCount: invoices.length };
+  async exportPurchaseRequests(tenantId: string, userId: string) {
+    await this.assertModule(tenantId, 'purchase_requests');
+    const rows = await this.prisma.purchaseRequest.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: 'asc' },
+      include: { lines: true },
+    });
+    const lines = [PR_EXPORT_HEADERS.join(',')];
+    for (const row of rows) {
+      lines.push(
+        [
+          row.id,
+          csv(row.number),
+          csv(row.title),
+          row.status,
+          row.entityId ?? '',
+          row.currency,
+          row.totalMinor ?? '',
+          row.lines.length,
+        ].join(','),
+      );
+    }
+    return this.finishExport({
+      tenantId,
+      userId,
+      type: 'export_purchase_requests',
+      fileName: `purchase-requests-${new Date().toISOString().slice(0, 10)}.csv`,
+      content: `${lines.join('\n')}\n`,
+      rowCount: rows.length,
+    });
+  }
+
+  async exportPurchaseOrders(tenantId: string, userId: string) {
+    await this.assertModule(tenantId, 'purchase_orders');
+    const rows = await this.prisma.purchaseOrder.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: 'asc' },
+      include: { lines: true },
+    });
+    const lines = [PO_EXPORT_HEADERS.join(',')];
+    for (const row of rows) {
+      lines.push(
+        [
+          row.id,
+          csv(row.number),
+          csv(row.title),
+          row.status,
+          row.vendorId ?? '',
+          row.entityId ?? '',
+          row.contractId ?? '',
+          row.purchaseRequestId ?? '',
+          row.currency,
+          row.totalMinor ?? '',
+          row.issuedAt?.toISOString() ?? '',
+          row.lines.length,
+        ].join(','),
+      );
+    }
+    return this.finishExport({
+      tenantId,
+      userId,
+      type: 'export_purchase_orders',
+      fileName: `purchase-orders-${new Date().toISOString().slice(0, 10)}.csv`,
+      content: `${lines.join('\n')}\n`,
+      rowCount: rows.length,
+    });
   }
 
   async importVendors(
@@ -232,6 +400,48 @@ export class IntegrationService {
     });
 
     return { job, upserted, errors };
+  }
+
+  private async assertModule(tenantId: string, moduleKey: ModuleKey) {
+    const enabled = await this.tenancy.isModuleEnabled(tenantId, moduleKey);
+    if (!enabled) {
+      throw new ForbiddenException(`Module "${moduleKey}" is not licensed`);
+    }
+  }
+
+  private async finishExport(input: {
+    tenantId: string;
+    userId: string;
+    type: string;
+    fileName: string;
+    content: string;
+    rowCount: number;
+    afterWrite?: () => Promise<void>;
+  }) {
+    const storagePath = await this.writeArtifact(
+      input.tenantId,
+      input.fileName,
+      input.content,
+    );
+    const job = await this.prisma.integrationJob.create({
+      data: {
+        tenantId: input.tenantId,
+        type: input.type,
+        status: 'succeeded',
+        fileName: input.fileName,
+        storagePath,
+        rowCount: input.rowCount,
+        createdById: input.userId,
+        finishedAt: new Date(),
+      },
+    });
+    if (input.afterWrite) await input.afterWrite();
+    return {
+      job,
+      fileName: input.fileName,
+      content: input.content,
+      rowCount: input.rowCount,
+    };
   }
 
   private async writeArtifact(
