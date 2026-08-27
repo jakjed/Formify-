@@ -5,6 +5,7 @@ type Health = {
   status: string;
   product: string;
   phase1Modules: string[];
+  database?: string;
   timestamp: string;
 };
 
@@ -46,6 +47,10 @@ export function HomePage() {
             <div>
               <dt>Modules</dt>
               <dd>{health.phase1Modules.join(', ')}</dd>
+            </div>
+            <div>
+              <dt>Database</dt>
+              <dd>{health.database ?? 'unknown'}</dd>
             </div>
             <div>
               <dt>Checked</dt>

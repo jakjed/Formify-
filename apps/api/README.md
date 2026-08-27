@@ -1,11 +1,14 @@
 # `@aptora/api`
 
-NestJS modular monolith. Domain code lives in `src/modules/*`.
+NestJS modular monolith. Domain code lives in `src/modules/*`. Persistence via **Prisma + PostgreSQL**.
 
 ## Commands
 
 ```bash
-pnpm --filter @aptora/api dev     # watch mode
+pnpm db:up                                 # from repo root — Docker Postgres
+pnpm --filter @aptora/api prisma:generate
+pnpm --filter @aptora/api prisma:deploy    # apply migrations
+pnpm --filter @aptora/api dev              # watch mode
 pnpm --filter @aptora/api build
 pnpm --filter @aptora/api start
 ```
@@ -15,10 +18,10 @@ pnpm --filter @aptora/api start
 ```text
 src/
   modules/     bounded contexts (tenancy, identity, invoices, …)
-  health/      liveness
+  health/      liveness (+ DB check)
+  database/    Prisma client module
   common/      cross-cutting utilities
-  config/      env notes
-  database/    ORM host (Postgres next)
+prisma/        schema + migrations
 ```
 
-E0 uses **in-memory** stores for tenancy/identity. See [E0_FOUNDATION.md](../../docs/architecture/E0_FOUNDATION.md).
+See [E0_FOUNDATION.md](../../docs/architecture/E0_FOUNDATION.md).

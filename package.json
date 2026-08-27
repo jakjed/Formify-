@@ -12,7 +12,11 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "dev:api": "pnpm --filter @aptora/api dev",
-    "dev:web": "pnpm --filter @aptora/web dev"
+    "dev:web": "pnpm --filter @aptora/web dev",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @aptora/api prisma:migrate",
+    "db:deploy": "pnpm --filter @aptora/api prisma:deploy"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
