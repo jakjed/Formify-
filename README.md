@@ -33,6 +33,8 @@ Formerly working name: Formify.
 - [docs/architecture/E11_OPENAPI.md](docs/architecture/E11_OPENAPI.md) — OpenAPI 3 + Swagger UI
 - [docs/architecture/E12_HARDENING.md](docs/architecture/E12_HARDENING.md) — rate limits, residency, CSV export, search
 - [docs/architecture/RESIDENCY.md](docs/architecture/RESIDENCY.md) — US/EU data residency pin
+- [docs/architecture/E13_PHASE1_E2E.md](docs/architecture/E13_PHASE1_E2E.md) — J1–J3 journeys & Playwright
+- [docs/architecture/PHASE1_COMPLETE.md](docs/architecture/PHASE1_COMPLETE.md) — Phase 1 track complete
 
 ## Workspace
 

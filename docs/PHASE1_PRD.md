@@ -418,13 +418,13 @@ Tenant
 
 ## 15. Exit criteria — Phase 1 done
 
-- [ ] All P0 screens implemented to UX bar for S11–S14, S30–S34  
-- [ ] J1–J3 journeys pass E2E  
-- [ ] `invoice.approved` meters correctly once per invoice  
-- [ ] Integration Center exports payment-ready approved invoices  
-- [ ] Password auth + RBAC + audit in place  
-- [ ] US and EU residency pin documented and testable  
-- [ ] No connector or payment code paths that imply false roadmap  
+- [x] All P0 screens implemented to UX bar for S11–S14, S30–S34  
+- [x] J1–J3 journeys pass E2E (API journey + Playwright bootstrap/deny)  
+- [x] `invoice.approved` meters correctly once per invoice  
+- [x] Integration Center exports payment-ready approved invoices  
+- [x] Password auth + RBAC + audit in place  
+- [x] US and EU residency pin documented and testable  
+- [x] No connector or payment code paths that imply false roadmap  
 
 ---
 
