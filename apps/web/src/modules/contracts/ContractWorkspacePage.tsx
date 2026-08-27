@@ -46,7 +46,8 @@ const LABELS: Record<string, string> = {
   'contract.send_for_signature': 'Sent for signature',
   'contract.check_signature': 'Checked signature status',
   'contract.complete_signature': 'Completed signature',
-  'contract.ai_intake': 'AI document intake',
+  'contract.ai_intake': 'Document scan intake',
+  'contract.scan_intake': 'Document scan intake',
   'contract.scan_red_flags': 'Scanned red flags',
   'contract.document_added': 'Added document',
   'contract.document_removed': 'Removed document',
@@ -323,7 +324,7 @@ export function ContractWorkspacePage() {
       <div className="procure__stack">
         {contract.aiExtracted && (
           <div className="procure__notice procure__notice--info">
-            Pre-populated by AI from the supplier document. Review extracted fields before sending for
+            Pre-populated from document scan. Review extracted fields before sending for
             approval.
           </div>
         )}
