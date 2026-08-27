@@ -160,25 +160,38 @@ export function InvoicesPage() {
     applyView(view);
   }
 
-  async function uploadFile(file: File) {
+  async function uploadFiles(files: File[]) {
+    if (files.length === 0) return;
     setBusy(true);
     setError(null);
+    const failures: string[] = [];
     try {
-      const body = new FormData();
-      body.append('file', file);
       const token = getToken();
-      const res = await fetch('/api/capture/upload', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        body,
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        throw new Error(data.message ?? `Upload failed (${res.status})`);
+      for (const file of files) {
+        const body = new FormData();
+        body.append('file', file);
+        const res = await fetch('/api/capture/upload', {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          body,
+        });
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as {
+            message?: string;
+          };
+          failures.push(
+            `${file.name}: ${data.message ?? `failed (${res.status})`}`,
+          );
+        }
       }
       await refresh();
+      if (failures.length > 0) {
+        setError(
+          failures.length === files.length
+            ? failures.join('; ')
+            : `Uploaded with errors — ${failures.join('; ')}`,
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -190,9 +203,9 @@ export function InvoicesPage() {
     e.preventDefault();
     const form = e.currentTarget;
     const input = form.elements.namedItem('file') as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) return;
-    await uploadFile(file);
+    const files = input.files ? Array.from(input.files) : [];
+    if (files.length === 0) return;
+    await uploadFiles(files);
     form.reset();
   }
 
@@ -203,9 +216,11 @@ export function InvoicesPage() {
 
   async function onDropZoneDrop(e: DragEvent) {
     e.preventDefault();
-    const file = e.dataTransfer.files?.[0];
-    if (!file) return;
-    await uploadFile(file);
+    const files = e.dataTransfer.files
+      ? Array.from(e.dataTransfer.files)
+      : [];
+    if (files.length === 0) return;
+    await uploadFiles(files);
   }
 
   async function exportCsv() {
@@ -276,14 +291,15 @@ export function InvoicesPage() {
       >
         <p className="dropzone__title">Upload invoice</p>
         <p className="dropzone__hint">
-          Drag and drop a PDF, PNG, JPG, or TXT here — or choose a file. OCR
-          extracts fields for review.
+          Drag and drop one or more PDF, PNG, JPG, or TXT files — or choose
+          multiple files. Each file becomes its own invoice for OCR review.
         </p>
         <div className="inline-form" style={{ margin: 0 }}>
           <input
             name="file"
             type="file"
             accept=".pdf,.png,.jpg,.jpeg,.txt"
+            multiple
             required
           />
           <button type="submit" className="btn btn--primary" disabled={busy}>
