@@ -1,6 +1,8 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiFetch, getToken } from '../../shared/lib/api';
+import { InvoiceStatusBadge } from '../../shared/ui/StatusBadge';
+import { ageTone } from '../../shared/ui/status';
 
 type InvoiceListItem = {
   id: string;
@@ -218,11 +220,16 @@ export function InvoicesPage() {
   }
 
   return (
-    <section className="page">
-      <h1>Invoices</h1>
-      <p className="lede">
-        Worklist with filters and saved views. Upload, review, approve.
-      </p>
+    <section className="page page--worklist">
+      <header className="cockpit-hero">
+        <div>
+          <p className="eyebrow">Capture & review</p>
+          <h1>Invoices</h1>
+          <p className="lede">
+            Filter the queue, open a document, clear exceptions, approve.
+          </p>
+        </div>
+      </header>
 
       <div className="view-chips">
         {allViews.map((view) => (
@@ -244,24 +251,36 @@ export function InvoicesPage() {
         </button>
       </div>
 
-      <form className="inline-form" onSubmit={onUpload}>
-        <input
-          name="file"
-          type="file"
-          accept=".pdf,.png,.jpg,.jpeg,.txt"
-          required
-        />
-        <button type="submit" disabled={busy}>
-          {busy ? 'Uploading…' : 'Upload & extract'}
-        </button>
-        <button
-          type="button"
-          className="secondary-btn"
-          disabled={busy}
-          onClick={() => void exportCsv()}
-        >
-          Export CSV
-        </button>
+      <form className="dropzone" onSubmit={onUpload}>
+        <p className="dropzone__title">Upload invoice</p>
+        <p className="dropzone__hint">
+          PDF, PNG, JPG, or TXT — OCR extracts fields for review.
+        </p>
+        <div className="inline-form" style={{ margin: 0 }}>
+          <input
+            name="file"
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg,.txt"
+            required
+          />
+          <button type="submit" className="btn btn--primary" disabled={busy}>
+            {busy ? 'Uploading…' : 'Upload & extract'}
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            disabled={busy}
+            onClick={() => void exportCsv()}
+          >
+            Export CSV
+          </button>
+        </div>
+      </form>
+
+      <form
+        className="inline-form worklist-toolbar"
+        onSubmit={(e) => e.preventDefault()}
+      >
         <input
           type="search"
           placeholder="Search number, vendor, file…"
@@ -323,12 +342,24 @@ export function InvoicesPage() {
             </tr>
           </thead>
           <tbody>
+            {items.length === 0 && (
+              <tr>
+                <td colSpan={7}>
+                  <div className="empty-state" style={{ padding: '2rem 1rem' }}>
+                    <div className="empty-state__orb" aria-hidden />
+                    <h3>No invoices in this view</h3>
+                    <p className="muted">Upload a document or clear filters.</p>
+                  </div>
+                </td>
+              </tr>
+            )}
             {items.map((inv) => {
               const ageHours = Math.max(
                 0,
                 (Date.now() - new Date(inv.createdAt).getTime()) /
                   (1000 * 60 * 60),
               );
+              const aging = ageTone(ageHours);
               return (
                 <tr key={inv.id}>
                   <td>
@@ -339,27 +370,29 @@ export function InvoicesPage() {
                   <td>{inv.vendorNameRaw ?? '—'}</td>
                   <td>{formatMoney(inv.totalMinor, inv.currency)}</td>
                   <td>
-                    <span className="status-chip">{inv.status}</span>
+                    <InvoiceStatusBadge status={inv.status} />
                   </td>
                   <td>
-                    {inv.exceptions.map((x) => x.code).join(', ') || '—'}
+                    {inv.exceptions.length > 0 ? (
+                      <span className="status-badge status-badge--danger">
+                        <span className="status-badge__dot" aria-hidden />
+                        {inv.exceptions.map((x) => x.code).join(', ')}
+                      </span>
+                    ) : (
+                      '—'
+                    )}
                   </td>
-                  <td className="muted">
+                  <td className={`age-cell--${aging}`}>
                     {ageHours < 24
                       ? `${Math.round(ageHours)}h`
                       : `${Math.round(ageHours / 24)}d`}
                   </td>
-                  <td>{inv.fileAsset?.originalName ?? '—'}</td>
+                  <td className="muted">
+                    {inv.fileAsset?.originalName ?? '—'}
+                  </td>
                 </tr>
               );
             })}
-            {items.length === 0 && (
-              <tr>
-                <td colSpan={7}>
-                  No invoices match — upload a file or clear filters.
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>

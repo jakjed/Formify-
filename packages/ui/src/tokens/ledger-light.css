@@ -1,5 +1,5 @@
 :root {
-  /* Core */
+  /* Core surfaces */
   --aptora-ink: #0c1612;
   --aptora-ink-soft: #24352d;
   --aptora-paper: #f3f6f4;
@@ -7,7 +7,9 @@
   --aptora-surface: #ffffff;
   --aptora-surface-tint: #f0faf7;
 
-  /* Brand spectrum */
+  /* Brand (identity only — not status) */
+  --aptora-brand: #0f766e;
+  --aptora-brand-bright: #14b8a6;
   --aptora-teal: #0d9488;
   --aptora-teal-deep: #0f766e;
   --aptora-teal-hover: #14b8a6;
@@ -15,34 +17,49 @@
   --aptora-forest: #14532d;
   --aptora-sage: #84cc16;
   --aptora-sky: #0891b2;
+
+  /* Semantic status — meaning, not decoration */
+  --aptora-success: #047857;
+  --aptora-success-soft: #ecfdf5;
+  --aptora-success-border: rgb(4 120 87 / 22%);
+  --aptora-warning: #b45309;
+  --aptora-warning-soft: #fff7ed;
+  --aptora-warning-border: rgb(180 83 9 / 22%);
+  --aptora-danger: #be123c;
+  --aptora-danger-soft: #fff1f2;
+  --aptora-danger-border: rgb(190 18 60 / 22%);
+  --aptora-info: #0e7490;
+  --aptora-info-soft: #ecfeff;
+  --aptora-info-border: rgb(14 116 144 / 22%);
+  --aptora-neutral: #4b5563;
+  --aptora-neutral-soft: #f3f4f6;
+  --aptora-neutral-border: rgb(75 85 99 / 18%);
+
   --aptora-amber: #f59e0b;
   --aptora-amber-soft: #fff7ed;
-  --aptora-danger: #e11d48;
-  --aptora-danger-soft: #fff1f2;
-  --aptora-violet-soft: #ecfdf5; /* keep mint, not purple */
 
-  --aptora-border: rgb(15 25 20 / 10%);
-  --aptora-border-strong: rgb(15 25 20 / 16%);
+  --aptora-border: rgb(15 25 20 / 12%);
+  --aptora-border-strong: rgb(15 25 20 / 18%);
   --aptora-muted: #5b6f66;
 
   --aptora-font-display: "Newsreader", "Georgia", serif;
   --aptora-font-ui: "IBM Plex Sans", "Segoe UI", sans-serif;
 
-  /* Softer geometry */
-  --aptora-radius: 14px;
-  --aptora-radius-sm: 10px;
-  --aptora-radius-lg: 22px;
+  --aptora-radius: 12px;
+  --aptora-radius-sm: 8px;
+  --aptora-radius-lg: 18px;
   --aptora-radius-pill: 999px;
 
   --aptora-shadow:
-    0 1px 2px rgb(12 22 18 / 4%),
-    0 10px 28px rgb(12 22 18 / 7%);
+    0 1px 2px rgb(12 22 18 / 5%),
+    0 8px 24px rgb(12 22 18 / 6%);
   --aptora-shadow-lift:
-    0 8px 20px rgb(13 148 136 / 16%),
-    0 18px 40px rgb(12 22 18 / 10%);
+    0 6px 16px rgb(15 118 110 / 14%),
+    0 16px 36px rgb(12 22 18 / 10%);
+  --aptora-focus-ring: 0 0 0 3px rgb(13 148 136 / 28%);
 
   --aptora-ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --aptora-duration: 220ms;
+  --aptora-duration: 180ms;
 }
 
 *,
@@ -64,7 +81,7 @@ body {
 @keyframes aptora-rise {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -72,12 +89,16 @@ body {
   }
 }
 
-@keyframes aptora-glow-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgb(20 184 166 / 0%);
+@keyframes aptora-press {
+  from {
+    transform: scale(0.98);
   }
-  50% {
-    box-shadow: 0 0 0 6px rgb(20 184 166 / 12%);
+  to {
+    transform: none;
   }
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--aptora-focus-ring);
 }

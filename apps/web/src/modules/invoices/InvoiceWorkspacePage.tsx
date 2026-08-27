@@ -8,6 +8,8 @@ import {
 } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { apiFetch, apiFetchBlob } from '../../shared/lib/api';
+import { InvoiceStatusBadge, StatusBadge } from '../../shared/ui/StatusBadge';
+import { ocrConfidenceTone } from '../../shared/ui/status';
 
 type Invoice = {
   id: string;
@@ -723,26 +725,27 @@ export function InvoiceWorkspacePage() {
           <p className="eyebrow">Document review</p>
           <h1>{invoice.invoiceNumber ?? 'Draft invoice'}</h1>
           <p className="lede hitl-header__meta">
-            <span className={`hitl-status hitl-status--${invoice.status}`}>
-              {invoice.status}
-            </span>
+            <InvoiceStatusBadge status={invoice.status} />
             {invoice.ocrConfidence != null && (
-              <span>
+              <StatusBadge tone={ocrConfidenceTone(invoice.ocrConfidence)}>
                 OCR {(invoice.ocrConfidence * 100).toFixed(0)}%
-              </span>
+              </StatusBadge>
             )}
-            {invoice.fileAsset && <span>{invoice.fileAsset.originalName}</span>}
+            {invoice.fileAsset && (
+              <span className="muted">{invoice.fileAsset.originalName}</span>
+            )}
           </p>
         </div>
         <div className="hitl-header__actions">
-          <button type="button" className="secondary-btn" onClick={() => navigate('/invoices')}>
+          <button type="button" className="btn btn--ghost" onClick={() => navigate('/invoices')}>
             Back
           </button>
-          <button type="button" onClick={() => void onSubmit()}>
+          <button type="button" className="btn btn--primary" onClick={() => void onSubmit()}>
             Submit
           </button>
           <button
             type="button"
+            className="btn btn--ghost"
             onClick={() => void onApprove()}
             disabled={invoice.status === 'approved' || invoice.status === 'exported'}
           >
@@ -1024,79 +1027,91 @@ export function InvoiceWorkspacePage() {
             {message && <p className="ok span-2">{message}</p>}
 
             <div className="span-2 actions">
-              <button type="submit">Save fields</button>
+              <button type="submit" className="btn btn--primary">
+                Save fields
+              </button>
             </div>
           </form>
 
           <div className="hitl-sidepanel">
-            <h2>Lines</h2>
-            <ul className="hitl-lines">
-              {invoice.lines.map((line) => (
-                <li key={line.id}>
-                  <span>#{line.lineNo}</span>
-                  <span>{line.description ?? '—'}</span>
-                  <span>
-                    {line.amountMinor != null
-                      ? (line.amountMinor / 100).toFixed(2)
-                      : '—'}
-                  </span>
-                </li>
-              ))}
-              {invoice.lines.length === 0 && (
-                <li className="muted">No line items extracted.</li>
-              )}
-            </ul>
-          </div>
-
-          <div className="hitl-sidepanel">
-            <h2>Activity</h2>
-            {activity.length === 0 && <p className="muted">No activity yet.</p>}
-            <ul className="activity-feed">
-              {activity.map((item) => (
-                <li key={`${item.kind}-${item.id}`}>
-                  <span className="activity-feed__time">
-                    {new Date(item.at).toLocaleString()}
-                  </span>
-                  <span className="activity-feed__actor">
-                    {item.actorName ?? 'System'}
-                  </span>
-                  {item.kind === 'comment' ? (
-                    <p className="activity-feed__body">{item.body}</p>
-                  ) : (
-                    <p className="activity-feed__body">{formatAction(item.action)}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="hitl-sidepanel">
-            <h2>Comments</h2>
-            {comments.length === 0 && <p className="muted">No comments yet.</p>}
-            <ul className="task-list">
-              {comments.map((c) => (
-                <li key={c.id}>
-                  <div>
-                    <strong>{c.authorName}</strong>
-                    <span className="muted">
-                      {' '}
-                      · {new Date(c.createdAt).toLocaleString()}
+            <details open>
+              <summary>Line items ({invoice.lines.length})</summary>
+              <ul className="hitl-lines">
+                {invoice.lines.map((line) => (
+                  <li key={line.id}>
+                    <span>#{line.lineNo}</span>
+                    <span>{line.description ?? '—'}</span>
+                    <span>
+                      {line.amountMinor != null
+                        ? (line.amountMinor / 100).toFixed(2)
+                        : '—'}
                     </span>
-                    <p>{c.body}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <form className="inline-form" onSubmit={(e) => void onAddComment(e)}>
-              <input
-                value={commentBody}
-                onChange={(e) => setCommentBody(e.target.value)}
-                placeholder="Add a comment…"
-                required
-                style={{ flex: 1, minWidth: '12rem' }}
-              />
-              <button type="submit">Post</button>
-            </form>
+                  </li>
+                ))}
+                {invoice.lines.length === 0 && (
+                  <li className="muted">No line items extracted.</li>
+                )}
+              </ul>
+            </details>
+          </div>
+
+          <div className="hitl-sidepanel">
+            <details>
+              <summary>Activity ({activity.length})</summary>
+              {activity.length === 0 && <p className="muted">No activity yet.</p>}
+              <ul className="activity-feed">
+                {activity.map((item) => (
+                  <li key={`${item.kind}-${item.id}`}>
+                    <span className="activity-feed__time">
+                      {new Date(item.at).toLocaleString()}
+                    </span>
+                    <span className="activity-feed__actor">
+                      {item.actorName ?? 'System'}
+                    </span>
+                    {item.kind === 'comment' ? (
+                      <p className="activity-feed__body">{item.body}</p>
+                    ) : (
+                      <p className="activity-feed__body">
+                        {formatAction(item.action)}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </div>
+
+          <div className="hitl-sidepanel">
+            <details>
+              <summary>Comments ({comments.length})</summary>
+              {comments.length === 0 && <p className="muted">No comments yet.</p>}
+              <ul className="task-list">
+                {comments.map((c) => (
+                  <li key={c.id}>
+                    <div>
+                      <strong>{c.authorName}</strong>
+                      <span className="muted">
+                        {' '}
+                        · {new Date(c.createdAt).toLocaleString()}
+                      </span>
+                      <p>{c.body}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <form className="inline-form" onSubmit={(e) => void onAddComment(e)}>
+                <input
+                  value={commentBody}
+                  onChange={(e) => setCommentBody(e.target.value)}
+                  placeholder="Add a comment…"
+                  required
+                  style={{ flex: 1, minWidth: '12rem' }}
+                />
+                <button type="submit" className="btn btn--primary">
+                  Post
+                </button>
+              </form>
+            </details>
           </div>
         </div>
       </div>
