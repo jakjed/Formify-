@@ -7,9 +7,13 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsIn } from 'class-validator';
 import { ContractStatus } from '@prisma/client';
 import { ContractsService } from '../application/contracts.service';
@@ -81,8 +85,32 @@ export class ContractsController {
     return this.contracts.create(tenantId, user.id, dto);
   }
 
+  @Post('scan-intake')
+  @ApiOperation({ summary: 'Upload supplier document and create draft contract (OCR)' })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 15 * 1024 * 1024 },
+    }),
+  )
+  scanIntake(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @UploadedFile()
+    file: {
+      originalname: string;
+      mimetype: string;
+      size: number;
+      buffer: Buffer;
+    },
+    @Body() dto: AiIntakeDto,
+  ) {
+    return this.contracts.scanIntake(tenantId, user.id, file, dto);
+  }
+
   @Post('ai-intake')
-  @ApiOperation({ summary: 'Create draft contract from AI document intake (stub)' })
+  @ApiOperation({ summary: 'Legacy metadata-only intake (prefer scan-intake with file)' })
   aiIntake(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,

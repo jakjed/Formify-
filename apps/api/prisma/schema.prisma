@@ -45,6 +45,9 @@ model Tenant {
   planName  String   @default("starter")
   approvedSoftLimit Int? @default(100)
   approvedHardLimit Int?
+  /// When true, optional LLM assist (Bedrock/BYO) may run on extracted text only.
+  aiAssistEnabled Boolean @default(false)
+  llmProvider     String  @default("none")
   createdAt DateTime @default(now())
 
   entities       Entity[]
@@ -415,13 +418,21 @@ model FileAsset {
   sizeBytes    Int
   storagePath  String
   pageCount    Int      @default(1)
+  contentHash  String?
+  /// Versioned field hits + geometry (shared by invoices and contracts).
+  extractionPayload Json?
+  fullText         String?
+  extractionProvider String?
+  extractedAt      DateTime?
   createdAt    DateTime @default(now())
 
   tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   invoices     Invoice[]
   attachments  InvoiceAttachment[]
+  contractDocuments ContractDocument[]
 
   @@index([tenantId])
+  @@index([tenantId, contentHash])
 }
 
 model Invoice {
@@ -918,12 +929,15 @@ model ContractDocument {
   category    String
   fileName    String
   storagePath String?
+  fileAssetId String?  @db.Uuid
   createdAt   DateTime @default(now())
 
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contract  Contract   @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  fileAsset FileAsset? @relation(fields: [fileAssetId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, contractId])
+  @@index([fileAssetId])
 }
 
 model ContractComment {

@@ -7,6 +7,10 @@ import { ContractStatus, Prisma } from '@prisma/client';
 import { buildScopedEntityWhere } from '../../../common/entity-scope';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
+import type { UploadedFile } from '../../capture/domain/upload.types';
+import { DocumentExtractionService } from '../../capture/application/document-extraction.service';
+import { AiAssistService } from '../../capture/application/ai-assist.service';
+import { ruleBasedContractRedFlags } from './contract-red-flags';
 import {
   CONTRACT_APPROVAL_CHAIN,
   CONTRACT_DOC_CATEGORIES,
@@ -18,7 +22,20 @@ import {
 const contractInclude = {
   vendor: { select: { id: true, code: true, name: true } },
   entity: { select: { id: true, code: true, name: true } },
-  documents: { orderBy: { createdAt: 'asc' as const } },
+  documents: {
+    orderBy: { createdAt: 'asc' as const },
+    include: {
+      fileAsset: {
+        select: {
+          id: true,
+          originalName: true,
+          contentHash: true,
+          extractionProvider: true,
+          extractedAt: true,
+        },
+      },
+    },
+  },
 } satisfies Prisma.ContractInclude;
 
 type ContractFieldInput = {
@@ -48,6 +65,8 @@ export class ContractsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly documents: DocumentExtractionService,
+    private readonly aiAssist: AiAssistService,
   ) {}
 
   async list(
@@ -631,13 +650,24 @@ export class ContractsService {
   async aiSummarize(tenantId: string, id: string) {
     const row = await this.get(tenantId, id);
     id = row.id;
+    const fullText = await this.resolveContractFullText(tenantId, id);
+    const llm = await this.aiAssist.summarize({
+      tenantId,
+      recordType: 'contract',
+      recordId: id,
+      fullText,
+    });
+    if (llm) {
+      return { summary: llm, contractId: id, source: 'llm' as const };
+    }
+
     const vendor = row.vendor?.name ?? 'the counterparty';
     const value =
       row.valueMinor != null
         ? `${(row.valueMinor / 100).toFixed(2)} ${row.currency}`
         : 'an unspecified value';
     const summary = [
-      `Multi-function AI summary for ${row.number} (${row.title}).`,
+      `Summary for ${row.number} (${row.title}).`,
       `Agreement type: ${row.agreementType ?? 'not specified'}; counterparty: ${vendor}.`,
       `Commercial value: ${value}. Purpose: ${row.purpose ?? 'not captured'}.`,
       `Services: ${row.serviceDescription ?? 'not captured'}.`,
@@ -645,26 +675,14 @@ export class ContractsService {
       `Risk posture: ${(row.redFlagsJson as RedFlag[] | null)?.length ?? 0} red flag(s) on file.`,
       `Recommended next step: complete remaining approvals and route for e-signature.`,
     ].join(' ');
-    return { summary, contractId: id };
+    return { summary, contractId: id, source: 'fields' as const };
   }
 
   async scanRedFlags(tenantId: string, id: string, actorId: string) {
     const existing = await this.get(tenantId, id);
     id = existing.id;
-    const flags: RedFlag[] = [
-      {
-        severity: 'High',
-        text: 'Unlimited liability carve-outs may expose the buyer beyond insurance limits.',
-      },
-      {
-        severity: 'Medium',
-        text: 'Auto-renewal clause lacks a clear opt-out window before the renewal date.',
-      },
-      {
-        severity: 'Low',
-        text: 'Notice period is shorter than internal procurement policy for this spend tier.',
-      },
-    ];
+    const fullText = await this.resolveContractFullText(tenantId, id);
+    const flags = ruleBasedContractRedFlags(fullText);
     await this.prisma.contract.update({
       where: { id },
       data: { redFlagsJson: flags as unknown as Prisma.InputJsonValue },
@@ -675,9 +693,92 @@ export class ContractsService {
       action: 'contract.scan_red_flags',
       entityType: 'Contract',
       entityId: id,
-      meta: { count: flags.length },
+      meta: { count: flags.length, mode: 'rules' },
     });
     return { redFlags: flags, contract: await this.get(tenantId, id) };
+  }
+
+  async scanIntake(
+    tenantId: string,
+    actorId: string,
+    file: UploadedFile | undefined,
+    input: { vendorId?: string; title?: string },
+  ) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Document file is required');
+    }
+    await this.assertVendor(tenantId, input.vendorId);
+    const { fileAsset, extraction, source } =
+      await this.documents.extractDocument(tenantId, file, 'contract');
+    const fields = extraction.contract;
+    if (!fields) {
+      throw new BadRequestException('Contract extraction failed');
+    }
+
+    const stamp = Date.now().toString(36).toUpperCase();
+    const number = `SCAN-${stamp}`;
+    const title =
+      input.title?.trim() || fields.title?.trim() || file.originalname;
+    const redFlags = ruleBasedContractRedFlags(extraction.fullText);
+
+    try {
+      const row = await this.prisma.contract.create({
+        data: {
+          tenantId,
+          number,
+          title,
+          vendorId: input.vendorId,
+          status: 'draft',
+          aiExtracted: true,
+          agreementType: fields.agreementType ?? 'Vendor Agreement',
+          purpose: fields.purpose,
+          serviceDescription: fields.serviceDescription,
+          termType: fields.termType,
+          noticePeriod: fields.noticePeriod,
+          currency: fields.currency ?? 'EUR',
+          valueMinor: fields.valueMinor,
+          startDate: fields.startDate,
+          endDate: fields.endDate,
+          contractDate: fields.startDate,
+          redFlagsJson: redFlags as unknown as Prisma.InputJsonValue,
+          notes: `ocr:${source === 'cache' ? 'cache' : extraction.provider};hash:${fileAsset.contentHash?.slice(0, 12) ?? 'n/a'}`,
+        },
+        include: contractInclude,
+      });
+
+      await this.prisma.contractDocument.create({
+        data: {
+          tenantId,
+          contractId: row.id,
+          category: 'draft',
+          fileName: file.originalname,
+          storagePath: fileAsset.storagePath,
+          fileAssetId: fileAsset.id,
+        },
+      });
+
+      await this.audit.record({
+        tenantId,
+        actorId,
+        action: 'contract.scan_intake',
+        entityType: 'Contract',
+        entityId: row.id,
+        meta: {
+          number: row.number,
+          fileName: file.originalname,
+          ocrSource: source,
+        },
+      });
+      return this.get(tenantId, row.id);
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new BadRequestException('Contract number already exists');
+      }
+      throw err;
+    }
   }
 
   async aiIntake(
@@ -926,5 +1027,28 @@ export class ContractsService {
       select: { id: true, displayName: true },
     });
     return new Map(users.map((u) => [u.id, u.displayName]));
+  }
+
+  private async resolveContractFullText(tenantId: string, contractId: string) {
+    const doc = await this.prisma.contractDocument.findFirst({
+      where: { tenantId, contractId },
+      orderBy: { createdAt: 'desc' },
+      include: { fileAsset: { select: { fullText: true } } },
+    });
+    if (doc?.fileAsset?.fullText) {
+      return doc.fileAsset.fullText;
+    }
+    const contract = await this.prisma.contract.findFirst({
+      where: { id: contractId, tenantId },
+      select: { title: true, purpose: true, serviceDescription: true, notes: true },
+    });
+    return [
+      contract?.title,
+      contract?.purpose,
+      contract?.serviceDescription,
+      contract?.notes,
+    ]
+      .filter(Boolean)
+      .join('\n');
   }
 }

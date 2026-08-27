@@ -282,6 +282,33 @@ export class TenancyService {
     });
   }
 
+  async getAiSettings(tenantId: string) {
+    const tenant = await this.prisma.tenant.findUniqueOrThrow({
+      where: { id: tenantId },
+      select: { aiAssistEnabled: true, llmProvider: true },
+    });
+    return tenant;
+  }
+
+  async updateAiSettings(
+    tenantId: string,
+    input: { aiAssistEnabled?: boolean; llmProvider?: string },
+  ) {
+    await this.getTenant(tenantId);
+    return this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: {
+        ...(input.aiAssistEnabled !== undefined
+          ? { aiAssistEnabled: input.aiAssistEnabled }
+          : {}),
+        ...(input.llmProvider !== undefined
+          ? { llmProvider: input.llmProvider }
+          : {}),
+      },
+      select: { aiAssistEnabled: true, llmProvider: true },
+    });
+  }
+
   private toTenantRecord(tenant: {
     id: string;
     name: string;
