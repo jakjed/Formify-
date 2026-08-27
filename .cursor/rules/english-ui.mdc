@@ -1,0 +1,11 @@
+---
+description: Product UI and copy language
+alwaysApply: true
+---
+
+# Language
+
+- All **user-facing product copy** (UI labels, buttons, empty states, emails, errors shown to users, OpenAPI summaries meant for operators) must be **English**.
+- Do not introduce Polish (or other) strings into `apps/web` or operator-facing API messages.
+- Code comments and internal docs may use English only as well for consistency.
+- If the user writes in another language, reply in their language when conversing, but **ship product strings in English**.

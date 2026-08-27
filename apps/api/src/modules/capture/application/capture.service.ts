@@ -13,6 +13,10 @@ import { InvoiceValidationService } from '../../invoice-rules/application/invoic
 import { NotificationsService } from '../../notifications/application/notifications.service';
 import { UsageService } from '../../usage/application/usage.service';
 import { OcrService } from './ocr.service';
+import {
+  scoreVendorName,
+  VENDOR_MATCH_THRESHOLD,
+} from './vendor-match';
 
 export type UploadedFile = {
   originalname: string;
@@ -246,25 +250,28 @@ export class CaptureService {
       buffer: file.buffer,
     });
 
-    const vendor = stub.vendorName
-      ? await this.prisma.vendor.findFirst({
-          where: {
-            tenantId,
-            OR: [
-              { name: { equals: stub.vendorName, mode: 'insensitive' } },
-              { name: { contains: stub.vendorName, mode: 'insensitive' } },
-            ],
-            active: true,
-          },
+    const vendors = stub.vendorName
+      ? await this.prisma.vendor.findMany({
+          where: { tenantId, active: true },
+          select: { id: true, name: true },
         })
-      : null;
+      : [];
+    let bestVendor: { id: string; name: string; score: number } | null = null;
+    for (const v of vendors) {
+      const score = scoreVendorName(stub.vendorName ?? '', v.name);
+      if (score < VENDOR_MATCH_THRESHOLD) continue;
+      if (!bestVendor || score > bestVendor.score) {
+        bestVendor = { id: v.id, name: v.name, score };
+      }
+    }
+    const vendor = bestVendor;
 
     invoice = await this.prisma.invoice.update({
       where: { id: invoice.id },
       data: {
         status: 'needs_review',
         vendorNameRaw: stub.vendorName,
-        vendorId: vendor?.id,
+        vendorId: vendor?.id ?? null,
         invoiceNumber: stub.invoiceNumber,
         invoiceDate: stub.invoiceDate,
         dueDate: stub.dueDate,
@@ -274,7 +281,11 @@ export class CaptureService {
         totalMinor: stub.totalMinor,
         ocrConfidence: stub.confidence,
         ocrPayload: stub.payload as unknown as Prisma.InputJsonValue,
-        notes: `ocr:${stub.provider};source:${options?.source ?? 'upload'}`,
+        notes: `ocr:${stub.provider};source:${options?.source ?? 'upload'}${
+          vendor
+            ? `;vendorMatch:${vendor.score}`
+            : ''
+        }`,
         lines: {
           create: stub.lines.map((line, idx) => ({
             lineNo: idx + 1,
@@ -290,6 +301,36 @@ export class CaptureService {
       },
       include: { lines: true, exceptions: true, fileAsset: true },
     });
+
+    // Suggest GL coding from entity + category keyword match on line descriptions
+    if (invoice.entityId && invoice.lines.length > 0) {
+      const categories = await this.prisma.expenseCategory.findMany({
+        where: {
+          tenantId,
+          entityId: invoice.entityId,
+          active: true,
+        },
+      });
+      for (const line of invoice.lines) {
+        const desc = (line.description ?? '').toLowerCase();
+        if (!desc) continue;
+        const hit = categories.find((cat) =>
+          cat.keywords
+            .split(',')
+            .map((k) => k.trim().toLowerCase())
+            .filter(Boolean)
+            .some((k) => desc.includes(k)),
+        );
+        if (!hit) continue;
+        await this.prisma.invoiceLine.update({
+          where: { id: line.id },
+          data: {
+            categoryId: hit.id,
+            glAccountId: hit.glAccountId,
+          },
+        });
+      }
+    }
 
     await this.usage.incrementOcrPages(tenantId, pageCount);
 

@@ -110,3 +110,46 @@ export class UpdatePaymentTermDto extends UpdateCodeNameDto {
   @Min(0)
   netDays?: number;
 }
+
+export class CreateExpenseCategoryDto {
+  @IsString()
+  @MinLength(1)
+  code!: string;
+
+  @IsString()
+  @MinLength(1)
+  name!: string;
+
+  @IsUUID()
+  entityId!: string;
+
+  @IsUUID()
+  glAccountId!: string;
+
+  @IsOptional()
+  @IsString()
+  keywords?: string;
+}
+
+export class UpdateExpenseCategoryDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  name?: string;
+
+  @IsOptional()
+  @IsUUID()
+  entityId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  glAccountId?: string;
+
+  @IsOptional()
+  @IsString()
+  keywords?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  active?: boolean;
+}

@@ -271,6 +271,19 @@ export class InvoicesService {
         fileAsset: true,
         exceptions: true,
         lines: { orderBy: { lineNo: 'asc' } },
+        attachments: {
+          include: {
+            fileAsset: {
+              select: {
+                id: true,
+                originalName: true,
+                mimeType: true,
+                sizeBytes: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
         purchaseOrder: {
           select: {
             id: true,
@@ -310,6 +323,113 @@ export class InvoicesService {
     };
   }
 
+  async listAttachments(tenantId: string, invoiceId: string) {
+    await this.get(tenantId, invoiceId);
+    return this.prisma.invoiceAttachment.findMany({
+      where: { tenantId, invoiceId },
+      include: {
+        fileAsset: {
+          select: {
+            id: true,
+            originalName: true,
+            mimeType: true,
+            sizeBytes: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async addAttachment(
+    tenantId: string,
+    invoiceId: string,
+    file: {
+      originalname: string;
+      mimetype: string;
+      size: number;
+      buffer: Buffer;
+    },
+    label?: string,
+    actorUserId?: string,
+  ) {
+    await this.get(tenantId, invoiceId);
+    const { mkdir, writeFile } = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { randomUUID } = await import('node:crypto');
+    const storageRoot = path.resolve(
+      process.cwd(),
+      process.env.STORAGE_PATH ?? 'storage/uploads',
+    );
+    await mkdir(storageRoot, { recursive: true });
+    const id = randomUUID();
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const storagePath = path.join(
+      storageRoot,
+      `${tenantId}_${id}_${safeName}`,
+    );
+    await writeFile(storagePath, file.buffer);
+    const fileAsset = await this.prisma.fileAsset.create({
+      data: {
+        tenantId,
+        originalName: file.originalname,
+        mimeType: file.mimetype || 'application/octet-stream',
+        sizeBytes: file.size,
+        storagePath,
+      },
+    });
+    const attachment = await this.prisma.invoiceAttachment.create({
+      data: {
+        tenantId,
+        invoiceId,
+        fileAssetId: fileAsset.id,
+        label: label?.trim() || null,
+      },
+      include: {
+        fileAsset: {
+          select: {
+            id: true,
+            originalName: true,
+            mimeType: true,
+            sizeBytes: true,
+          },
+        },
+      },
+    });
+    await this.audit.record({
+      tenantId,
+      actorId: actorUserId,
+      action: 'invoice.attachment_added',
+      entityType: 'Invoice',
+      entityId: invoiceId,
+      meta: { attachmentId: attachment.id, name: file.originalname },
+    });
+    return attachment;
+  }
+
+  async getAttachmentFile(
+    tenantId: string,
+    invoiceId: string,
+    attachmentId: string,
+  ) {
+    const row = await this.prisma.invoiceAttachment.findFirst({
+      where: { id: attachmentId, invoiceId, tenantId },
+      include: { fileAsset: true },
+    });
+    if (!row) throw new NotFoundException('Attachment not found');
+    try {
+      await access(row.fileAsset.storagePath);
+    } catch {
+      throw new NotFoundException('Attachment file missing on disk');
+    }
+    return {
+      stream: createReadStream(row.fileAsset.storagePath),
+      mimeType: row.fileAsset.mimeType,
+      originalName: row.fileAsset.originalName,
+      sizeBytes: row.fileAsset.sizeBytes,
+    };
+  }
+
   async update(
     tenantId: string,
     id: string,
@@ -325,10 +445,24 @@ export class InvoicesService {
       totalMinor?: number | null;
       notes?: string | null;
       purchaseOrderId?: string | null;
+      lines?: {
+        id?: string;
+        lineNo: number;
+        description?: string | null;
+        quantity?: number | null;
+        unitPriceMinor?: number | null;
+        amountMinor?: number | null;
+        taxMinor?: number | null;
+        taxCodeId?: string | null;
+        glAccountId?: string | null;
+        costCenterId?: string | null;
+        categoryId?: string | null;
+        purchaseOrderLineId?: string | null;
+      }[];
       actorUserId?: string;
     },
   ) {
-    await this.get(tenantId, id);
+    const existing = await this.get(tenantId, id);
     if (data.purchaseOrderId) {
       const po = await this.prisma.purchaseOrder.findFirst({
         where: { id: data.purchaseOrderId, tenantId },
@@ -336,30 +470,122 @@ export class InvoicesService {
       });
       if (!po) throw new BadRequestException('Purchase order not found');
     }
-    await this.prisma.invoice.update({
-      where: { id },
-      data: {
-        vendorId: data.vendorId,
-        vendorNameRaw: data.vendorNameRaw,
-        invoiceNumber: data.invoiceNumber,
-        invoiceDate: data.invoiceDate
-          ? new Date(data.invoiceDate)
-          : data.invoiceDate === null
-            ? null
-            : undefined,
-        dueDate: data.dueDate
-          ? new Date(data.dueDate)
-          : data.dueDate === null
-            ? null
-            : undefined,
-        currency: data.currency,
-        subtotalMinor: data.subtotalMinor,
-        taxMinor: data.taxMinor,
-        totalMinor: data.totalMinor,
-        notes: data.notes,
-        purchaseOrderId: data.purchaseOrderId,
-      },
+
+    if (data.currency) {
+      data.currency = data.currency.toUpperCase();
+    }
+
+    // Apply category → GL when category set without explicit GL
+    const categories =
+      data.lines?.length && existing.entityId
+        ? await this.prisma.expenseCategory.findMany({
+            where: {
+              tenantId,
+              entityId: existing.entityId,
+              active: true,
+            },
+          })
+        : [];
+    const taxCodes = data.lines?.length
+      ? await this.prisma.taxCode.findMany({ where: { tenantId, active: true } })
+      : [];
+    const taxById = new Map(taxCodes.map((t) => [t.id, t]));
+    const catById = new Map(categories.map((c) => [c.id, c]));
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.invoice.update({
+        where: { id },
+        data: {
+          vendorId: data.vendorId,
+          vendorNameRaw: data.vendorNameRaw,
+          invoiceNumber: data.invoiceNumber,
+          invoiceDate: data.invoiceDate
+            ? new Date(data.invoiceDate)
+            : data.invoiceDate === null
+              ? null
+              : undefined,
+          dueDate: data.dueDate
+            ? new Date(data.dueDate)
+            : data.dueDate === null
+              ? null
+              : undefined,
+          currency: data.currency,
+          subtotalMinor: data.subtotalMinor,
+          taxMinor: data.taxMinor,
+          totalMinor: data.totalMinor,
+          notes: data.notes,
+          purchaseOrderId: data.purchaseOrderId,
+        },
+      });
+
+      if (data.lines) {
+        const keepIds: string[] = [];
+        for (const line of data.lines) {
+          let categoryId = line.categoryId ?? null;
+          let glAccountId = line.glAccountId ?? null;
+          if (categoryId && !glAccountId) {
+            glAccountId = catById.get(categoryId)?.glAccountId ?? null;
+          }
+          // Keyword suggest if no category yet
+          if (!categoryId && line.description && existing.entityId) {
+            const desc = line.description.toLowerCase();
+            const hit = categories.find((cat) =>
+              cat.keywords
+                .split(',')
+                .map((k) => k.trim().toLowerCase())
+                .filter(Boolean)
+                .some((k) => desc.includes(k)),
+            );
+            if (hit) {
+              categoryId = hit.id;
+              glAccountId = glAccountId ?? hit.glAccountId;
+            }
+          }
+
+          let taxMinor = line.taxMinor ?? null;
+          const taxCodeId = line.taxCodeId ?? null;
+          if (taxCodeId && line.amountMinor != null && taxMinor == null) {
+            const rate = taxById.get(taxCodeId)?.rateBps ?? 0;
+            taxMinor = Math.round((line.amountMinor * rate) / 10_000);
+          }
+
+          const payload = {
+            lineNo: line.lineNo,
+            description: line.description ?? null,
+            quantity: line.quantity ?? null,
+            unitPriceMinor: line.unitPriceMinor ?? null,
+            amountMinor: line.amountMinor ?? null,
+            taxMinor,
+            taxCodeId,
+            glAccountId,
+            costCenterId: line.costCenterId ?? null,
+            categoryId,
+            purchaseOrderLineId: line.purchaseOrderLineId ?? null,
+          };
+
+          if (line.id) {
+            const owned = await tx.invoiceLine.findFirst({
+              where: { id: line.id, invoiceId: id },
+            });
+            if (!owned) throw new BadRequestException('Invalid line id');
+            await tx.invoiceLine.update({
+              where: { id: line.id },
+              data: payload,
+            });
+            keepIds.push(line.id);
+          } else {
+            const created = await tx.invoiceLine.create({
+              data: { invoiceId: id, ...payload },
+            });
+            keepIds.push(created.id);
+          }
+        }
+        await tx.invoiceLine.deleteMany({
+          where: { invoiceId: id, id: { notIn: keepIds } },
+        });
+      }
     });
+
     await this.validation.syncExceptions(tenantId, id);
     await this.audit.record({
       tenantId,

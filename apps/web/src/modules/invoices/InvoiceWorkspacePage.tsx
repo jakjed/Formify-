@@ -7,13 +7,31 @@ import {
   useState,
 } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { apiFetch, apiFetchBlob } from '../../shared/lib/api';
+import { CURRENCY_CODES } from '@aptora/types';
+import { apiFetch, apiFetchBlob, getToken } from '../../shared/lib/api';
 import { InvoiceStatusBadge, StatusBadge } from '../../shared/ui/StatusBadge';
 import { ocrConfidenceTone } from '../../shared/ui/status';
+import { bestVendorMatch } from '../../shared/ui/vendorMatch';
+
+type InvoiceLine = {
+  id?: string;
+  lineNo: number;
+  description: string | null;
+  quantity: number | null;
+  unitPriceMinor: number | null;
+  amountMinor: number | null;
+  taxMinor: number | null;
+  taxCodeId: string | null;
+  glAccountId: string | null;
+  costCenterId: string | null;
+  categoryId: string | null;
+  purchaseOrderLineId: string | null;
+};
 
 type Invoice = {
   id: string;
   status: string;
+  entityId: string | null;
   invoiceNumber: string | null;
   vendorNameRaw: string | null;
   vendorId: string | null;
@@ -35,13 +53,16 @@ type Invoice = {
     status: string;
     totalMinor: number | null;
   } | null;
-  lines: {
+  lines: InvoiceLine[];
+  attachments?: {
     id: string;
-    lineNo: number;
-    description: string | null;
-    quantity: number | null;
-    unitPriceMinor: number | null;
-    amountMinor: number | null;
+    label: string | null;
+    fileAsset: {
+      id: string;
+      originalName: string;
+      mimeType: string;
+      sizeBytes: number;
+    };
   }[];
   exceptions: { id: string; code: string; message: string; resolved: boolean }[];
 };
@@ -78,6 +99,35 @@ type PoOption = {
   status: string;
   totalMinor: number | null;
 };
+type CodeName = { id: string; code: string; name: string; active?: boolean };
+type TaxCode = CodeName & { rateBps: number };
+type ExpenseCategory = CodeName & {
+  entityId: string;
+  glAccountId: string;
+};
+type PoLineOption = {
+  id: string;
+  lineNo: number;
+  description: string | null;
+  amountMinor: number | null;
+};
+
+function mapEditLines(lines: InvoiceLine[]): InvoiceLine[] {
+  return lines.map((line) => ({
+    id: line.id,
+    lineNo: line.lineNo,
+    description: line.description ?? null,
+    quantity: line.quantity ?? null,
+    unitPriceMinor: line.unitPriceMinor ?? null,
+    amountMinor: line.amountMinor ?? null,
+    taxMinor: line.taxMinor ?? null,
+    taxCodeId: line.taxCodeId ?? null,
+    glAccountId: line.glAccountId ?? null,
+    costCenterId: line.costCenterId ?? null,
+    categoryId: line.categoryId ?? null,
+    purchaseOrderLineId: line.purchaseOrderLineId ?? null,
+  }));
+}
 
 type ActivityItem =
   | {
@@ -461,6 +511,11 @@ export function InvoiceWorkspacePage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PoOption[]>([]);
   const [poLicensed, setPoLicensed] = useState(false);
+  const [taxCodes, setTaxCodes] = useState<TaxCode[]>([]);
+  const [glAccounts, setGlAccounts] = useState<CodeName[]>([]);
+  const [costCenters, setCostCenters] = useState<CodeName[]>([]);
+  const [categories, setCategories] = useState<ExpenseCategory[]>([]);
+  const [poLines, setPoLines] = useState<PoLineOption[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [validationIssues, setValidationIssues] = useState<
@@ -472,6 +527,10 @@ export function InvoiceWorkspacePage() {
   const [commentBody, setCommentBody] = useState('');
   const [dragging, setDragging] = useState(false);
   const [armedChip, setArmedChip] = useState<OcrChip | null>(null);
+  const [vendorMatchHint, setVendorMatchHint] = useState<string | null>(null);
+  const [editLines, setEditLines] = useState<InvoiceLine[]>([]);
+  const [attachFile, setAttachFile] = useState<File | null>(null);
+  const [attachLabel, setAttachLabel] = useState('');
 
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [vendorNameRaw, setVendorNameRaw] = useState('');
@@ -489,6 +548,26 @@ export function InvoiceWorkspacePage() {
     () => (invoice ? buildOcrChips(invoice) : []),
     [invoice],
   );
+
+  const filteredCategories = useMemo(() => {
+    if (!invoice?.entityId) return categories;
+    return categories.filter((c) => c.entityId === invoice.entityId);
+  }, [categories, invoice?.entityId]);
+
+  function tryVendorMatch(raw: string, vendorList: Vendor[], currentVendorId: string) {
+    if (currentVendorId) return;
+    if (!raw.trim()) {
+      setVendorMatchHint(null);
+      return;
+    }
+    const hit = bestVendorMatch(raw, vendorList);
+    if (hit) {
+      setVendorId(hit.id);
+      setVendorMatchHint(hit.name);
+    } else {
+      setVendorMatchHint(null);
+    }
+  }
 
   async function loadSidePanels(invoiceId: string) {
     const [validation, activityRows, commentRows] = await Promise.all([
@@ -513,14 +592,34 @@ export function InvoiceWorkspacePage() {
     if (!id) return;
     void (async () => {
       try {
-        const [validation, vendorList, modules] = await Promise.all([
+        const [
+          validation,
+          vendorList,
+          modules,
+          taxList,
+          glList,
+          ccList,
+          catList,
+        ] = await Promise.all([
           loadSidePanels(id),
           apiFetch<Vendor[]>('/api/vendors'),
           apiFetch<{ moduleKey: string; enabled: boolean }[]>(
             '/api/modules',
           ).catch(() => [] as { moduleKey: string; enabled: boolean }[]),
+          apiFetch<TaxCode[]>('/api/tax-codes').catch(() => [] as TaxCode[]),
+          apiFetch<CodeName[]>('/api/gl-accounts').catch(() => [] as CodeName[]),
+          apiFetch<CodeName[]>('/api/cost-centers').catch(
+            () => [] as CodeName[],
+          ),
+          apiFetch<ExpenseCategory[]>('/api/expense-categories').catch(
+            () => [] as ExpenseCategory[],
+          ),
         ]);
         setVendors(vendorList);
+        setTaxCodes(taxList);
+        setGlAccounts(glList);
+        setCostCenters(ccList);
+        setCategories(catList);
         const ordersOn = modules.some(
           (m) => m.moduleKey === 'purchase_orders' && m.enabled,
         );
@@ -543,11 +642,38 @@ export function InvoiceWorkspacePage() {
         setTotal(toMajor(current.totalMinor));
         setNotes(current.notes ?? '');
         setPurchaseOrderId(current.purchaseOrderId ?? '');
+        setEditLines(mapEditLines(current.lines ?? []));
+        if (!current.vendorId && current.vendorNameRaw) {
+          tryVendorMatch(current.vendorNameRaw, vendorList, '');
+        } else {
+          setVendorMatchHint(null);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load');
       }
     })();
   }, [id]);
+
+  useEffect(() => {
+    if (!purchaseOrderId) {
+      setPoLines([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const po = await apiFetch<{ lines: PoLineOption[] }>(
+          `/api/purchase-orders/${purchaseOrderId}`,
+        );
+        if (!cancelled) setPoLines(po.lines ?? []);
+      } catch {
+        if (!cancelled) setPoLines([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [purchaseOrderId]);
 
   function applyChipValue(field: FieldKey, value: string) {
     switch (field) {
@@ -556,10 +682,15 @@ export function InvoiceWorkspacePage() {
         break;
       case 'vendorNameRaw':
         setVendorNameRaw(value);
+        tryVendorMatch(value, vendors, vendorId);
         break;
-      case 'currency':
-        setCurrency(value.slice(0, 3).toUpperCase());
+      case 'currency': {
+        const code = value.slice(0, 3).toUpperCase();
+        setCurrency(
+          (CURRENCY_CODES as readonly string[]).includes(code) ? code : currency,
+        );
         break;
+      }
       case 'invoiceDate':
         setInvoiceDate(value.slice(0, 10));
         break;
@@ -587,6 +718,71 @@ export function InvoiceWorkspacePage() {
 
   function clearArmedOnEdit() {
     if (armedChip) setArmedChip(null);
+  }
+
+  function updateEditLine(index: number, patch: Partial<InvoiceLine>) {
+    setEditLines((prev) =>
+      prev.map((line, i) => (i === index ? { ...line, ...patch } : line)),
+    );
+  }
+
+  function onTaxCodeChange(index: number, taxCodeId: string) {
+    const line = editLines[index];
+    if (!line) return;
+    const code = taxCodes.find((t) => t.id === taxCodeId);
+    const amount = line.amountMinor;
+    const taxMinor =
+      code && amount != null
+        ? Math.round((amount * code.rateBps) / 10_000)
+        : line.taxMinor;
+    updateEditLine(index, {
+      taxCodeId: taxCodeId || null,
+      taxMinor: taxCodeId ? taxMinor : null,
+    });
+  }
+
+  function onCategoryChange(index: number, categoryId: string) {
+    const cat = filteredCategories.find((c) => c.id === categoryId);
+    updateEditLine(index, {
+      categoryId: categoryId || null,
+      ...(cat ? { glAccountId: cat.glAccountId } : {}),
+    });
+  }
+
+  function onAmountChange(index: number, major: string) {
+    const amountMinor = fromMajor(major);
+    const line = editLines[index];
+    if (!line) return;
+    const code = line.taxCodeId
+      ? taxCodes.find((t) => t.id === line.taxCodeId)
+      : undefined;
+    const taxMinor =
+      code && amountMinor != null
+        ? Math.round((amountMinor * code.rateBps) / 10_000)
+        : line.taxMinor;
+    updateEditLine(index, {
+      amountMinor,
+      ...(code ? { taxMinor } : {}),
+    });
+  }
+
+  function addEditLine() {
+    setEditLines((prev) => [
+      ...prev,
+      {
+        lineNo: prev.length + 1,
+        description: null,
+        quantity: null,
+        unitPriceMinor: null,
+        amountMinor: null,
+        taxMinor: null,
+        taxCodeId: null,
+        glAccountId: null,
+        costCenterId: null,
+        categoryId: null,
+        purchaseOrderLineId: null,
+      },
+    ]);
   }
 
   function onChipDragStart(e: DragEvent, chip: OcrChip) {
@@ -629,9 +825,24 @@ export function InvoiceWorkspacePage() {
           totalMinor: fromMajor(total),
           notes: notes || null,
           purchaseOrderId: purchaseOrderId || null,
+          lines: editLines.map((line, i) => ({
+            id: line.id,
+            lineNo: i + 1,
+            description: line.description,
+            quantity: line.quantity,
+            unitPriceMinor: line.unitPriceMinor,
+            amountMinor: line.amountMinor,
+            taxMinor: line.taxMinor,
+            taxCodeId: line.taxCodeId,
+            glAccountId: line.glAccountId,
+            costCenterId: line.costCenterId,
+            categoryId: line.categoryId,
+            purchaseOrderLineId: line.purchaseOrderLineId,
+          })),
         }),
       });
       setInvoice(inv);
+      setEditLines(mapEditLines(inv.lines ?? []));
       const validation = await loadSidePanels(id);
       setMessage(
         validation.blocking
@@ -640,6 +851,41 @@ export function InvoiceWorkspacePage() {
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
+    }
+  }
+
+  async function onUploadAttachment(e: FormEvent) {
+    e.preventDefault();
+    if (!id || !attachFile) return;
+    setError(null);
+    setMessage(null);
+    try {
+      const form = new FormData();
+      form.append('file', attachFile);
+      if (attachLabel.trim()) form.append('label', attachLabel.trim());
+      const headers = new Headers();
+      const token = getToken();
+      if (token) headers.set('Authorization', `Bearer ${token}`);
+      const res = await fetch(`/api/invoices/${id}/attachments`, {
+        method: 'POST',
+        headers,
+        body: form,
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string | string[];
+        };
+        const msg = Array.isArray(body.message)
+          ? body.message.join(', ')
+          : body.message ?? `Upload failed (${res.status})`;
+        throw new Error(msg);
+      }
+      setAttachFile(null);
+      setAttachLabel('');
+      await loadSidePanels(id);
+      setMessage('Attachment uploaded');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
     }
   }
 
@@ -878,13 +1124,21 @@ export function InvoiceWorkspacePage() {
                 onChange={(e) => {
                   clearArmedOnEdit();
                   setVendorNameRaw(e.target.value);
+                  setVendorMatchHint(null);
                 }}
+                onBlur={() => tryVendorMatch(vendorNameRaw, vendors, vendorId)}
                 onFocus={() => onFieldFocus('vendorNameRaw')}
               />
             </DropField>
             <label className="hitl-field">
               <span className="hitl-field__label">Vendor master</span>
-              <select value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
+              <select
+                value={vendorId}
+                onChange={(e) => {
+                  setVendorId(e.target.value);
+                  setVendorMatchHint(null);
+                }}
+              >
                 <option value="">— none —</option>
                 {vendors.map((v) => (
                   <option key={v.id} value={v.id}>
@@ -892,6 +1146,9 @@ export function InvoiceWorkspacePage() {
                   </option>
                 ))}
               </select>
+              {vendorMatchHint && (
+                <span className="muted">Matched: {vendorMatchHint}</span>
+              )}
             </label>
             {poLicensed && (
               <label className="hitl-field">
@@ -915,15 +1172,20 @@ export function InvoiceWorkspacePage() {
               dropActive={dragging || !!armedChip}
               onDropValue={applyChipValue}
             >
-              <input
+              <select
                 value={currency}
                 onChange={(e) => {
                   clearArmedOnEdit();
                   setCurrency(e.target.value);
                 }}
-                maxLength={3}
                 onFocus={() => onFieldFocus('currency')}
-              />
+              >
+                {CURRENCY_CODES.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
             </DropField>
             <DropField
               label="Invoice date"
@@ -1023,6 +1285,140 @@ export function InvoiceWorkspacePage() {
               />
             </DropField>
 
+            <div className="span-2 hitl-lines-edit">
+              <h3>Line items</h3>
+              {editLines.length === 0 && (
+                <p className="muted">No line items yet.</p>
+              )}
+              {editLines.map((line, index) => (
+                <div key={line.id ?? `new-${index}`} className="hitl-line-row">
+                  <label>
+                    <span className="muted">#{index + 1} Description</span>
+                    <input
+                      value={line.description ?? ''}
+                      onChange={(e) =>
+                        updateEditLine(index, {
+                          description: e.target.value || null,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span className="muted">Qty</span>
+                    <input
+                      value={line.quantity ?? ''}
+                      inputMode="decimal"
+                      onChange={(e) => {
+                        const raw = e.target.value.trim();
+                        updateEditLine(index, {
+                          quantity: raw === '' ? null : Number(raw),
+                        });
+                      }}
+                    />
+                  </label>
+                  <label>
+                    <span className="muted">Amount</span>
+                    <input
+                      value={toMajor(line.amountMinor)}
+                      inputMode="decimal"
+                      onChange={(e) => onAmountChange(index, e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span className="muted">Tax code</span>
+                    <select
+                      value={line.taxCodeId ?? ''}
+                      onChange={(e) => onTaxCodeChange(index, e.target.value)}
+                    >
+                      <option value="">— none —</option>
+                      {taxCodes.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.code} ({(t.rateBps / 100).toFixed(2)}%)
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span className="muted">Category</span>
+                    <select
+                      value={line.categoryId ?? ''}
+                      onChange={(e) => onCategoryChange(index, e.target.value)}
+                    >
+                      <option value="">— none —</option>
+                      {filteredCategories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.code} — {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span className="muted">GL account</span>
+                    <select
+                      value={line.glAccountId ?? ''}
+                      onChange={(e) =>
+                        updateEditLine(index, {
+                          glAccountId: e.target.value || null,
+                        })
+                      }
+                    >
+                      <option value="">— none —</option>
+                      {glAccounts.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.code} — {g.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span className="muted">Cost center</span>
+                    <select
+                      value={line.costCenterId ?? ''}
+                      onChange={(e) =>
+                        updateEditLine(index, {
+                          costCenterId: e.target.value || null,
+                        })
+                      }
+                    >
+                      <option value="">— none —</option>
+                      {costCenters.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.code} — {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {purchaseOrderId && (
+                    <label>
+                      <span className="muted">PO line</span>
+                      <select
+                        value={line.purchaseOrderLineId ?? ''}
+                        onChange={(e) =>
+                          updateEditLine(index, {
+                            purchaseOrderLineId: e.target.value || null,
+                          })
+                        }
+                      >
+                        <option value="">— none —</option>
+                        {poLines.map((pl) => (
+                          <option key={pl.id} value={pl.id}>
+                            #{pl.lineNo} {pl.description ?? '—'}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                className="btn btn--ghost"
+                onClick={addEditLine}
+              >
+                Add line
+              </button>
+            </div>
+
             {error && <p className="error span-2">{error}</p>}
             {message && <p className="ok span-2">{message}</p>}
 
@@ -1035,23 +1431,48 @@ export function InvoiceWorkspacePage() {
 
           <div className="hitl-sidepanel">
             <details open>
-              <summary>Line items ({invoice.lines.length})</summary>
-              <ul className="hitl-lines">
-                {invoice.lines.map((line) => (
-                  <li key={line.id}>
-                    <span>#{line.lineNo}</span>
-                    <span>{line.description ?? '—'}</span>
-                    <span>
-                      {line.amountMinor != null
-                        ? (line.amountMinor / 100).toFixed(2)
-                        : '—'}
-                    </span>
+              <summary>
+                Attachments ({invoice.attachments?.length ?? 0})
+              </summary>
+              <ul className="task-list">
+                {(invoice.attachments ?? []).map((a) => (
+                  <li key={a.id}>
+                    <div>
+                      <strong>{a.fileAsset.originalName}</strong>
+                      {a.label && <span className="muted"> · {a.label}</span>}
+                      <span className="muted">
+                        {' '}
+                        · {(a.fileAsset.sizeBytes / 1024).toFixed(1)} KB
+                      </span>
+                    </div>
                   </li>
                 ))}
-                {invoice.lines.length === 0 && (
-                  <li className="muted">No line items extracted.</li>
+                {(invoice.attachments?.length ?? 0) === 0 && (
+                  <li className="muted">No supporting attachments.</li>
                 )}
               </ul>
+              <form
+                className="inline-form"
+                onSubmit={(e) => void onUploadAttachment(e)}
+              >
+                <input
+                  type="file"
+                  onChange={(e) => setAttachFile(e.target.files?.[0] ?? null)}
+                />
+                <input
+                  value={attachLabel}
+                  onChange={(e) => setAttachLabel(e.target.value)}
+                  placeholder="Label (optional)"
+                  style={{ flex: 1, minWidth: '8rem' }}
+                />
+                <button
+                  type="submit"
+                  className="btn btn--primary"
+                  disabled={!attachFile}
+                >
+                  Upload
+                </button>
+              </form>
             </details>
           </div>
 
