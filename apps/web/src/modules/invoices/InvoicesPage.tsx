@@ -3,6 +3,7 @@ import type { DragEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiFetch, getToken } from '../../shared/lib/api';
 import { appendEntityParam, formatEntityCell } from '../../shared/lib/entity';
+import { FileSelect } from '../../shared/components/FileSelect';
 import { InvoiceStatusBadge } from '../../shared/ui/StatusBadge';
 import { ageTone } from '../../shared/ui/status';
 
@@ -306,9 +307,8 @@ export function InvoicesPage() {
           multiple files. Each file becomes its own invoice for OCR review.
         </p>
         <div className="inline-form" style={{ margin: 0 }}>
-          <input
+          <FileSelect
             name="file"
-            type="file"
             accept=".pdf,.png,.jpg,.jpeg,.txt"
             multiple
             required

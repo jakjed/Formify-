@@ -9,6 +9,7 @@ import {
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { CURRENCY_CODES } from '@aptora/types';
 import { apiFetch, apiFetchBlob, getToken } from '../../shared/lib/api';
+import { FileSelect } from '../../shared/components/FileSelect';
 import { InvoiceStatusBadge, StatusBadge } from '../../shared/ui/StatusBadge';
 import { ocrConfidenceTone } from '../../shared/ui/status';
 import { bestVendorMatch } from '../../shared/ui/vendorMatch';
@@ -531,6 +532,7 @@ export function InvoiceWorkspacePage() {
   const [editLines, setEditLines] = useState<InvoiceLine[]>([]);
   const [attachFile, setAttachFile] = useState<File | null>(null);
   const [attachLabel, setAttachLabel] = useState('');
+  const [attachInputKey, setAttachInputKey] = useState(0);
 
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [vendorNameRaw, setVendorNameRaw] = useState('');
@@ -884,6 +886,7 @@ export function InvoiceWorkspacePage() {
       }
       setAttachFile(null);
       setAttachLabel('');
+      setAttachInputKey((k) => k + 1);
       await loadSidePanels(id);
       setMessage('Attachment uploaded');
     } catch (err) {
@@ -1512,9 +1515,9 @@ export function InvoiceWorkspacePage() {
                 className="inline-form"
                 onSubmit={(e) => void onUploadAttachment(e)}
               >
-                <input
-                  type="file"
-                  onChange={(e) => setAttachFile(e.target.files?.[0] ?? null)}
+                <FileSelect
+                  key={attachInputKey}
+                  onChange={(files) => setAttachFile(files?.[0] ?? null)}
                 />
                 <input
                   value={attachLabel}

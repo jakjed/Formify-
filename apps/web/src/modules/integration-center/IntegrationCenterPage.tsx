@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { apiFetch, getToken } from '../../shared/lib/api';
+import { FileSelect } from '../../shared/components/FileSelect';
 
 type Template = {
   key: string;
@@ -667,7 +668,12 @@ export function IntegrationCenterPage() {
       <div className="panel">
         <h2>Import vendors</h2>
         <form className="inline-form" onSubmit={(e) => void onImport(e, 'vendors')}>
-          <input name="file" type="file" accept=".csv,text/csv" required />
+          <FileSelect
+            name="file"
+            accept=".csv,text/csv"
+            required
+            buttonLabel="Select CSV"
+          />
           <button type="submit" disabled={busy}>
             Upload vendors CSV
           </button>
@@ -677,7 +683,12 @@ export function IntegrationCenterPage() {
       <div className="panel">
         <h2>Import GL accounts</h2>
         <form className="inline-form" onSubmit={(e) => void onImport(e, 'gl-accounts')}>
-          <input name="file" type="file" accept=".csv,text/csv" required />
+          <FileSelect
+            name="file"
+            accept=".csv,text/csv"
+            required
+            buttonLabel="Select CSV"
+          />
           <button type="submit" disabled={busy}>
             Upload GL CSV
           </button>

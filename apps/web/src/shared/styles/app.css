@@ -632,6 +632,40 @@
   gap: 0.5rem;
   margin-bottom: 1rem;
   width: 100%;
+  align-items: center;
+}
+
+.file-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  min-height: 2.5rem;
+}
+
+.file-select__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.file-select__btn {
+  flex-shrink: 0;
+}
+
+.file-select__name {
+  color: var(--aptora-muted);
+  font-size: 0.88rem;
+  max-width: min(24rem, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .inline-form input {
