@@ -2,6 +2,8 @@
   display: grid;
   grid-template-columns: 260px 1fr;
   min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background:
     radial-gradient(980px 560px at -8% -12%, rgb(20 184 166 / 34%), transparent 58%),
     radial-gradient(760px 460px at 100% 0%, rgb(245 158 11 / 24%), transparent 52%),
@@ -13,20 +15,50 @@
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  padding: 1.35rem 0.9rem 1.1rem;
+  padding: 1.15rem 0.9rem 1.1rem;
   border-right: 1px solid var(--aptora-border);
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 82%) 0%, rgb(240 250 247 / 72%) 100%);
+    linear-gradient(180deg, rgb(255 255 255 / 92%) 0%, rgb(240 250 247 / 88%) 100%);
   backdrop-filter: blur(14px);
   box-shadow: inset -1px 0 0 rgb(255 255 255 / 50%);
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  overflow: hidden;
+}
+
+.shell__nav-top {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.shell__nav-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding-right: 0.15rem;
+  margin-top: 0.15rem;
+}
+
+.shell__nav-foot {
+  flex: 0 0 auto;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--aptora-border);
+  margin-top: 0.35rem;
 }
 
 .shell__brand {
   font-family: var(--aptora-font-display);
-  font-size: 1.7rem;
+  font-size: 1.55rem;
   font-weight: 600;
   letter-spacing: -0.02em;
-  margin: 0 0.45rem 1.1rem;
+  margin: 0 0.35rem 0.15rem;
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -69,7 +101,6 @@
 }
 
 .shell__link--muted {
-  margin-top: auto;
   color: var(--aptora-muted);
   font-weight: 400;
 }
@@ -249,6 +280,9 @@
 .shell__main {
   padding: 2.25rem 2rem 3rem;
   animation: aptora-rise 420ms var(--aptora-ease);
+  overflow-y: auto;
+  height: 100vh;
+  min-width: 0;
 }
 
 .page h1,
@@ -931,16 +965,25 @@
   gap: 0.25rem;
   font-size: 0.8rem;
   color: var(--aptora-muted, #667);
-  margin: 0 0 0.75rem;
+  margin: 0;
 }
 
 .shell__entity select {
   width: 100%;
-  padding: 0.4rem 0.5rem;
-  border-radius: var(--aptora-radius);
-  border: 1px solid var(--aptora-border);
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--aptora-radius-sm);
+  border: 1px solid var(--aptora-border-strong);
   font: inherit;
   background: white;
+}
+
+.shell__nav-group {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--aptora-muted);
+  padding: 0.75rem 0.85rem 0.25rem;
 }
 
 .palette-backdrop {

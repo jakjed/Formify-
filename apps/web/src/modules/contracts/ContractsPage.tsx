@@ -6,7 +6,7 @@ import {
   CONTRACT_APPROVAL_CHAIN,
   ContractStatusBadge,
   ProcureKpis,
-  ProcureStepper,
+  ApprovalProgress,
   ProcureTabs,
   ProgressBar,
   formatMoney,
@@ -534,7 +534,7 @@ export function ContractsPage() {
                     </button>
                   </div>
                 </div>
-                <ProcureStepper
+                <ApprovalProgress
                   chain={CONTRACT_APPROVAL_CHAIN}
                   stage={c.approvalStage || 1}
                 />

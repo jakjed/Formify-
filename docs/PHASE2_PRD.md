@@ -87,5 +87,12 @@ Default for new tenants: Phase 2 modules **off** until admin enables them. `invo
 
 ## Phase 2 track status
 
-**Complete** for Contracts + PR + PO foundation (P2-E0…E5).  
+**Complete** for Contracts + PR + PO foundation (P2-E0…E5).
+
+### Editable records (follow-on)
+
+- `PATCH /api/purchase-requests/:id` — update fields while `draft` or `in_approval`
+- `PATCH /api/purchase-orders/:id` — update fields while `draft`
+- Web lists expose Edit composers; approval progress uses shared `ApprovalProgress`
+- See [COMMAND_CENTER_AND_ADMIN.md](./architecture/COMMAND_CENTER_AND_ADMIN.md)  
 

@@ -6,7 +6,7 @@ import {
   AccrualStatusBadge,
   PoStatusBadge,
   ProcureKpis,
-  ProcureStepper,
+  ApprovalProgress,
   ProcureTabs,
   formatMoney,
 } from '../procure/shared';
@@ -57,6 +57,7 @@ export function PurchaseOrdersPage() {
   const [rows, setRows] = useState<Po[]>([]);
   const [accruals, setAccruals] = useState<Accrual[]>([]);
   const [showNew, setShowNew] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -134,6 +135,25 @@ export function PurchaseOrdersPage() {
       form.reset();
       setShowNew(false);
     }, 'PO created');
+  }
+
+  async function onUpdate(e: FormEvent<HTMLFormElement>, id: string) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const totalRaw = String(data.get('totalMinor') ?? '').trim();
+    await run(async () => {
+      await apiFetch(`/api/purchase-orders/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: data.get('title'),
+          ...(totalRaw === ''
+            ? {}
+            : { totalMinor: Number(totalRaw) || 0 }),
+        }),
+      });
+      setEditingId(null);
+    }, 'Purchase order updated');
   }
 
   return (
@@ -215,6 +235,49 @@ export function PurchaseOrdersPage() {
             </div>
           )}
 
+          {editingId && (() => {
+            const po = rows.find((r) => r.id === editingId);
+            if (!po) return null;
+            return (
+              <div className="procure__composer">
+                <h3>Edit {po.number}</h3>
+                <form
+                  className="workspace-form"
+                  onSubmit={(e) => void onUpdate(e, po.id)}
+                >
+                  <label>
+                    Title
+                    <input name="title" required defaultValue={po.title} />
+                  </label>
+                  <label>
+                    Total (minor)
+                    <input
+                      name="totalMinor"
+                      type="number"
+                      defaultValue={po.totalMinor ?? ''}
+                    />
+                  </label>
+                  <div className="span-2 actions">
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => setEditingId(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn--primary"
+                      disabled={busy}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </form>
+              </div>
+            );
+          })()}
+
           <div className="procure__table-card">
             <div className="procure__table-wrap">
               <table className="procure__table">
@@ -267,24 +330,39 @@ export function PurchaseOrdersPage() {
                         <td>
                           <div className="procure__actions">
                             {po.status === 'draft' && (
-                              <button
-                                type="button"
-                                className="btn btn--primary"
-                                disabled={busy}
-                                onClick={() =>
-                                  void run(async () => {
-                                    await apiFetch(
-                                      `/api/purchase-orders/${po.id}/transition`,
-                                      {
-                                        method: 'POST',
-                                        body: JSON.stringify({ status: 'issued' }),
-                                      },
-                                    );
-                                  }, 'Issued')
-                                }
-                              >
-                                Issue
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn btn--ghost"
+                                  disabled={busy}
+                                  onClick={() => {
+                                    setShowNew(false);
+                                    setEditingId(po.id);
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn--primary"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    void run(async () => {
+                                      await apiFetch(
+                                        `/api/purchase-orders/${po.id}/transition`,
+                                        {
+                                          method: 'POST',
+                                          body: JSON.stringify({
+                                            status: 'issued',
+                                          }),
+                                        },
+                                      );
+                                    }, 'Issued')
+                                  }
+                                >
+                                  Issue
+                                </button>
+                              </>
                             )}
                             {['issued', 'partially_received'].includes(po.status) && (
                               <button
@@ -442,7 +520,7 @@ export function PurchaseOrdersPage() {
                   a.status === 'approved' ||
                   a.status === 'posted' ||
                   a.approvalStage > 0) && (
-                  <ProcureStepper
+                  <ApprovalProgress
                     chain={ACCRUAL_APPROVAL_CHAIN}
                     stage={
                       a.status === 'posted' || a.status === 'approved'

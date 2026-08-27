@@ -49,6 +49,12 @@
     box-shadow var(--aptora-duration) var(--aptora-ease);
 }
 
+a.procure__kpi {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
 .procure__kpi:hover {
   transform: translateY(-1px);
   box-shadow: var(--aptora-shadow-lift);
@@ -425,6 +431,22 @@
   display: block;
   height: 100%;
   background: linear-gradient(90deg, var(--aptora-teal), var(--aptora-sky));
+  border-radius: inherit;
+  transition: width 280ms var(--aptora-ease);
+}
+
+.approval-progress__track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgb(15 25 20 / 8%);
+  overflow: hidden;
+  margin: 0.35rem 0 1rem;
+}
+
+.approval-progress__track > span {
+  display: block;
+  height: 100%;
+  background: var(--aptora-teal);
   border-radius: inherit;
   transition: width 280ms var(--aptora-ease);
 }
