@@ -22,6 +22,18 @@ type ApprovalPolicy = {
   autoApproveUnderMinor: number | null;
 };
 
+type ApprovalRule = {
+  id: string;
+  name: string;
+  entityId: string | null;
+  minMinor: number | null;
+  maxMinor: number | null;
+  autoApprove: boolean;
+  assigneeRole: string | null;
+  priority: number;
+  enabled: boolean;
+};
+
 type Mailbox = {
   id: string;
   address: string;
@@ -170,6 +182,7 @@ export function AdminPage() {
   const [newWebhookSecret, setNewWebhookSecret] = useState<string | null>(null);
   const [oidc, setOidc] = useState<OidcAdmin | null>(null);
   const [policy, setPolicy] = useState<ApprovalPolicy | null>(null);
+  const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([]);
   const [newKeyToken, setNewKeyToken] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -177,32 +190,51 @@ export function AdminPage() {
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
-    const [m, i, a, n, u, e, k, s, usageRow, mods, wh, whe, whd, providers, pol] =
-      await Promise.all([
-        apiFetch<Mailbox>('/api/capture/mailbox'),
-        apiFetch<EmailIngest[]>('/api/capture/email-ingests'),
-        apiFetch<AuditEvent[]>('/api/audit/events?limit=40'),
-        apiFetch<Notification[]>('/api/notifications'),
-        apiFetch<UserRow[]>('/api/users'),
-        apiFetch<EntityRow[]>('/api/entities'),
-        apiFetch<ApiKeyRow[]>('/api/api-keys'),
-        apiFetch<string[]>('/api/api-keys/scopes'),
-        apiFetch<Usage>('/api/usage/summary'),
-        apiFetch<ModuleRow[]>('/api/modules'),
-        apiFetch<WebhookEndpoint[]>('/api/webhooks/endpoints').catch(
-          () => [] as WebhookEndpoint[],
-        ),
-        apiFetch<string[]>('/api/webhooks/events').catch(() => [] as string[]),
-        apiFetch<WebhookDelivery[]>('/api/webhooks/deliveries').catch(
-          () => [] as WebhookDelivery[],
-        ),
-        apiFetch<OidcAdmin[]>('/api/auth/providers/admin').catch(
-          () => [] as OidcAdmin[],
-        ),
-        apiFetch<ApprovalPolicy>('/api/workflow/policy').catch(
-          () => null as ApprovalPolicy | null,
-        ),
-      ]);
+    const [
+      m,
+      i,
+      a,
+      n,
+      u,
+      e,
+      k,
+      s,
+      usageRow,
+      mods,
+      wh,
+      whe,
+      whd,
+      providers,
+      pol,
+      rules,
+    ] = await Promise.all([
+      apiFetch<Mailbox>('/api/capture/mailbox'),
+      apiFetch<EmailIngest[]>('/api/capture/email-ingests'),
+      apiFetch<AuditEvent[]>('/api/audit/events?limit=40'),
+      apiFetch<Notification[]>('/api/notifications'),
+      apiFetch<UserRow[]>('/api/users'),
+      apiFetch<EntityRow[]>('/api/entities'),
+      apiFetch<ApiKeyRow[]>('/api/api-keys'),
+      apiFetch<string[]>('/api/api-keys/scopes'),
+      apiFetch<Usage>('/api/usage/summary'),
+      apiFetch<ModuleRow[]>('/api/modules'),
+      apiFetch<WebhookEndpoint[]>('/api/webhooks/endpoints').catch(
+        () => [] as WebhookEndpoint[],
+      ),
+      apiFetch<string[]>('/api/webhooks/events').catch(() => [] as string[]),
+      apiFetch<WebhookDelivery[]>('/api/webhooks/deliveries').catch(
+        () => [] as WebhookDelivery[],
+      ),
+      apiFetch<OidcAdmin[]>('/api/auth/providers/admin').catch(
+        () => [] as OidcAdmin[],
+      ),
+      apiFetch<ApprovalPolicy>('/api/workflow/policy').catch(
+        () => null as ApprovalPolicy | null,
+      ),
+      apiFetch<ApprovalRule[]>('/api/workflow/rules').catch(
+        () => [] as ApprovalRule[],
+      ),
+    ]);
     setMailbox(m);
     setIngests(i);
     setEvents(a);
@@ -218,11 +250,30 @@ export function AdminPage() {
     setWebhookDeliveries(whd);
     setOidc(providers.find((p) => p.type === 'oidc') ?? null);
     setPolicy(pol);
+    setApprovalRules(rules);
+  }
+
+  async function loadWorkflowTab() {
+    const [e, rules, pol] = await Promise.all([
+      apiFetch<EntityRow[]>('/api/entities'),
+      apiFetch<ApprovalRule[]>('/api/workflow/rules'),
+      apiFetch<ApprovalPolicy>('/api/workflow/policy').catch(
+        () => null as ApprovalPolicy | null,
+      ),
+    ]);
+    setEntities(e);
+    setApprovalRules(rules);
+    setPolicy(pol);
   }
 
   useEffect(() => {
     void refresh().catch((err: Error) => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    if (tab !== 'workflow') return;
+    void loadWorkflowTab().catch((err: Error) => setError(err.message));
+  }, [tab]);
 
   async function rotateToken() {
     setBusy(true);
@@ -432,6 +483,86 @@ export function AdminPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Policy update failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function formatMajor(minor: number | null): string {
+    if (minor == null) return '—';
+    return (minor / 100).toFixed(2);
+  }
+
+  function entityLabel(entityId: string | null): string {
+    if (!entityId) return 'All entities';
+    const ent = entities.find((row) => row.id === entityId);
+    return ent ? `${ent.code} / ${ent.name}` : entityId.slice(0, 8) + '…';
+  }
+
+  async function onCreateRule(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const minRaw = String(data.get('minMajor') ?? '').trim();
+    const maxRaw = String(data.get('maxMajor') ?? '').trim();
+    const entityRaw = String(data.get('entityId') ?? '').trim();
+    const roleRaw = String(data.get('assigneeRole') ?? '').trim();
+    const priorityRaw = String(data.get('priority') ?? '').trim();
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch<ApprovalRule>('/api/workflow/rules', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: data.get('name'),
+          entityId: entityRaw === '' ? null : entityRaw,
+          minMinor: minRaw === '' ? null : Math.round(Number(minRaw) * 100),
+          maxMinor: maxRaw === '' ? null : Math.round(Number(maxRaw) * 100),
+          autoApprove: data.get('autoApprove') === 'on',
+          assigneeRole: roleRaw === '' ? null : roleRaw,
+          priority: priorityRaw === '' ? 100 : Number(priorityRaw),
+          enabled: data.get('enabled') === 'on',
+        }),
+      });
+      form.reset();
+      setMessage('Approval rule created');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Create rule failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleRule(rule: ApprovalRule) {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch(`/api/workflow/rules/${rule.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled: !rule.enabled }),
+      });
+      setMessage(rule.enabled ? 'Rule disabled' : 'Rule enabled');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Update rule failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteRule(id: string) {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch(`/api/workflow/rules/${id}`, { method: 'DELETE' });
+      setMessage('Rule deleted');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete rule failed');
     } finally {
       setBusy(false);
     }
@@ -1207,6 +1338,130 @@ export function AdminPage() {
               </div>
             </form>
           )}
+
+          <h3>Amount / entity band rules</h3>
+          <p className="muted">
+            Rules are evaluated by priority (highest first). First match wins. If
+            none match, the default policy threshold applies.
+          </p>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Entity</th>
+                  <th>Min–max (major)</th>
+                  <th>Auto-approve</th>
+                  <th>Assignee role</th>
+                  <th>Priority</th>
+                  <th>Enabled</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {approvalRules.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="muted">
+                      No band rules yet.
+                    </td>
+                  </tr>
+                )}
+                {approvalRules.map((rule) => (
+                  <tr key={rule.id}>
+                    <td>{rule.name}</td>
+                    <td>{entityLabel(rule.entityId)}</td>
+                    <td>
+                      {formatMajor(rule.minMinor)} – {formatMajor(rule.maxMinor)}
+                    </td>
+                    <td>{rule.autoApprove ? 'Yes' : 'No'}</td>
+                    <td>{rule.assigneeRole ?? 'default roles'}</td>
+                    <td>{rule.priority}</td>
+                    <td>{rule.enabled ? 'Yes' : 'No'}</td>
+                    <td>
+                      <div className="actions">
+                        <button
+                          type="button"
+                          className="secondary-btn"
+                          disabled={busy}
+                          onClick={() => void toggleRule(rule)}
+                        >
+                          {rule.enabled ? 'Disable' : 'Enable'}
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-btn"
+                          disabled={busy}
+                          onClick={() => void deleteRule(rule.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Create rule</h3>
+          <form
+            className="workspace-form"
+            onSubmit={(e) => void onCreateRule(e)}
+          >
+            <label>
+              Name
+              <input name="name" required minLength={1} placeholder="High value" />
+            </label>
+            <label>
+              Entity
+              <select name="entityId" defaultValue="">
+                <option value="">All entities</option>
+                {entities.map((ent) => (
+                  <option key={ent.id} value={ent.id}>
+                    {ent.code} / {ent.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Min amount (major)
+              <input name="minMajor" type="number" min={0} step="0.01" />
+            </label>
+            <label>
+              Max amount (major)
+              <input name="maxMajor" type="number" min={0} step="0.01" />
+            </label>
+            <label>
+              Assignee role
+              <select name="assigneeRole" defaultValue="">
+                <option value="">Default roles</option>
+                <option value="admin">admin</option>
+                <option value="approver">approver</option>
+                <option value="ap_manager">ap_manager</option>
+                <option value="ap_clerk">ap_clerk</option>
+              </select>
+            </label>
+            <label>
+              Priority
+              <input
+                name="priority"
+                type="number"
+                defaultValue={100}
+                required
+              />
+            </label>
+            <label>
+              <input type="checkbox" name="autoApprove" /> Auto-approve
+            </label>
+            <label>
+              <input type="checkbox" name="enabled" defaultChecked /> Enabled
+            </label>
+            <div className="span-2 actions">
+              <button type="submit" disabled={busy}>
+                Add rule
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </section>

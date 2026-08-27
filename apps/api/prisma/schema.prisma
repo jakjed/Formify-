@@ -59,6 +59,7 @@ model Tenant {
   ocrPageMeters  OcrPageMeter[]
   approvalPolicies ApprovalPolicy[]
   approvalTasks  ApprovalTask[]
+  approvalRules  ApprovalRule[]
   integrationJobs IntegrationJob[]
   captureMailbox CaptureMailbox?
   emailIngests   EmailIngest[]
@@ -459,13 +460,34 @@ model ApprovalPolicy {
   tenantId             String   @db.Uuid
   name                 String   @default("Default invoice policy")
   enabled              Boolean  @default(true)
-  autoApproveUnderMinor Int?    // null = never auto-approve
+  autoApproveUnderMinor Int?    // null = never auto-approve; used when no band rule matches
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId])
+}
+
+/// Amount/entity band rules evaluated before the default ApprovalPolicy threshold.
+model ApprovalRule {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @db.Uuid
+  name         String
+  entityId     String?   @db.Uuid
+  minMinor     Int?
+  maxMinor     Int?
+  autoApprove  Boolean   @default(false)
+  /// When not auto-approve: restrict assignees to this role (null = admin/approver/ap_manager)
+  assigneeRole UserRole?
+  priority     Int       @default(100)
+  enabled      Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, enabled, priority])
 }
 
 model ApprovalTask {

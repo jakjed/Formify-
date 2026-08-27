@@ -76,7 +76,18 @@ export class WorkflowService {
     }
 
     const policy = await this.getPolicy(tenantId);
+    const matchedRule = await this.findMatchingRule(
+      tenantId,
+      ready.entityId,
+      ready.totalMinor,
+    );
+
+    if (matchedRule?.autoApprove) {
+      return this.finalizeApprove(tenantId, invoiceId, actorUserId);
+    }
+
     const underAuto =
+      !matchedRule &&
       policy.enabled &&
       policy.autoApproveUnderMinor != null &&
       ready.totalMinor <= policy.autoApproveUnderMinor;
@@ -85,10 +96,14 @@ export class WorkflowService {
       return this.finalizeApprove(tenantId, invoiceId, actorUserId);
     }
 
+    const roleFilter = matchedRule?.assigneeRole
+      ? [matchedRule.assigneeRole]
+      : (['admin', 'approver', 'ap_manager'] as const);
+
     const assignees = await this.prisma.user.findMany({
       where: {
         tenantId,
-        role: { in: ['admin', 'approver', 'ap_manager'] },
+        role: { in: [...roleFilter] },
         NOT: { id: actorUserId },
       },
     });
@@ -133,6 +148,9 @@ export class WorkflowService {
       action: 'invoice.submitted',
       entityType: 'Invoice',
       entityId: invoiceId,
+      meta: matchedRule
+        ? { ruleId: matchedRule.id, ruleName: matchedRule.name }
+        : { fallback: 'default_policy' },
     });
 
     return this.prisma.invoice.update({
@@ -144,6 +162,128 @@ export class WorkflowService {
         lines: { orderBy: { lineNo: 'asc' } },
       },
     });
+  }
+
+  private async findMatchingRule(
+    tenantId: string,
+    entityId: string | null,
+    totalMinor: number,
+  ) {
+    const rules = await this.prisma.approvalRule.findMany({
+      where: { tenantId, enabled: true },
+      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+    });
+    return (
+      rules.find((rule) => {
+        if (rule.entityId && rule.entityId !== entityId) return false;
+        if (rule.minMinor != null && totalMinor < rule.minMinor) return false;
+        if (rule.maxMinor != null && totalMinor > rule.maxMinor) return false;
+        return true;
+      }) ?? null
+    );
+  }
+
+  listRules(tenantId: string) {
+    return this.prisma.approvalRule.findMany({
+      where: { tenantId },
+      orderBy: [{ priority: 'desc' }, { name: 'asc' }],
+    });
+  }
+
+  async createRule(
+    tenantId: string,
+    data: {
+      name: string;
+      entityId?: string | null;
+      minMinor?: number | null;
+      maxMinor?: number | null;
+      autoApprove?: boolean;
+      assigneeRole?: 'admin' | 'ap_manager' | 'ap_clerk' | 'approver' | null;
+      priority?: number;
+      enabled?: boolean;
+    },
+  ) {
+    if (
+      data.minMinor != null &&
+      data.maxMinor != null &&
+      data.minMinor > data.maxMinor
+    ) {
+      throw new BadRequestException('minMinor cannot exceed maxMinor');
+    }
+    if (data.entityId) {
+      const entity = await this.prisma.entity.findFirst({
+        where: { id: data.entityId, tenantId },
+      });
+      if (!entity) throw new BadRequestException('Entity not found');
+    }
+    return this.prisma.approvalRule.create({
+      data: {
+        tenantId,
+        name: data.name.trim(),
+        entityId: data.entityId ?? null,
+        minMinor: data.minMinor ?? null,
+        maxMinor: data.maxMinor ?? null,
+        autoApprove: data.autoApprove ?? false,
+        assigneeRole: data.assigneeRole ?? null,
+        priority: data.priority ?? 100,
+        enabled: data.enabled ?? true,
+      },
+    });
+  }
+
+  async updateRule(
+    tenantId: string,
+    id: string,
+    data: {
+      name?: string;
+      entityId?: string | null;
+      minMinor?: number | null;
+      maxMinor?: number | null;
+      autoApprove?: boolean;
+      assigneeRole?: 'admin' | 'ap_manager' | 'ap_clerk' | 'approver' | null;
+      priority?: number;
+      enabled?: boolean;
+    },
+  ) {
+    const existing = await this.prisma.approvalRule.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) throw new NotFoundException('Approval rule not found');
+    const minMinor =
+      data.minMinor !== undefined ? data.minMinor : existing.minMinor;
+    const maxMinor =
+      data.maxMinor !== undefined ? data.maxMinor : existing.maxMinor;
+    if (minMinor != null && maxMinor != null && minMinor > maxMinor) {
+      throw new BadRequestException('minMinor cannot exceed maxMinor');
+    }
+    if (data.entityId) {
+      const entity = await this.prisma.entity.findFirst({
+        where: { id: data.entityId, tenantId },
+      });
+      if (!entity) throw new BadRequestException('Entity not found');
+    }
+    return this.prisma.approvalRule.update({
+      where: { id },
+      data: {
+        name: data.name?.trim(),
+        entityId: data.entityId,
+        minMinor: data.minMinor,
+        maxMinor: data.maxMinor,
+        autoApprove: data.autoApprove,
+        assigneeRole: data.assigneeRole,
+        priority: data.priority,
+        enabled: data.enabled,
+      },
+    });
+  }
+
+  async deleteRule(tenantId: string, id: string) {
+    const existing = await this.prisma.approvalRule.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) throw new NotFoundException('Approval rule not found');
+    await this.prisma.approvalRule.delete({ where: { id } });
+    return { ok: true };
   }
 
   async myWork(tenantId: string, userId: string) {
