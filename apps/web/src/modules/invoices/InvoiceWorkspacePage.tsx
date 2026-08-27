@@ -340,26 +340,17 @@ function DocumentViewer({
   const isPdf =
     mime === 'application/pdf' ||
     fileAsset.originalName.toLowerCase().endsWith('.pdf');
+  const isText = textPreview != null;
+  /** Image uses real Textract/stub coords on the bitmap; text/PDF use a map. */
+  const showMap = hasGeometry && (isPdf || isText);
 
   return (
     <div className="hitl-doc__stack">
       <div className="hitl-doc__canvas">
         {textPreview != null && (
-          <div className="hitl-doc__text-wrap">
-            <pre className="hitl-doc__text" aria-label="Scanned document text">
-              {textPreview}
-            </pre>
-            {hasGeometry && (
-              <GeometryOverlays
-                chips={chips}
-                armedId={armedId}
-                onDragStart={onDragStart}
-                onDragEnd={onDragEnd}
-                onClick={onClick}
-                mode="image"
-              />
-            )}
-          </div>
+          <pre className="hitl-doc__text" aria-label="Scanned document text">
+            {textPreview}
+          </pre>
         )}
         {url && isImage && (
           <div className="hitl-doc__image-wrap">
@@ -398,11 +389,14 @@ function DocumentViewer({
         )}
       </div>
 
-      {url && isPdf && hasGeometry && (
+      {showMap && (
         <div className="hitl-geom-map-panel">
           <h3>Detected regions</h3>
           <p className="muted">
-            Drag a region onto a form field (PDF preview cannot host overlays).
+            Drag a region onto a form field
+            {isPdf
+              ? ' (PDF preview cannot host overlays).'
+              : ' — mapped from OCR geometry.'}
           </p>
           <div className="hitl-geom-map-page">
             <GeometryOverlays
