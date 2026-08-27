@@ -3,10 +3,10 @@
   grid-template-columns: 260px 1fr;
   min-height: 100vh;
   background:
-    radial-gradient(900px 520px at -5% -10%, rgb(20 184 166 / 22%), transparent 55%),
-    radial-gradient(700px 420px at 95% 8%, rgb(245 158 11 / 14%), transparent 50%),
-    radial-gradient(600px 380px at 70% 100%, rgb(8 145 178 / 10%), transparent 45%),
-    linear-gradient(165deg, #f7fbf9 0%, var(--aptora-paper) 42%, #eef5f1 100%);
+    radial-gradient(980px 560px at -8% -12%, rgb(20 184 166 / 34%), transparent 58%),
+    radial-gradient(760px 460px at 100% 0%, rgb(245 158 11 / 24%), transparent 52%),
+    radial-gradient(640px 420px at 78% 100%, rgb(8 145 178 / 18%), transparent 48%),
+    linear-gradient(165deg, #f4fbf8 0%, #eef6f2 40%, #f7f3ea 100%);
 }
 
 .shell__nav {
@@ -1270,8 +1270,8 @@
   position: relative;
   overflow: hidden;
   padding: 1.15rem 1.2rem 1.05rem;
-  border-radius: var(--aptora-radius-lg);
-  border: 1px solid var(--aptora-border);
+  border-radius: 28px;
+  border: 1px solid transparent;
   background: rgb(255 255 255 / 78%);
   box-shadow: var(--aptora-shadow);
   animation: aptora-rise 480ms var(--aptora-ease) both;
@@ -1283,12 +1283,12 @@
 .stat-orb::after {
   content: "";
   position: absolute;
-  width: 120px;
-  height: 120px;
+  width: 140px;
+  height: 140px;
   border-radius: 50%;
   right: -28px;
   top: -36px;
-  opacity: 0.55;
+  opacity: 0.85;
   pointer-events: none;
 }
 
@@ -1297,17 +1297,33 @@
   box-shadow: var(--aptora-shadow-lift);
 }
 
+.stat-orb--teal {
+  background: linear-gradient(145deg, #ecfdf8 0%, #ffffff 55%);
+  border-color: rgb(13 148 136 / 22%);
+}
 .stat-orb--teal::after {
-  background: radial-gradient(circle, rgb(20 184 166 / 45%), transparent 70%);
+  background: radial-gradient(circle, rgb(20 184 166 / 70%), transparent 68%);
+}
+.stat-orb--amber {
+  background: linear-gradient(145deg, #fff7ed 0%, #ffffff 55%);
+  border-color: rgb(245 158 11 / 28%);
 }
 .stat-orb--amber::after {
-  background: radial-gradient(circle, rgb(245 158 11 / 42%), transparent 70%);
+  background: radial-gradient(circle, rgb(245 158 11 / 65%), transparent 68%);
+}
+.stat-orb--sky {
+  background: linear-gradient(145deg, #ecfeff 0%, #ffffff 55%);
+  border-color: rgb(8 145 178 / 24%);
 }
 .stat-orb--sky::after {
-  background: radial-gradient(circle, rgb(8 145 178 / 42%), transparent 70%);
+  background: radial-gradient(circle, rgb(8 145 178 / 62%), transparent 68%);
+}
+.stat-orb--forest {
+  background: linear-gradient(145deg, #f0fdf4 0%, #ffffff 55%);
+  border-color: rgb(20 83 45 / 18%);
 }
 .stat-orb--forest::after {
-  background: radial-gradient(circle, rgb(20 83 45 / 28%), transparent 70%);
+  background: radial-gradient(circle, rgb(34 197 94 / 45%), transparent 68%);
 }
 
 .stat-orb__label {
