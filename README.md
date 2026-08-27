@@ -4,6 +4,7 @@ Modular Accounts Payable / Procure-to-Pay suite (invoices first; contracts, PR, 
 
 Formerly working name: Formify.
 
-## Product blueprint
+## Docs
 
-See **[docs/PRODUCT_BLUEPRINT.md](docs/PRODUCT_BLUEPRINT.md)** for the locked product, UX, architecture, hosting, packaging, and roadmap blueprint.
+- **[docs/PRODUCT_BLUEPRINT.md](docs/PRODUCT_BLUEPRINT.md)** — full product, UX, architecture, hosting, packaging, roadmap
+- **[docs/PHASE1_PRD.md](docs/PHASE1_PRD.md)** — Phase 1 PRD + screen inventory (Aptora AP web wedge)
