@@ -298,6 +298,7 @@ model Invoice {
   tenantId       String        @db.Uuid
   entityId       String?       @db.Uuid
   vendorId       String?       @db.Uuid
+  purchaseOrderId String?      @db.Uuid
   fileAssetId    String?       @db.Uuid
   status         InvoiceStatus @default(captured)
   invoiceNumber  String?
@@ -315,15 +316,17 @@ model Invoice {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  tenant    Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  fileAsset FileAsset?         @relation(fields: [fileAssetId], references: [id], onDelete: SetNull)
-  lines     InvoiceLine[]
-  exceptions InvoiceException[]
-  comments  InvoiceComment[]
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fileAsset     FileAsset?         @relation(fields: [fileAssetId], references: [id], onDelete: SetNull)
+  purchaseOrder PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  lines         InvoiceLine[]
+  exceptions    InvoiceException[]
+  comments      InvoiceComment[]
 
   @@index([tenantId, status])
   @@index([tenantId, createdAt])
   @@index([tenantId, invoiceNumber])
+  @@index([tenantId, purchaseOrderId])
 }
 
 model InvoiceLine {
@@ -668,6 +671,7 @@ model PurchaseOrder {
   contract        Contract?           @relation(fields: [contractId], references: [id], onDelete: SetNull)
   purchaseRequest PurchaseRequest?    @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
   lines           PurchaseOrderLine[]
+  invoices        Invoice[]
 
   @@unique([tenantId, number])
   @@index([tenantId, status])

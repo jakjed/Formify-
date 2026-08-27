@@ -8,6 +8,7 @@ type Invoice = {
   invoiceNumber: string | null;
   vendorNameRaw: string | null;
   vendorId: string | null;
+  purchaseOrderId: string | null;
   currency: string;
   invoiceDate: string | null;
   dueDate: string | null;
@@ -17,6 +18,13 @@ type Invoice = {
   notes: string | null;
   ocrConfidence: number | null;
   fileAsset: { originalName: string; mimeType: string } | null;
+  purchaseOrder: {
+    id: string;
+    number: string;
+    title: string;
+    status: string;
+    totalMinor: number | null;
+  } | null;
   lines: {
     id: string;
     lineNo: number;
@@ -27,6 +35,13 @@ type Invoice = {
 };
 
 type Vendor = { id: string; code: string; name: string };
+type PoOption = {
+  id: string;
+  number: string;
+  title: string;
+  status: string;
+  totalMinor: number | null;
+};
 
 type ActivityItem =
   | {
@@ -85,6 +100,8 @@ export function InvoiceWorkspacePage() {
   const navigate = useNavigate();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [purchaseOrders, setPurchaseOrders] = useState<PoOption[]>([]);
+  const [poLicensed, setPoLicensed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [validationIssues, setValidationIssues] = useState<
@@ -105,6 +122,7 @@ export function InvoiceWorkspacePage() {
   const [tax, setTax] = useState('');
   const [total, setTotal] = useState('');
   const [notes, setNotes] = useState('');
+  const [purchaseOrderId, setPurchaseOrderId] = useState('');
 
   async function loadSidePanels(invoiceId: string) {
     const [validation, activityRows, commentRows] = await Promise.all([
@@ -129,11 +147,24 @@ export function InvoiceWorkspacePage() {
     if (!id) return;
     void (async () => {
       try {
-        const [validation, vendorList] = await Promise.all([
+        const [validation, vendorList, modules] = await Promise.all([
           loadSidePanels(id),
           apiFetch<Vendor[]>('/api/vendors'),
+          apiFetch<{ moduleKey: string; enabled: boolean }[]>(
+            '/api/modules',
+          ).catch(() => [] as { moduleKey: string; enabled: boolean }[]),
         ]);
         setVendors(vendorList);
+        const ordersOn = modules.some(
+          (m) => m.moduleKey === 'purchase_orders' && m.enabled,
+        );
+        setPoLicensed(ordersOn);
+        if (ordersOn) {
+          const pos = await apiFetch<PoOption[]>('/api/purchase-orders').catch(
+            () => [] as PoOption[],
+          );
+          setPurchaseOrders(pos);
+        }
         const current = validation.invoice;
         setInvoiceNumber(current.invoiceNumber ?? '');
         setVendorNameRaw(current.vendorNameRaw ?? '');
@@ -145,6 +176,7 @@ export function InvoiceWorkspacePage() {
         setTax(toMajor(current.taxMinor));
         setTotal(toMajor(current.totalMinor));
         setNotes(current.notes ?? '');
+        setPurchaseOrderId(current.purchaseOrderId ?? '');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load');
       }
@@ -170,6 +202,7 @@ export function InvoiceWorkspacePage() {
           taxMinor: fromMajor(tax),
           totalMinor: fromMajor(total),
           notes: notes || null,
+          purchaseOrderId: purchaseOrderId || null,
         }),
       });
       setInvoice(inv);
@@ -323,6 +356,22 @@ export function InvoiceWorkspacePage() {
             ))}
           </select>
         </label>
+        {poLicensed && (
+          <label>
+            Purchase order
+            <select
+              value={purchaseOrderId}
+              onChange={(e) => setPurchaseOrderId(e.target.value)}
+            >
+              <option value="">— none —</option>
+              {purchaseOrders.map((po) => (
+                <option key={po.id} value={po.id}>
+                  {po.number} — {po.title} ({po.status})
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Currency
           <input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={3} />

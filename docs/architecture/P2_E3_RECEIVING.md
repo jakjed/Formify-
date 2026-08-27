@@ -25,4 +25,4 @@ Status transitions for issue/cancel/close stay on `POST :id/transition` (receivi
 
 ## Next
 
-P2-E4 Invoice match · P2-E5 Integration
+P2-E4 Invoice match ✅ · P2-E5 Integration

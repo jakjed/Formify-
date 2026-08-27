@@ -61,6 +61,11 @@ export class UpdateInvoiceDto {
   @ValidateIf((_, v) => v !== null)
   @IsString()
   notes?: string | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsUUID()
+  purchaseOrderId?: string | null;
 }
 
 export class CreateInvoiceCommentDto {
