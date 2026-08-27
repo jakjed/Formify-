@@ -104,14 +104,9 @@ export function ContractsPage() {
   }
 
   useEffect(() => {
-    void refresh().catch((err: Error) => setError(err.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (tab === 'setup') return;
-    // Approval / Signature need the full set (not the Setup status filter).
-    void refresh({ status: 'All' }).catch((err: Error) => setError(err.message));
+    // Approval / Signature need the full set; Setup respects the status filter.
+    const status = tab === 'setup' ? statusFilter : 'All';
+    void refresh({ status }).catch((err: Error) => setError(err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
