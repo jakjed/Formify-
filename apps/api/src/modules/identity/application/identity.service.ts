@@ -1,12 +1,28 @@
-import { Injectable, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common';
-import { createHash, randomUUID } from 'node:crypto';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import * as argon2 from 'argon2';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import type { AuthProviderConfig, UserRecord } from '../domain/identity.types';
 
+const MAX_FAILED_LOGINS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000;
+const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const RESET_TTL_MS = 60 * 60 * 1000;
+
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
+}
+
+function newOpaqueToken(): string {
+  return randomBytes(32).toString('base64url');
 }
 
 @Injectable()
@@ -60,6 +76,7 @@ export class IdentityService {
           displayName: input.displayName,
           passwordHash: await argon2.hash(input.password),
           role: input.role ?? 'admin',
+          status: 'active',
         },
       });
       return this.toSafeUser(user);
@@ -87,21 +104,62 @@ export class IdentityService {
     });
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      throw new ForbiddenException(
+        `Account locked until ${user.lockedUntil.toISOString()}`,
+      );
+    }
+
+    if (user.status === 'invited' || !user.passwordHash) {
+      throw new UnauthorizedException(
+        'Account pending invite acceptance — set a password via invite link',
+      );
+    }
+
     const valid = await argon2.verify(user.passwordHash, input.password);
-    if (!valid) throw new UnauthorizedException('Invalid credentials');
+    if (!valid) {
+      const failedLoginCount = user.failedLoginCount + 1;
+      const lockedUntil =
+        failedLoginCount >= MAX_FAILED_LOGINS
+          ? new Date(Date.now() + LOCKOUT_MS)
+          : null;
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          failedLoginCount,
+          lockedUntil,
+          ...(lockedUntil ? { status: 'locked' } : {}),
+        },
+      });
+      if (lockedUntil) {
+        throw new ForbiddenException(
+          `Account locked until ${lockedUntil.toISOString()} after ${MAX_FAILED_LOGINS} failed attempts`,
+        );
+      }
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginCount: 0,
+        lockedUntil: null,
+        status: 'active',
+      },
+    });
 
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
     await this.prisma.session.create({
       data: {
         tokenHash: hashToken(token),
-        userId: user.id,
-        tenantId: user.tenantId,
+        userId: updated.id,
+        tenantId: updated.tenantId,
         expiresAt,
       },
     });
 
-    return { token, user: this.toSafeUser(user) };
+    return { token, user: this.toSafeUser(updated) };
   }
 
   async getSession(token: string) {
@@ -140,6 +198,211 @@ export class IdentityService {
     return this.register(input);
   }
 
+  async inviteUser(input: {
+    tenantId: string;
+    email: string;
+    displayName: string;
+    role: UserRecord['role'];
+    invitedById?: string;
+  }) {
+    const email = input.email.toLowerCase();
+    const existing = await this.prisma.user.findUnique({
+      where: { tenantId_email: { tenantId: input.tenantId, email } },
+    });
+    if (existing && existing.status !== 'invited') {
+      throw new ConflictException('User already exists');
+    }
+
+    const user =
+      existing ??
+      (await this.prisma.user.create({
+        data: {
+          tenantId: input.tenantId,
+          email,
+          displayName: input.displayName,
+          role: input.role,
+          status: 'invited',
+          passwordHash: null,
+        },
+      }));
+
+    if (existing) {
+      await this.prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          displayName: input.displayName,
+          role: input.role,
+          status: 'invited',
+          passwordHash: null,
+        },
+      });
+    }
+
+    await this.prisma.userInvite.updateMany({
+      where: { userId: user.id, acceptedAt: null },
+      data: { acceptedAt: new Date() },
+    });
+
+    const token = newOpaqueToken();
+    const invite = await this.prisma.userInvite.create({
+      data: {
+        tenantId: input.tenantId,
+        userId: user.id,
+        tokenHash: hashToken(token),
+        expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+        invitedById: input.invitedById,
+      },
+    });
+
+    const safe = await this.getUserById(user.id);
+    return {
+      user: safe!,
+      inviteToken: token,
+      acceptPath: `/invite/${token}`,
+      expiresAt: invite.expiresAt.toISOString(),
+    };
+  }
+
+  async getInvite(token: string) {
+    const invite = await this.prisma.userInvite.findUnique({
+      where: { tokenHash: hashToken(token) },
+      include: { user: true, tenant: true },
+    });
+    if (!invite || invite.acceptedAt) {
+      throw new NotFoundException('Invite not found');
+    }
+    if (invite.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Invite expired');
+    }
+    return {
+      email: invite.user.email,
+      displayName: invite.user.displayName,
+      role: invite.user.role,
+      tenantId: invite.tenantId,
+      tenantName: invite.tenant.name,
+      expiresAt: invite.expiresAt.toISOString(),
+    };
+  }
+
+  async acceptInvite(input: { token: string; password: string }) {
+    const invite = await this.prisma.userInvite.findUnique({
+      where: { tokenHash: hashToken(input.token) },
+      include: { user: true },
+    });
+    if (!invite || invite.acceptedAt) {
+      throw new NotFoundException('Invite not found');
+    }
+    if (invite.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Invite expired');
+    }
+
+    const passwordHash = await argon2.hash(input.password);
+    const user = await this.prisma.user.update({
+      where: { id: invite.userId },
+      data: {
+        passwordHash,
+        status: 'active',
+        failedLoginCount: 0,
+        lockedUntil: null,
+      },
+    });
+    await this.prisma.userInvite.update({
+      where: { id: invite.id },
+      data: { acceptedAt: new Date() },
+    });
+
+    return this.login({
+      tenantId: user.tenantId,
+      email: user.email,
+      password: input.password,
+    });
+  }
+
+  async requestPasswordReset(input: { tenantId: string; email: string }) {
+    const email = input.email.toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: {
+        tenantId_email: { tenantId: input.tenantId, email },
+      },
+    });
+
+    // Always succeed to avoid account enumeration.
+    if (!user || user.status === 'invited' || !user.passwordHash) {
+      return { ok: true as const };
+    }
+
+    await this.prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() },
+    });
+
+    const token = newOpaqueToken();
+    const row = await this.prisma.passwordResetToken.create({
+      data: {
+        tenantId: input.tenantId,
+        userId: user.id,
+        tokenHash: hashToken(token),
+        expiresAt: new Date(Date.now() + RESET_TTL_MS),
+      },
+    });
+
+    return {
+      ok: true as const,
+      // Returned for local/dev UX until email delivery is wired.
+      resetToken: token,
+      resetPath: `/reset/${token}`,
+      expiresAt: row.expiresAt.toISOString(),
+    };
+  }
+
+  async getPasswordReset(token: string) {
+    const row = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: hashToken(token) },
+      include: { user: true, tenant: true },
+    });
+    if (!row || row.usedAt) {
+      throw new NotFoundException('Reset token not found');
+    }
+    if (row.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Reset token expired');
+    }
+    return {
+      email: row.user.email,
+      tenantId: row.tenantId,
+      tenantName: row.tenant.name,
+      expiresAt: row.expiresAt.toISOString(),
+    };
+  }
+
+  async confirmPasswordReset(input: { token: string; password: string }) {
+    const row = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: hashToken(input.token) },
+    });
+    if (!row || row.usedAt) {
+      throw new NotFoundException('Reset token not found');
+    }
+    if (row.expiresAt.getTime() < Date.now()) {
+      throw new BadRequestException('Reset token expired');
+    }
+
+    await this.prisma.user.update({
+      where: { id: row.userId },
+      data: {
+        passwordHash: await argon2.hash(input.password),
+        status: 'active',
+        failedLoginCount: 0,
+        lockedUntil: null,
+      },
+    });
+    await this.prisma.passwordResetToken.update({
+      where: { id: row.id },
+      data: { usedAt: new Date() },
+    });
+    await this.prisma.session.deleteMany({ where: { userId: row.userId } });
+
+    return { ok: true as const };
+  }
+
   async updateUser(
     tenantId: string,
     id: string,
@@ -160,7 +423,12 @@ export class IdentityService {
         displayName: patch.displayName,
         role: patch.role,
         ...(patch.password
-          ? { passwordHash: await argon2.hash(patch.password) }
+          ? {
+              passwordHash: await argon2.hash(patch.password),
+              status: 'active' as const,
+              failedLoginCount: 0,
+              lockedUntil: null,
+            }
           : {}),
       },
     });
@@ -173,6 +441,9 @@ export class IdentityService {
     email: string;
     displayName: string;
     role: UserRecord['role'];
+    status: UserRecord['status'];
+    failedLoginCount: number;
+    lockedUntil: Date | null;
     createdAt: Date;
   }): Omit<UserRecord, 'passwordHash'> {
     return {
@@ -181,6 +452,9 @@ export class IdentityService {
       email: user.email,
       displayName: user.displayName,
       role: user.role,
+      status: user.status,
+      failedLoginCount: user.failedLoginCount,
+      lockedUntil: user.lockedUntil ? user.lockedUntil.toISOString() : null,
       createdAt: user.createdAt.toISOString(),
     };
   }

@@ -3,6 +3,9 @@ import { AppShell } from './AppShell';
 import { HomePage } from '../modules/my-work/HomePage';
 import { LoginPage } from '../modules/auth/LoginPage';
 import { BootstrapPage } from '../modules/auth/BootstrapPage';
+import { InviteAcceptPage } from '../modules/auth/InviteAcceptPage';
+import { PasswordResetRequestPage } from '../modules/auth/PasswordResetRequestPage';
+import { PasswordResetConfirmPage } from '../modules/auth/PasswordResetConfirmPage';
 import { RequireAuth } from '../modules/auth/RequireAuth';
 import { InvoicesPage } from '../modules/invoices/InvoicesPage';
 import { InvoiceWorkspacePage } from '../modules/invoices/InvoiceWorkspacePage';
@@ -17,6 +20,9 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/bootstrap" element={<BootstrapPage />} />
+      <Route path="/invite/:token" element={<InviteAcceptPage />} />
+      <Route path="/reset" element={<PasswordResetRequestPage />} />
+      <Route path="/reset/:token" element={<PasswordResetConfirmPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<HomePage />} />

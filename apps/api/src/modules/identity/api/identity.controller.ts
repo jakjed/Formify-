@@ -9,8 +9,12 @@ import {
 } from '@nestjs/common';
 import { IdentityService } from '../application/identity.service';
 import {
+  AcceptInviteDto,
   CreateTenantUserDto,
+  InviteUserDto,
   LoginDto,
+  PasswordResetConfirmDto,
+  PasswordResetRequestDto,
   RegisterUserDto,
   UpdateTenantUserDto,
 } from './identity.dto';
@@ -53,6 +57,46 @@ export class IdentityController {
     return this.identity.login(dto);
   }
 
+  @Public()
+  @Get('auth/invite/:token')
+  getInvite(@Param('token') token: string) {
+    return this.identity.getInvite(token);
+  }
+
+  @Public()
+  @Post('auth/invite/accept')
+  async acceptInvite(@Body() dto: AcceptInviteDto) {
+    const result = await this.identity.acceptInvite(dto);
+    await this.audit.record({
+      tenantId: result.user.tenantId,
+      actorId: result.user.id,
+      action: 'user.invite_accepted',
+      entityType: 'User',
+      entityId: result.user.id,
+      meta: { email: result.user.email },
+    });
+    return result;
+  }
+
+  @Public()
+  @Post('auth/password-reset/request')
+  requestPasswordReset(@Body() dto: PasswordResetRequestDto) {
+    return this.identity.requestPasswordReset(dto);
+  }
+
+  @Public()
+  @Get('auth/password-reset/:token')
+  getPasswordReset(@Param('token') token: string) {
+    return this.identity.getPasswordReset(token);
+  }
+
+  @Public()
+  @Post('auth/password-reset/confirm')
+  async confirmPasswordReset(@Body() dto: PasswordResetConfirmDto) {
+    const result = await this.identity.confirmPasswordReset(dto);
+    return result;
+  }
+
   @Get('auth/me')
   me(@CurrentUser() user: RequestUser) {
     return user;
@@ -92,6 +136,31 @@ export class IdentityController {
     return created;
   }
 
+  @Post('users/invite')
+  async inviteUser(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: InviteUserDto,
+  ) {
+    assertAdmin(user);
+    const invited = await this.identity.inviteUser({
+      tenantId,
+      email: dto.email,
+      displayName: dto.displayName,
+      role: dto.role,
+      invitedById: user.id,
+    });
+    await this.audit.record({
+      tenantId,
+      actorId: user.id,
+      action: 'user.invited',
+      entityType: 'User',
+      entityId: invited.user.id,
+      meta: { email: invited.user.email, role: invited.user.role },
+    });
+    return invited;
+  }
+
   @Patch('users/:id')
   async updateUser(
     @CurrentTenantId() tenantId: string,
@@ -107,7 +176,7 @@ export class IdentityController {
       action: 'user.updated',
       entityType: 'User',
       entityId: id,
-      meta: { role: updated.role },
+      meta: { role: updated.role, status: updated.status },
     });
     return updated;
   }
