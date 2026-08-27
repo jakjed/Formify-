@@ -121,7 +121,9 @@ export function HomePage() {
         <article className="stat-orb stat-orb--teal">
           <p className="stat-orb__label">Pending</p>
           <p className="stat-orb__value">{tasks.length}</p>
-          <p className="stat-orb__hint">approvals in queue</p>
+          <p className="stat-orb__hint">
+            {tasks.length === 0 ? 'queue clear' : 'needs your decision'}
+          </p>
         </article>
         <article className="stat-orb stat-orb--amber">
           <p className="stat-orb__label">Billable</p>
@@ -136,7 +138,14 @@ export function HomePage() {
         <article className="stat-orb stat-orb--forest">
           <p className="stat-orb__label">System</p>
           <p className="stat-orb__value stat-orb__value--sm">
-            {health?.status ?? '…'}
+            <span
+              className={`status-badge status-badge--${
+                health?.status === 'ok' ? 'success' : 'warning'
+              }`}
+            >
+              <span className="status-badge__dot" aria-hidden />
+              {health?.status ?? '…'}
+            </span>
           </p>
           <p className="stat-orb__hint">
             DB {health?.database ?? '…'}
@@ -152,7 +161,8 @@ export function HomePage() {
             <p className="muted">Tap through or open the invoice workspace.</p>
           </div>
           {policy && (
-            <span className="status-chip status-chip--amber">
+            <span className="status-badge status-badge--warning">
+              <span className="status-badge__dot" aria-hidden />
               Auto under{' '}
               {policy.autoApproveUnderMinor == null
                 ? 'off'

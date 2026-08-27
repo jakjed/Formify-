@@ -505,9 +505,11 @@
 
 .table-wrap {
   overflow: auto;
+  max-height: min(70vh, 720px);
   border: 1px solid var(--aptora-border);
-  border-radius: calc(var(--aptora-radius) + 2px);
-  background: rgb(255 255 255 / 85%);
+  border-radius: var(--aptora-radius-lg);
+  background: rgb(255 255 255 / 90%);
+  box-shadow: var(--aptora-shadow);
 }
 
 .data-table {
@@ -664,20 +666,256 @@
   align-items: center;
   padding: 0.2rem 0.65rem;
   border-radius: var(--aptora-radius-pill);
-  background: rgb(13 148 136 / 12%);
-  color: var(--aptora-teal-deep);
+  background: var(--aptora-neutral-soft);
+  color: var(--aptora-neutral);
   font-size: 0.78rem;
   font-weight: 700;
 }
 
 .status-chip--amber {
-  background: var(--aptora-amber-soft);
-  color: #b45309;
+  background: var(--aptora-warning-soft);
+  color: var(--aptora-warning);
 }
 
 .status-chip--danger {
   background: var(--aptora-danger-soft);
   color: var(--aptora-danger);
+}
+
+/* Semantic status badges */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.22rem 0.65rem 0.22rem 0.45rem;
+  border-radius: var(--aptora-radius-pill);
+  border: 1px solid transparent;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.status-badge__dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.status-badge--success {
+  background: var(--aptora-success-soft);
+  color: var(--aptora-success);
+  border-color: var(--aptora-success-border);
+}
+
+.status-badge--warning {
+  background: var(--aptora-warning-soft);
+  color: var(--aptora-warning);
+  border-color: var(--aptora-warning-border);
+}
+
+.status-badge--danger {
+  background: var(--aptora-danger-soft);
+  color: var(--aptora-danger);
+  border-color: var(--aptora-danger-border);
+}
+
+.status-badge--info {
+  background: var(--aptora-info-soft);
+  color: var(--aptora-info);
+  border-color: var(--aptora-info-border);
+}
+
+.status-badge--neutral {
+  background: var(--aptora-neutral-soft);
+  color: var(--aptora-neutral);
+  border-color: var(--aptora-neutral-border);
+}
+
+/* Shared field chrome */
+.field__control,
+.auth__card input,
+.auth__card select,
+.workspace-form input,
+.workspace-form select,
+.workspace-form textarea,
+.inline-form input,
+.inline-form select,
+.data-table input {
+  border: 1.5px solid var(--aptora-border-strong);
+  border-radius: var(--aptora-radius-sm);
+  background: var(--aptora-surface);
+  transition:
+    border-color var(--aptora-duration) var(--aptora-ease),
+    box-shadow var(--aptora-duration) var(--aptora-ease),
+    background var(--aptora-duration) var(--aptora-ease);
+}
+
+.field__control:hover,
+.auth__card input:hover,
+.workspace-form input:hover,
+.workspace-form select:hover,
+.workspace-form textarea:hover,
+.inline-form input:hover,
+.inline-form select:hover {
+  border-color: rgb(15 118 110 / 35%);
+}
+
+.field__control:focus,
+.auth__card input:focus,
+.auth__card select:focus,
+.workspace-form input:focus,
+.workspace-form select:focus,
+.workspace-form textarea:focus,
+.inline-form input:focus,
+.inline-form select:focus {
+  outline: none;
+  border-color: var(--aptora-teal);
+  box-shadow: var(--aptora-focus-ring);
+  background: #fff;
+}
+
+.btn:active,
+.workspace-form button:active,
+.secondary-btn:active,
+.auth__card button:active {
+  animation: aptora-press 140ms var(--aptora-ease);
+}
+
+.dropzone {
+  display: grid;
+  gap: 0.65rem;
+  justify-items: start;
+  padding: 1.15rem 1.25rem;
+  border: 1.5px dashed rgb(15 118 110 / 35%);
+  border-radius: var(--aptora-radius-lg);
+  background:
+    linear-gradient(145deg, rgb(236 253 245 / 70%), rgb(255 255 255 / 85%));
+  transition:
+    border-color var(--aptora-duration) var(--aptora-ease),
+    background var(--aptora-duration) var(--aptora-ease),
+    transform var(--aptora-duration) var(--aptora-ease);
+}
+
+.dropzone:hover,
+.dropzone:focus-within {
+  border-color: var(--aptora-teal);
+  background: rgb(236 253 245 / 90%);
+  transform: translateY(-1px);
+}
+
+.dropzone__title {
+  margin: 0;
+  font-family: var(--aptora-font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.dropzone__hint {
+  margin: 0;
+  color: var(--aptora-muted);
+  font-size: 0.88rem;
+}
+
+.worklist-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
+  margin: 1rem 0 1.25rem;
+}
+
+.worklist-toolbar .inline-form {
+  flex: 1;
+  margin: 0;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--aptora-muted);
+  background: rgb(243 246 244 / 95%);
+  backdrop-filter: blur(6px);
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid var(--aptora-border);
+}
+
+.data-table td {
+  padding: 0.85rem;
+  border-bottom: 1px solid var(--aptora-border);
+  vertical-align: middle;
+}
+
+.data-table tbody tr {
+  transition: background var(--aptora-duration) var(--aptora-ease);
+}
+
+.data-table tbody tr:hover {
+  background: rgb(13 148 136 / 5%);
+}
+
+.data-table tbody tr:hover td:first-child {
+  box-shadow: inset 3px 0 0 var(--aptora-teal);
+}
+
+.age-cell--warning {
+  color: var(--aptora-warning);
+  font-weight: 600;
+}
+
+.age-cell--danger {
+  color: var(--aptora-danger);
+  font-weight: 700;
+}
+
+.hitl-sidepanel details {
+  border: 0;
+}
+
+.hitl-sidepanel summary {
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--aptora-font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  padding: 0.15rem 0;
+}
+
+.hitl-sidepanel summary::-webkit-details-marker {
+  display: none;
+}
+
+.hitl-sidepanel summary::after {
+  content: "Show";
+  float: right;
+  font-family: var(--aptora-font-ui);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--aptora-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.hitl-sidepanel details[open] summary::after {
+  content: "Hide";
+}
+
+.hitl-sidepanel details[open] > :not(summary) {
+  animation: aptora-rise 220ms var(--aptora-ease);
 }
 
 .inline-form select {
@@ -829,16 +1067,14 @@
 }
 
 .hitl-status {
+  /* legacy alias — prefer .status-badge */
   display: inline-flex;
   align-items: center;
   padding: 0.15rem 0.55rem;
-  border-radius: 4px;
-  background: rgb(15 118 110 / 12%);
-  color: var(--aptora-teal);
-  font-weight: 600;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  border-radius: var(--aptora-radius-pill);
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
 }
 
 .hitl-split {
@@ -1242,6 +1478,10 @@
 /* —— My Work cockpit —— */
 .page--cockpit {
   max-width: 1100px;
+}
+
+.page--worklist {
+  max-width: none;
 }
 
 .cockpit-hero {
