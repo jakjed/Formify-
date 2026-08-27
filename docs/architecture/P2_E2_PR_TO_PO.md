@@ -33,3 +33,5 @@ Response: `{ purchaseRequest, purchaseOrder }` — PR status becomes `converted`
 ## Next
 
 P2-E3 Receiving ✅ · P2-E4 Invoice match · P2-E5 Integration
+
+**Gabi / Ledgerline parity:** contract PR proposals, department/category, and accruals UI — see [GABI_PROCURE_PARITY.md](./GABI_PROCURE_PARITY.md).

@@ -6,11 +6,41 @@ import {
 import { ContractStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
+import {
+  CONTRACT_APPROVAL_CHAIN,
+  CONTRACT_DOC_CATEGORIES,
+  emptySignature,
+  type RedFlag,
+  type SignatureEnvelope,
+} from './procure-constants';
 
 const contractInclude = {
   vendor: { select: { id: true, code: true, name: true } },
   entity: { select: { id: true, code: true, name: true } },
+  documents: { orderBy: { createdAt: 'asc' as const } },
 } satisfies Prisma.ContractInclude;
+
+type ContractFieldInput = {
+  number?: string;
+  title?: string;
+  vendorId?: string | null;
+  entityId?: string | null;
+  currency?: string;
+  valueMinor?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  notes?: string | null;
+  agreementType?: string | null;
+  purpose?: string | null;
+  serviceDescription?: string | null;
+  costCenter?: string | null;
+  termType?: string | null;
+  noticePeriod?: string | null;
+  clmTool?: string | null;
+  ownerName?: string | null;
+  contractDate?: string | null;
+  approvalStage?: number;
+};
 
 @Injectable()
 export class ContractsService {
@@ -19,9 +49,25 @@ export class ContractsService {
     private readonly audit: AuditService,
   ) {}
 
-  list(tenantId: string) {
+  list(
+    tenantId: string,
+    opts?: { status?: ContractStatus; q?: string },
+  ) {
+    const q = opts?.q?.trim();
     return this.prisma.contract.findMany({
-      where: { tenantId },
+      where: {
+        tenantId,
+        ...(opts?.status ? { status: opts.status } : {}),
+        ...(q
+          ? {
+              OR: [
+                { number: { contains: q, mode: 'insensitive' } },
+                { title: { contains: q, mode: 'insensitive' } },
+                { vendor: { name: { contains: q, mode: 'insensitive' } } },
+              ],
+            }
+          : {}),
+      },
       include: contractInclude,
       orderBy: { createdAt: 'desc' },
       take: 200,
@@ -50,6 +96,15 @@ export class ContractsService {
       startDate?: string;
       endDate?: string;
       notes?: string;
+      agreementType?: string;
+      purpose?: string;
+      serviceDescription?: string;
+      costCenter?: string;
+      termType?: string;
+      noticePeriod?: string;
+      clmTool?: string;
+      ownerName?: string;
+      contractDate?: string;
     },
   ) {
     await this.assertVendor(tenantId, input.vendorId);
@@ -67,6 +122,17 @@ export class ContractsService {
           startDate: input.startDate ? new Date(input.startDate) : null,
           endDate: input.endDate ? new Date(input.endDate) : null,
           notes: input.notes,
+          agreementType: input.agreementType,
+          purpose: input.purpose,
+          serviceDescription: input.serviceDescription,
+          costCenter: input.costCenter,
+          termType: input.termType,
+          noticePeriod: input.noticePeriod,
+          clmTool: input.clmTool,
+          ownerName: input.ownerName,
+          contractDate: input.contractDate
+            ? new Date(input.contractDate)
+            : null,
         },
         include: contractInclude,
       });
@@ -94,16 +160,7 @@ export class ContractsService {
     tenantId: string,
     id: string,
     actorId: string,
-    data: {
-      title?: string;
-      vendorId?: string | null;
-      entityId?: string | null;
-      currency?: string;
-      valueMinor?: number | null;
-      startDate?: string | null;
-      endDate?: string | null;
-      notes?: string | null;
-    },
+    data: ContractFieldInput,
   ) {
     const existing = await this.get(tenantId, id);
     if (existing.status === 'expired' || existing.status === 'cancelled') {
@@ -125,26 +182,7 @@ export class ContractsService {
 
     await this.prisma.contract.update({
       where: { id },
-      data: {
-        title: data.title?.trim(),
-        vendorId: data.vendorId,
-        entityId: data.entityId,
-        currency: data.currency,
-        valueMinor: data.valueMinor,
-        startDate:
-          data.startDate === undefined
-            ? undefined
-            : data.startDate
-              ? new Date(data.startDate)
-              : null,
-        endDate:
-          data.endDate === undefined
-            ? undefined
-            : data.endDate
-              ? new Date(data.endDate)
-              : null,
-        notes: data.notes,
-      },
+      data: this.mapOptionalFields(data),
     });
     await this.audit.record({
       tenantId,
@@ -261,7 +299,8 @@ export class ContractsService {
     const existing = await this.get(tenantId, id);
     const allowed: Record<ContractStatus, ContractStatus[]> = {
       draft: ['in_approval', 'cancelled'],
-      in_approval: ['active', 'draft', 'cancelled'],
+      in_approval: ['pending_signature', 'active', 'draft', 'cancelled'],
+      pending_signature: ['active', 'cancelled'],
       active: ['expired', 'cancelled'],
       expired: [],
       cancelled: [],
@@ -284,6 +323,401 @@ export class ContractsService {
       meta: { from: existing.status, to: status },
     });
     return this.get(tenantId, id);
+  }
+
+  async sendForApproval(tenantId: string, id: string, actorId: string) {
+    const existing = await this.get(tenantId, id);
+    if (existing.status !== 'draft') {
+      throw new BadRequestException(
+        'Only draft contracts can be sent for approval',
+      );
+    }
+    await this.prisma.contract.update({
+      where: { id },
+      data: { status: 'in_approval', approvalStage: 1 },
+    });
+    await this.audit.record({
+      tenantId,
+      actorId,
+      action: 'contract.send_for_approval',
+      entityType: 'Contract',
+      entityId: id,
+      meta: { approvalStage: 1 },
+    });
+    return this.get(tenantId, id);
+  }
+
+  async advanceApproval(tenantId: string, id: string, actorId: string) {
+    const existing = await this.get(tenantId, id);
+    if (existing.status !== 'in_approval') {
+      throw new BadRequestException(
+        'Only contracts in approval can be advanced',
+      );
+    }
+    const nextStage = existing.approvalStage + 1;
+    if (nextStage > CONTRACT_APPROVAL_CHAIN.length) {
+      const signature = emptySignature(
+        existing.ownerName ?? '',
+        existing.vendor?.name ?? '',
+      );
+      await this.prisma.contract.update({
+        where: { id },
+        data: {
+          status: 'pending_signature',
+          approvalStage: CONTRACT_APPROVAL_CHAIN.length,
+          signatureJson: signature as unknown as Prisma.InputJsonValue,
+        },
+      });
+      await this.audit.record({
+        tenantId,
+        actorId,
+        action: 'contract.advance_approval',
+        entityType: 'Contract',
+        entityId: id,
+        meta: { to: 'pending_signature' },
+      });
+    } else {
+      await this.prisma.contract.update({
+        where: { id },
+        data: { approvalStage: nextStage },
+      });
+      await this.audit.record({
+        tenantId,
+        actorId,
+        action: 'contract.advance_approval',
+        entityType: 'Contract',
+        entityId: id,
+        meta: {
+          approvalStage: nextStage,
+          stageName: CONTRACT_APPROVAL_CHAIN[nextStage - 1],
+        },
+      });
+    }
+    return this.get(tenantId, id);
+  }
+
+  async sendForSignature(tenantId: string, id: string, actorId: string) {
+    const existing = await this.get(tenantId, id);
+    if (existing.status !== 'pending_signature') {
+      throw new BadRequestException(
+        'Only contracts pending signature can be sent for signature',
+      );
+    }
+    let signature = this.readSignature(existing.signatureJson);
+    if (!signature) {
+      signature = emptySignature(
+        existing.ownerName ?? '',
+        existing.vendor?.name ?? '',
+      );
+    }
+    const envelopeId = `DS-${Date.now().toString(36).toUpperCase()}`;
+    signature = {
+      ...signature,
+      status: 'Sent',
+      envelopeId,
+      sentAt: new Date().toISOString(),
+      signers: signature.signers.map((s) =>
+        s.status === 'Waiting' ? { ...s, status: 'Sent' as const } : s,
+      ),
+    };
+    await this.prisma.contract.update({
+      where: { id },
+      data: {
+        signatureJson: signature as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await this.audit.record({
+      tenantId,
+      actorId,
+      action: 'contract.send_for_signature',
+      entityType: 'Contract',
+      entityId: id,
+      meta: { envelopeId },
+    });
+    return this.get(tenantId, id);
+  }
+
+  async checkSignatureStatus(tenantId: string, id: string, actorId: string) {
+    const existing = await this.get(tenantId, id);
+    if (existing.status !== 'pending_signature') {
+      throw new BadRequestException(
+        'Signature status can only be checked for contracts pending signature',
+      );
+    }
+    const signature = this.readSignature(existing.signatureJson);
+    if (!signature) {
+      throw new BadRequestException('Signature envelope not initialized');
+    }
+    const idx = signature.signers.findIndex((s) => s.status !== 'Signed');
+    if (idx === -1) {
+      return this.get(tenantId, id);
+    }
+    const current = signature.signers[idx]!;
+    const signed = {
+      ...current,
+      status: 'Signed' as const,
+      signedAt: new Date().toISOString(),
+    };
+    const next = signature.signers.map((s, i) => (i === idx ? signed : s));
+    const updated: SignatureEnvelope = { ...signature, signers: next };
+    await this.prisma.contract.update({
+      where: { id },
+      data: {
+        signatureJson: updated as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await this.audit.record({
+      tenantId,
+      actorId,
+      action: 'contract.check_signature',
+      entityType: 'Contract',
+      entityId: id,
+      meta: { signer: signed.name, role: signed.role },
+    });
+    return this.get(tenantId, id);
+  }
+
+  async completeSignature(
+    tenantId: string,
+    id: string,
+    actorId: string,
+    opts?: { fileName?: string },
+  ) {
+    const existing = await this.get(tenantId, id);
+    if (existing.status !== 'pending_signature') {
+      throw new BadRequestException(
+        'Only contracts pending signature can be completed',
+      );
+    }
+    const signature = this.readSignature(existing.signatureJson);
+    if (!signature) {
+      throw new BadRequestException('Signature envelope not initialized');
+    }
+    if (!signature.signers.every((s) => s.status === 'Signed')) {
+      throw new BadRequestException('Not all signers have signed yet');
+    }
+    const completed: SignatureEnvelope = {
+      ...signature,
+      status: 'Completed',
+    };
+    const fileName =
+      opts?.fileName?.trim() ||
+      `Executed-${existing.number}.pdf`;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.contract.update({
+        where: { id },
+        data: {
+          status: 'active',
+          signatureJson: completed as unknown as Prisma.InputJsonValue,
+          startDate: existing.startDate ?? new Date(),
+        },
+      });
+      await tx.contractDocument.create({
+        data: {
+          tenantId,
+          contractId: id,
+          category: 'executed',
+          fileName,
+        },
+      });
+    });
+
+    await this.audit.record({
+      tenantId,
+      actorId,
+      action: 'contract.complete_signature',
+      entityType: 'Contract',
+      entityId: id,
+      meta: { fileName },
+    });
+    return this.get(tenantId, id);
+  }
+
+  async addDocument(
+    tenantId: string,
+    contractId: string,
+    actorId: string,
+    input: { category: string; fileName: string },
+  ) {
+    await this.get(tenantId, contractId);
+    const category = input.category.trim();
+    if (
+      !(CONTRACT_DOC_CATEGORIES as readonly string[]).includes(category)
+    ) {
+      throw new BadRequestException(
+        `Invalid document category. Allowed: ${CONTRACT_DOC_CATEGORIES.join(', ')}`,
+      );
+    }
+    const fileName = input.fileName.trim();
+    if (!fileName) {
+      throw new BadRequestException('fileName is required');
+    }
+    const doc = await this.prisma.contractDocument.create({
+      data: {
+        tenantId,
+        contractId,
+        category,
+        fileName,
+      },
+    });
+    await this.audit.record({
+      tenantId,
+      actorId,
+      action: 'contract.document_added',
+      entityType: 'Contract',
+      entityId: contractId,
+      meta: { documentId: doc.id, category, fileName },
+    });
+    return this.get(tenantId, contractId);
+  }
+
+  async removeDocument(
+    tenantId: string,
+    contractId: string,
+    docId: string,
+    actorId: string,
+  ) {
+    await this.get(tenantId, contractId);
+    const doc = await this.prisma.contractDocument.findFirst({
+      where: { id: docId, tenantId, contractId },
+    });
+    if (!doc) throw new NotFoundException('Document not found');
+    await this.prisma.contractDocument.delete({ where: { id: docId } });
+    await this.audit.record({
+      tenantId,
+      actorId,
+      action: 'contract.document_removed',
+      entityType: 'Contract',
+      entityId: contractId,
+      meta: { documentId: docId, fileName: doc.fileName },
+    });
+    return this.get(tenantId, contractId);
+  }
+
+  async aiSummarize(tenantId: string, id: string) {
+    const row = await this.get(tenantId, id);
+    const vendor = row.vendor?.name ?? 'the counterparty';
+    const value =
+      row.valueMinor != null
+        ? `${(row.valueMinor / 100).toFixed(2)} ${row.currency}`
+        : 'an unspecified value';
+    const summary = [
+      `Multi-function AI summary for ${row.number} (${row.title}).`,
+      `Agreement type: ${row.agreementType ?? 'not specified'}; counterparty: ${vendor}.`,
+      `Commercial value: ${value}. Purpose: ${row.purpose ?? 'not captured'}.`,
+      `Services: ${row.serviceDescription ?? 'not captured'}.`,
+      `Term: ${row.termType ?? 'standard'} with notice period ${row.noticePeriod ?? 'n/a'}.`,
+      `Risk posture: ${(row.redFlagsJson as RedFlag[] | null)?.length ?? 0} red flag(s) on file.`,
+      `Recommended next step: complete remaining approvals and route for e-signature.`,
+    ].join(' ');
+    return { summary, contractId: id };
+  }
+
+  async scanRedFlags(tenantId: string, id: string, actorId: string) {
+    await this.get(tenantId, id);
+    const flags: RedFlag[] = [
+      {
+        severity: 'High',
+        text: 'Unlimited liability carve-outs may expose the buyer beyond insurance limits.',
+      },
+      {
+        severity: 'Medium',
+        text: 'Auto-renewal clause lacks a clear opt-out window before the renewal date.',
+      },
+      {
+        severity: 'Low',
+        text: 'Notice period is shorter than internal procurement policy for this spend tier.',
+      },
+    ];
+    await this.prisma.contract.update({
+      where: { id },
+      data: { redFlagsJson: flags as unknown as Prisma.InputJsonValue },
+    });
+    await this.audit.record({
+      tenantId,
+      actorId,
+      action: 'contract.scan_red_flags',
+      entityType: 'Contract',
+      entityId: id,
+      meta: { count: flags.length },
+    });
+    return { redFlags: flags, contract: await this.get(tenantId, id) };
+  }
+
+  async aiIntake(
+    tenantId: string,
+    actorId: string,
+    input: { vendorId?: string; fileName?: string; title?: string },
+  ) {
+    await this.assertVendor(tenantId, input.vendorId);
+    const stamp = Date.now().toString(36).toUpperCase();
+    const number = `AI-${stamp}`;
+    const title =
+      input.title?.trim() ||
+      `AI intake ${input.fileName?.trim() || 'document'}`;
+    const redFlags: RedFlag[] = [
+      {
+        severity: 'Medium',
+        text: 'Extracted payment terms differ from standard Net-30 policy.',
+      },
+      {
+        severity: 'Low',
+        text: 'Governing law clause could not be confidently extracted from the upload.',
+      },
+    ];
+
+    try {
+      const row = await this.prisma.contract.create({
+        data: {
+          tenantId,
+          number,
+          title,
+          vendorId: input.vendorId,
+          status: 'draft',
+          aiExtracted: true,
+          agreementType: 'Vendor Agreement',
+          purpose:
+            'Stub AI intake: commercial relationship covering recurring vendor services.',
+          serviceDescription:
+            'Stub AI intake: professional / SaaS services as described in the uploaded agreement.',
+          redFlagsJson: redFlags as unknown as Prisma.InputJsonValue,
+          notes: input.fileName
+            ? `Source file: ${input.fileName.trim()}`
+            : undefined,
+        },
+        include: contractInclude,
+      });
+
+      if (input.fileName?.trim()) {
+        await this.prisma.contractDocument.create({
+          data: {
+            tenantId,
+            contractId: row.id,
+            category: 'draft',
+            fileName: input.fileName.trim(),
+          },
+        });
+      }
+
+      await this.audit.record({
+        tenantId,
+        actorId,
+        action: 'contract.ai_intake',
+        entityType: 'Contract',
+        entityId: row.id,
+        meta: { number: row.number, fileName: input.fileName ?? null },
+      });
+      return this.get(tenantId, row.id);
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new BadRequestException('Contract number already exists');
+      }
+      throw err;
+    }
   }
 
   async listComments(tenantId: string, contractId: string) {
@@ -384,6 +818,51 @@ export class ContractsService {
     return [...auditItems, ...commentItems].sort(
       (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime(),
     );
+  }
+
+  private mapOptionalFields(
+    data: ContractFieldInput,
+  ): Prisma.ContractUncheckedUpdateInput {
+    return {
+      title: data.title?.trim(),
+      vendorId: data.vendorId,
+      entityId: data.entityId,
+      currency: data.currency,
+      valueMinor: data.valueMinor,
+      startDate:
+        data.startDate === undefined
+          ? undefined
+          : data.startDate
+            ? new Date(data.startDate)
+            : null,
+      endDate:
+        data.endDate === undefined
+          ? undefined
+          : data.endDate
+            ? new Date(data.endDate)
+            : null,
+      notes: data.notes,
+      agreementType: data.agreementType,
+      purpose: data.purpose,
+      serviceDescription: data.serviceDescription,
+      costCenter: data.costCenter,
+      termType: data.termType,
+      noticePeriod: data.noticePeriod,
+      clmTool: data.clmTool,
+      ownerName: data.ownerName,
+      contractDate:
+        data.contractDate === undefined
+          ? undefined
+          : data.contractDate
+            ? new Date(data.contractDate)
+            : null,
+      approvalStage: data.approvalStage,
+    };
+  }
+
+  private readSignature(raw: unknown): SignatureEnvelope | null {
+    if (!raw || typeof raw !== 'object') return null;
+    return raw as SignatureEnvelope;
   }
 
   private async assertVendor(tenantId: string, vendorId?: string) {

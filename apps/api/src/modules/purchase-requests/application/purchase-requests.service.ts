@@ -11,6 +11,17 @@ import { TenancyService } from '../../tenancy/application/tenancy.service';
 
 const prInclude = {
   lines: { orderBy: { lineNo: 'asc' as const } },
+  sourceContract: {
+    select: {
+      id: true,
+      number: true,
+      title: true,
+      status: true,
+      valueMinor: true,
+      currency: true,
+      vendorId: true,
+    },
+  },
   purchaseOrders: {
     select: {
       id: true,
@@ -56,6 +67,11 @@ export class PurchaseRequestsService {
       number: string;
       title: string;
       entityId?: string;
+      vendorId?: string;
+      sourceContractId?: string;
+      department?: string;
+      category?: string;
+      approvalStage?: number;
       currency?: string;
       totalMinor?: number;
       notes?: string;
@@ -67,6 +83,12 @@ export class PurchaseRequestsService {
       }[];
     },
   ) {
+    if (input.vendorId) {
+      await this.assertVendor(tenantId, input.vendorId);
+    }
+    if (input.sourceContractId) {
+      await this.assertContract(tenantId, input.sourceContractId);
+    }
     try {
       const row = await this.prisma.purchaseRequest.create({
         data: {
@@ -74,6 +96,11 @@ export class PurchaseRequestsService {
           number: input.number.trim(),
           title: input.title.trim(),
           entityId: input.entityId,
+          vendorId: input.vendorId,
+          sourceContractId: input.sourceContractId,
+          department: input.department,
+          category: input.category,
+          approvalStage: input.approvalStage ?? 0,
           requesterId: actorId,
           currency: input.currency ?? 'EUR',
           totalMinor: input.totalMinor,
@@ -110,6 +137,132 @@ export class PurchaseRequestsService {
       }
       throw err;
     }
+  }
+
+  /**
+   * Active contracts that do not yet have a PR linked via sourceContractId.
+   */
+  async listProposals(tenantId: string) {
+    const linked = await this.prisma.purchaseRequest.findMany({
+      where: { tenantId, sourceContractId: { not: null } },
+      select: { sourceContractId: true },
+    });
+    const usedIds = linked
+      .map((r) => r.sourceContractId)
+      .filter((id): id is string => Boolean(id));
+
+    return this.prisma.contract.findMany({
+      where: {
+        tenantId,
+        status: 'active',
+        ...(usedIds.length ? { id: { notIn: usedIds } } : {}),
+      },
+      include: {
+        vendor: { select: { id: true, code: true, name: true } },
+        entity: { select: { id: true, code: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+  }
+
+  async createFromProposal(
+    tenantId: string,
+    actorId: string,
+    input: {
+      contractId: string;
+      department?: string;
+      category?: string;
+      totalMinor?: number;
+      entityId?: string;
+    },
+  ) {
+    const contract = await this.prisma.contract.findFirst({
+      where: { id: input.contractId, tenantId },
+      include: { vendor: { select: { id: true, name: true } } },
+    });
+    if (!contract) throw new NotFoundException('Contract not found');
+    if (contract.status !== 'active') {
+      throw new BadRequestException(
+        'Only active contracts can be accepted as proposals',
+      );
+    }
+
+    const existing = await this.prisma.purchaseRequest.findFirst({
+      where: { tenantId, sourceContractId: contract.id },
+      select: { id: true, number: true },
+    });
+    if (existing) {
+      throw new BadRequestException(
+        `Contract already has purchase request ${existing.number}`,
+      );
+    }
+
+    if (input.entityId) {
+      const entity = await this.prisma.entity.findFirst({
+        where: { id: input.entityId, tenantId },
+        select: { id: true },
+      });
+      if (!entity) throw new BadRequestException('Entity not found');
+    }
+
+    const number = `PR-${contract.number}`.slice(0, 64);
+    try {
+      const row = await this.prisma.purchaseRequest.create({
+        data: {
+          tenantId,
+          number,
+          title: contract.title,
+          status: 'in_approval',
+          approvalStage: 1,
+          requesterId: actorId,
+          vendorId: contract.vendorId,
+          sourceContractId: contract.id,
+          entityId: input.entityId ?? contract.entityId,
+          department: input.department,
+          category: input.category,
+          currency: contract.currency,
+          totalMinor: input.totalMinor ?? contract.valueMinor,
+          notes: `Created from contract proposal ${contract.number}`,
+        },
+        include: prInclude,
+      });
+      await this.audit.record({
+        tenantId,
+        actorId,
+        action: 'pr.created_from_proposal',
+        entityType: 'PurchaseRequest',
+        entityId: row.id,
+        meta: { number: row.number, contractId: contract.id },
+      });
+      return row;
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new BadRequestException(
+          `PR number "${number}" already exists — rename the contract number or create manually`,
+        );
+      }
+      throw err;
+    }
+  }
+
+  private async assertVendor(tenantId: string, vendorId: string) {
+    const vendor = await this.prisma.vendor.findFirst({
+      where: { id: vendorId, tenantId },
+      select: { id: true },
+    });
+    if (!vendor) throw new BadRequestException('Vendor not found');
+  }
+
+  private async assertContract(tenantId: string, contractId: string) {
+    const contract = await this.prisma.contract.findFirst({
+      where: { id: contractId, tenantId },
+      select: { id: true },
+    });
+    if (!contract) throw new BadRequestException('Contract not found');
   }
 
   async transition(
@@ -209,8 +362,8 @@ export class PurchaseRequestsService {
             number: poNumber,
             title: pr.title,
             entityId: pr.entityId,
-            vendorId: input.vendorId,
-            contractId: input.contractId,
+            vendorId: input.vendorId ?? pr.vendorId ?? undefined,
+            contractId: input.contractId ?? pr.sourceContractId ?? undefined,
             purchaseRequestId: pr.id,
             currency: pr.currency,
             totalMinor: pr.totalMinor,

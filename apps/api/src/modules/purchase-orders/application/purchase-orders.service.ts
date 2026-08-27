@@ -12,7 +12,23 @@ const poInclude = {
   purchaseRequest: {
     select: { id: true, number: true, title: true, status: true },
   },
+  invoices: {
+    select: { id: true, totalMinor: true, status: true, invoiceNumber: true },
+  },
 } satisfies Prisma.PurchaseOrderInclude;
+
+type PoWithInvoices = Prisma.PurchaseOrderGetPayload<{
+  include: typeof poInclude;
+}>;
+
+function withInvoiceTotals<T extends PoWithInvoices>(row: T) {
+  const invoicedMinor = row.invoices.reduce(
+    (sum, inv) => sum + (inv.totalMinor ?? 0),
+    0,
+  );
+  const remainingMinor = Math.max(0, (row.totalMinor ?? 0) - invoicedMinor);
+  return { ...row, invoicedMinor, remainingMinor };
+}
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -21,13 +37,14 @@ export class PurchaseOrdersService {
     private readonly audit: AuditService,
   ) {}
 
-  list(tenantId: string) {
-    return this.prisma.purchaseOrder.findMany({
+  async list(tenantId: string) {
+    const rows = await this.prisma.purchaseOrder.findMany({
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: poInclude,
     });
+    return rows.map(withInvoiceTotals);
   }
 
   async get(tenantId: string, id: string) {
@@ -36,7 +53,7 @@ export class PurchaseOrdersService {
       include: poInclude,
     });
     if (!row) throw new NotFoundException('Purchase order not found');
-    return row;
+    return withInvoiceTotals(row);
   }
 
   async create(
@@ -95,7 +112,7 @@ export class PurchaseOrdersService {
         entityId: row.id,
         meta: { number: row.number },
       });
-      return row;
+      return withInvoiceTotals(row);
     } catch (err) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
@@ -143,7 +160,7 @@ export class PurchaseOrdersService {
       entityId: id,
       meta: { from: existing.status, to: status },
     });
-    return row;
+    return withInvoiceTotals(row);
   }
 
   /**
@@ -178,7 +195,7 @@ export class PurchaseOrdersService {
         entityId: id,
         meta: { mode: 'empty_lines' },
       });
-      return row;
+      return withInvoiceTotals(row);
     }
 
     const receipts: { lineNo: number; quantity: number }[] =
@@ -243,11 +260,12 @@ export class PurchaseOrdersService {
     const status = this.deriveReceiveStatus(refreshed.lines);
     let row = refreshed;
     if (status !== refreshed.status) {
-      row = await this.prisma.purchaseOrder.update({
+      const updated = await this.prisma.purchaseOrder.update({
         where: { id },
         data: { status },
         include: poInclude,
       });
+      row = withInvoiceTotals(updated);
     }
 
     await this.audit.record({

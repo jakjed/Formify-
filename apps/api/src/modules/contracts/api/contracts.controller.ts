@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -12,7 +14,10 @@ import { IsIn } from 'class-validator';
 import { ContractStatus } from '@prisma/client';
 import { ContractsService } from '../application/contracts.service';
 import {
+  AddDocumentDto,
+  AiIntakeDto,
   AmendContractDto,
+  CompleteSignatureDto,
   CreateContractCommentDto,
   CreateContractDto,
   RenewContractDto,
@@ -29,7 +34,14 @@ import {
 } from '../../../common/module-license.guard';
 
 class TransitionDto {
-  @IsIn(['draft', 'in_approval', 'active', 'expired', 'cancelled'])
+  @IsIn([
+    'draft',
+    'in_approval',
+    'pending_signature',
+    'active',
+    'expired',
+    'cancelled',
+  ])
   status!: ContractStatus;
 }
 
@@ -43,8 +55,12 @@ export class ContractsController {
 
   @Get()
   @ApiOperation({ summary: 'List contracts' })
-  list(@CurrentTenantId() tenantId: string) {
-    return this.contracts.list(tenantId);
+  list(
+    @CurrentTenantId() tenantId: string,
+    @Query('status') status?: ContractStatus,
+    @Query('q') q?: string,
+  ) {
+    return this.contracts.list(tenantId, { status, q });
   }
 
   @Post()
@@ -55,6 +71,16 @@ export class ContractsController {
     @Body() dto: CreateContractDto,
   ) {
     return this.contracts.create(tenantId, user.id, dto);
+  }
+
+  @Post('ai-intake')
+  @ApiOperation({ summary: 'Create draft contract from AI document intake (stub)' })
+  aiIntake(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: AiIntakeDto,
+  ) {
+    return this.contracts.aiIntake(tenantId, user.id, dto);
   }
 
   @Get(':id/comments')
@@ -78,6 +104,95 @@ export class ContractsController {
   @ApiOperation({ summary: 'Contract activity timeline' })
   activity(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
     return this.contracts.getActivity(tenantId, id);
+  }
+
+  @Post(':id/send-for-approval')
+  @ApiOperation({ summary: 'Send draft contract for approval' })
+  sendForApproval(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.contracts.sendForApproval(tenantId, id, user.id);
+  }
+
+  @Post(':id/advance-approval')
+  @ApiOperation({ summary: 'Advance contract approval stage' })
+  advanceApproval(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.contracts.advanceApproval(tenantId, id, user.id);
+  }
+
+  @Post(':id/send-for-signature')
+  @ApiOperation({ summary: 'Send contract for e-signature (mock DocuSign)' })
+  sendForSignature(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.contracts.sendForSignature(tenantId, id, user.id);
+  }
+
+  @Post(':id/check-signature')
+  @ApiOperation({ summary: 'Poll signature status (mock: mark next signer Signed)' })
+  checkSignature(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.contracts.checkSignatureStatus(tenantId, id, user.id);
+  }
+
+  @Post(':id/complete-signature')
+  @ApiOperation({ summary: 'Complete signature and activate contract' })
+  completeSignature(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: CompleteSignatureDto,
+  ) {
+    return this.contracts.completeSignature(tenantId, id, user.id, dto);
+  }
+
+  @Post(':id/documents')
+  @ApiOperation({ summary: 'Add contract document metadata' })
+  addDocument(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: AddDocumentDto,
+  ) {
+    return this.contracts.addDocument(tenantId, id, user.id, dto);
+  }
+
+  @Delete(':id/documents/:docId')
+  @ApiOperation({ summary: 'Remove contract document' })
+  removeDocument(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Param('docId') docId: string,
+  ) {
+    return this.contracts.removeDocument(tenantId, id, docId, user.id);
+  }
+
+  @Post(':id/ai-summarize')
+  @ApiOperation({ summary: 'AI multi-function contract summary (stub)' })
+  aiSummarize(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
+    return this.contracts.aiSummarize(tenantId, id);
+  }
+
+  @Post(':id/scan-red-flags')
+  @ApiOperation({ summary: 'Scan contract for red flags (stub)' })
+  scanRedFlags(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.contracts.scanRedFlags(tenantId, id, user.id);
   }
 
   @Get(':id')
