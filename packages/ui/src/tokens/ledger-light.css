@@ -1,16 +1,48 @@
 :root {
-  --aptora-ink: #0f1914;
-  --aptora-paper: #f7f6f2;
-  --aptora-teal: #0f766e;
-  --aptora-teal-hover: #0d9488;
-  --aptora-amber: #d97706;
-  --aptora-danger: #b91c1c;
-  --aptora-border: #e2e0d8;
-  --aptora-muted: #5c6b63;
+  /* Core */
+  --aptora-ink: #0c1612;
+  --aptora-ink-soft: #24352d;
+  --aptora-paper: #f3f6f4;
+  --aptora-paper-deep: #e7efe9;
+  --aptora-surface: #ffffff;
+  --aptora-surface-tint: #f0faf7;
+
+  /* Brand spectrum */
+  --aptora-teal: #0d9488;
+  --aptora-teal-deep: #0f766e;
+  --aptora-teal-hover: #14b8a6;
+  --aptora-teal-glow: rgb(20 184 166 / 28%);
+  --aptora-forest: #14532d;
+  --aptora-sage: #84cc16;
+  --aptora-sky: #0891b2;
+  --aptora-amber: #f59e0b;
+  --aptora-amber-soft: #fff7ed;
+  --aptora-danger: #e11d48;
+  --aptora-danger-soft: #fff1f2;
+  --aptora-violet-soft: #ecfdf5; /* keep mint, not purple */
+
+  --aptora-border: rgb(15 25 20 / 10%);
+  --aptora-border-strong: rgb(15 25 20 / 16%);
+  --aptora-muted: #5b6f66;
+
   --aptora-font-display: "Newsreader", "Georgia", serif;
   --aptora-font-ui: "IBM Plex Sans", "Segoe UI", sans-serif;
-  --aptora-radius: 8px;
-  --aptora-shadow: 0 1px 2px rgb(15 25 20 / 6%), 0 8px 24px rgb(15 25 20 / 6%);
+
+  /* Softer geometry */
+  --aptora-radius: 14px;
+  --aptora-radius-sm: 10px;
+  --aptora-radius-lg: 22px;
+  --aptora-radius-pill: 999px;
+
+  --aptora-shadow:
+    0 1px 2px rgb(12 22 18 / 4%),
+    0 10px 28px rgb(12 22 18 / 7%);
+  --aptora-shadow-lift:
+    0 8px 20px rgb(13 148 136 / 16%),
+    0 18px 40px rgb(12 22 18 / 10%);
+
+  --aptora-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --aptora-duration: 220ms;
 }
 
 *,
@@ -26,4 +58,26 @@ body {
   background: var(--aptora-paper);
   color: var(--aptora-ink);
   font-family: var(--aptora-font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes aptora-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes aptora-glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(20 184 166 / 0%);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgb(20 184 166 / 12%);
+  }
 }
