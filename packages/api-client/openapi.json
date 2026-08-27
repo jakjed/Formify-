@@ -163,6 +163,30 @@
         ]
       }
     },
+    "/api/me/entities": {
+      "get": {
+        "operationId": "listMyEntities",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Tenancy"
+        ]
+      }
+    },
     "/api/entities/{id}": {
       "patch": {
         "operationId": "updateEntity",
@@ -688,7 +712,16 @@
     "/api/users": {
       "get": {
         "operationId": "listUsers",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -1412,6 +1445,126 @@
         ]
       }
     },
+    "/api/expense-categories": {
+      "get": {
+        "operationId": "listExpenseCategories",
+        "parameters": [
+          {
+            "name": "entityId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List expense categories",
+        "tags": [
+          "Masterdata",
+          "masterdata"
+        ]
+      },
+      "post": {
+        "operationId": "createExpenseCategory",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExpenseCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create expense category",
+        "tags": [
+          "Masterdata",
+          "masterdata"
+        ]
+      }
+    },
+    "/api/expense-categories/{id}": {
+      "patch": {
+        "operationId": "updateExpenseCategory",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateExpenseCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update expense category",
+        "tags": [
+          "Masterdata",
+          "masterdata"
+        ]
+      }
+    },
     "/api/invoices": {
       "get": {
         "operationId": "list",
@@ -1744,6 +1897,145 @@
         ]
       }
     },
+    "/api/invoices/{id}/file": {
+      "get": {
+        "operationId": "file",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stream original scanned invoice document",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/api/invoices/{id}/attachments": {
+      "get": {
+        "operationId": "attachments",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List supporting attachments on invoice header",
+        "tags": [
+          "invoices"
+        ]
+      },
+      "post": {
+        "operationId": "addAttachment",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add supporting attachment to invoice header",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
+    "/api/invoices/{id}/attachments/{attachmentId}/file": {
+      "get": {
+        "operationId": "attachmentFile",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "attachmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stream a supporting attachment",
+        "tags": [
+          "invoices"
+        ]
+      }
+    },
     "/api/invoices/{id}": {
       "get": {
         "operationId": "get",
@@ -1985,7 +2277,16 @@
     "/api/workflow/policy": {
       "get": {
         "operationId": "getPolicy",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "moduleKey",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": ""
@@ -1997,7 +2298,16 @@
       },
       "patch": {
         "operationId": "updatePolicy",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "moduleKey",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -2010,6 +2320,213 @@
         },
         "responses": {
           "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Workflow"
+        ]
+      }
+    },
+    "/api/workflow/rules": {
+      "get": {
+        "operationId": "listRules",
+        "parameters": [
+          {
+            "name": "moduleKey",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Workflow"
+        ]
+      },
+      "post": {
+        "operationId": "createRule",
+        "parameters": [
+          {
+            "name": "moduleKey",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApprovalRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Workflow"
+        ]
+      }
+    },
+    "/api/workflow/rules/{id}": {
+      "patch": {
+        "operationId": "updateRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateApprovalRuleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Workflow"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteRule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Workflow"
+        ]
+      }
+    },
+    "/api/workflow/sod": {
+      "get": {
+        "operationId": "listSod",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Workflow"
+        ]
+      }
+    },
+    "/api/workflow/sod/{id}": {
+      "patch": {
+        "operationId": "updateSod",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSodPolicyDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Workflow"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteSod",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Workflow"
+        ]
+      }
+    },
+    "/api/workflow/sod/role-pair": {
+      "post": {
+        "operationId": "createRolePair",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRolePairSodDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
             "description": ""
           }
         },
@@ -2605,7 +3122,227 @@
             "bearer": []
           }
         ],
-        "summary": "List planned ERP connector packs (registry; not runtime connectors)",
+        "summary": "List ERP connector packs (registry + availability)",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/integration/connections": {
+      "get": {
+        "operationId": "connections",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List connector connections for this tenant",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/integration/connections/demo-erp/connect": {
+      "post": {
+        "operationId": "connectDemoErp",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Mock-connect Demo ERP (returns access token once)",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/integration/connections/demo-erp/disconnect": {
+      "post": {
+        "operationId": "disconnectDemoErp",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Disconnect Demo ERP",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/integration/connections/demo-erp/sync": {
+      "post": {
+        "operationId": "syncDemoErp",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stub sync: push approved invoices to Demo ERP and record a job",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/integration/connections/netsuite/connect": {
+      "post": {
+        "operationId": "connectNetsuite",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectNetsuiteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Connect NetSuite (mock token or live TBA credentials)",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/integration/connections/netsuite/disconnect": {
+      "post": {
+        "operationId": "disconnectNetsuite",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Disconnect NetSuite",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/integration/connections/netsuite/sync": {
+      "post": {
+        "operationId": "syncNetsuite",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Stub sync: push approved invoices as NetSuite vendor-bill stubs",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/integration/connections/quickbooks/connect": {
+      "post": {
+        "operationId": "connectQbo",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectQboDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Connect QuickBooks Online (mock token or live OAuth bearer)",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/integration/connections/quickbooks/disconnect": {
+      "post": {
+        "operationId": "disconnectQbo",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Disconnect QuickBooks Online",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/integration/connections/quickbooks/sync": {
+      "post": {
+        "operationId": "syncQbo",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Push approved invoices as QuickBooks Online bills",
         "tags": [
           "integration"
         ]
@@ -2859,6 +3596,257 @@
         ]
       }
     },
+    "/api/oauth/scopes": {
+      "get": {
+        "operationId": "scopes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "OAuth"
+        ]
+      }
+    },
+    "/api/oauth/clients": {
+      "get": {
+        "operationId": "list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "OAuth"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateOAuthClientDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OAuth"
+        ]
+      }
+    },
+    "/api/oauth/clients/{id}/revoke": {
+      "post": {
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OAuth"
+        ]
+      }
+    },
+    "/api/oauth/token": {
+      "post": {
+        "operationId": "token",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "OAuth"
+        ]
+      }
+    },
+    "/api/scim/v2/Users": {
+      "get": {
+        "operationId": "listUsers",
+        "parameters": [
+          {
+            "name": "filter",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startIndex",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "count",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Scim"
+        ]
+      },
+      "post": {
+        "operationId": "createUser",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Scim"
+        ]
+      }
+    },
+    "/api/scim/v2/Users/{id}": {
+      "get": {
+        "operationId": "getUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Scim"
+        ]
+      },
+      "patch": {
+        "operationId": "patchUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Scim"
+        ]
+      },
+      "delete": {
+        "operationId": "deleteUser",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Scim"
+        ]
+      }
+    },
     "/api/ops/dashboard": {
       "get": {
         "operationId": "dashboard",
@@ -2868,8 +3856,33 @@
             "description": ""
           }
         },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "tags": [
-          "Ops"
+          "ops"
+        ]
+      }
+    },
+    "/api/ops/command-center": {
+      "get": {
+        "operationId": "commandCenter",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Cross-module worklist counts for the command center",
+        "tags": [
+          "ops"
         ]
       }
     },
@@ -2913,7 +3926,24 @@
     "/api/contracts": {
       "get": {
         "operationId": "list",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -2967,6 +3997,43 @@
           }
         ],
         "summary": "Create contract draft",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/ai-intake": {
+      "post": {
+        "operationId": "aiIntake",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiIntakeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create draft contract from AI document intake (stub)",
         "tags": [
           "contracts"
         ]
@@ -3072,6 +4139,344 @@
           }
         ],
         "summary": "Contract activity timeline",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/{id}/send-for-approval": {
+      "post": {
+        "operationId": "sendForApproval",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Send draft contract for approval",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/{id}/advance-approval": {
+      "post": {
+        "operationId": "advanceApproval",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Advance contract approval stage",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/{id}/send-for-signature": {
+      "post": {
+        "operationId": "sendForSignature",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Send contract for e-signature (mock DocuSign)",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/{id}/check-signature": {
+      "post": {
+        "operationId": "checkSignature",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Poll signature status (mock: mark next signer Signed)",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/{id}/complete-signature": {
+      "post": {
+        "operationId": "completeSignature",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteSignatureDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Complete signature and activate contract",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/{id}/documents": {
+      "post": {
+        "operationId": "addDocument",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddDocumentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Add contract document metadata",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/{id}/documents/{docId}": {
+      "delete": {
+        "operationId": "removeDocument",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "docId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Remove contract document",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/{id}/ai-summarize": {
+      "post": {
+        "operationId": "aiSummarize",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "AI multi-function contract summary (stub)",
+        "tags": [
+          "contracts"
+        ]
+      }
+    },
+    "/api/contracts/{id}/scan-red-flags": {
+      "post": {
+        "operationId": "scanRedFlags",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Scan contract for red flags (stub)",
         "tags": [
           "contracts"
         ]
@@ -3357,6 +4762,82 @@
         ]
       }
     },
+    "/api/purchase-requests/proposals": {
+      "get": {
+        "operationId": "listProposals",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List active contracts available as PR proposals (no linked PR yet)",
+        "tags": [
+          "purchase-requests"
+        ]
+      }
+    },
+    "/api/purchase-requests/proposals/{contractId}/accept": {
+      "post": {
+        "operationId": "acceptProposal",
+        "parameters": [
+          {
+            "name": "contractId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptProposalDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Accept contract proposal into an in_approval PR",
+        "tags": [
+          "purchase-requests"
+        ]
+      }
+    },
     "/api/purchase-requests/{id}": {
       "get": {
         "operationId": "get",
@@ -3388,6 +4869,50 @@
           }
         ],
         "summary": "Get purchase request",
+        "tags": [
+          "purchase-requests"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePrDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update draft or in_approval purchase request fields",
         "tags": [
           "purchase-requests"
         ]
@@ -3488,7 +5013,10 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
                 }
               }
             }
@@ -3571,6 +5099,50 @@
           }
         ],
         "summary": "Get purchase order",
+        "tags": [
+          "purchase-orders"
+        ]
+      },
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePoDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update draft purchase order fields",
         "tags": [
           "purchase-orders"
         ]
@@ -3665,6 +5237,216 @@
         "summary": "Transition PO status (issue / cancel / close)",
         "tags": [
           "purchase-orders"
+        ]
+      }
+    },
+    "/api/accruals": {
+      "get": {
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List AP accruals",
+        "tags": [
+          "accruals"
+        ]
+      }
+    },
+    "/api/accruals/generate-from-open-pos": {
+      "post": {
+        "operationId": "generate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Generate or refresh draft accruals from open POs with remaining amount",
+        "tags": [
+          "accruals"
+        ]
+      }
+    },
+    "/api/accruals/{id}": {
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get accrual",
+        "tags": [
+          "accruals"
+        ]
+      }
+    },
+    "/api/accruals/{id}/send-for-approval": {
+      "post": {
+        "operationId": "sendForApproval",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Send draft accrual for approval",
+        "tags": [
+          "accruals"
+        ]
+      }
+    },
+    "/api/accruals/{id}/advance-approval": {
+      "post": {
+        "operationId": "advanceApproval",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Advance accrual approval stage",
+        "tags": [
+          "accruals"
+        ]
+      }
+    },
+    "/api/accruals/{id}/post-to-erp": {
+      "post": {
+        "operationId": "postToErp",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Post approved accrual to ERP (mock)",
+        "tags": [
+          "accruals"
         ]
       }
     }
@@ -3935,6 +5717,17 @@
               "ap_clerk",
               "approver"
             ]
+          },
+          "entityIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "defaultEntityId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
@@ -3963,6 +5756,17 @@
               "ap_clerk",
               "approver"
             ]
+          },
+          "entityIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "defaultEntityId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
@@ -3987,9 +5791,28 @@
               "approver"
             ]
           },
+          "status": {
+            "type": "string",
+            "enum": [
+              "invited",
+              "active",
+              "locked"
+            ]
+          },
           "password": {
             "type": "string",
             "minLength": 8
+          },
+          "entityIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "defaultEntityId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -4156,6 +5979,59 @@
           }
         }
       },
+      "CreateExpenseCategoryDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "entityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "glAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "keywords": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "entityId",
+          "glAccountId"
+        ]
+      },
+      "UpdateExpenseCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "entityId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "glAccountId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "keywords": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          }
+        }
+      },
       "CreateInvoiceCommentDto": {
         "type": "object",
         "properties": {
@@ -4166,6 +6042,69 @@
         },
         "required": [
           "body"
+        ]
+      },
+      "UpdateInvoiceLineDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lineNo": {
+            "type": "number",
+            "minimum": 1
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number",
+            "nullable": true
+          },
+          "unitPriceMinor": {
+            "type": "number",
+            "nullable": true
+          },
+          "amountMinor": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
+          },
+          "taxMinor": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 0
+          },
+          "taxCodeId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "glAccountId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "costCenterId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "categoryId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "purchaseOrderLineId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "lineNo"
         ]
       },
       "UpdateInvoiceDto": {
@@ -4193,7 +6132,8 @@
             "nullable": true
           },
           "currency": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^[A-Z]{3}$"
           },
           "subtotalMinor": {
             "type": "number",
@@ -4218,10 +6158,32 @@
             "type": "string",
             "nullable": true,
             "format": "uuid"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UpdateInvoiceLineDto"
+            }
           }
         }
       },
       "UpdatePolicyDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateApprovalRuleDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateApprovalRuleDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateSodPolicyDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateRolePairSodDto": {
         "type": "object",
         "properties": {}
       },
@@ -4237,7 +6199,23 @@
         "type": "object",
         "properties": {}
       },
+      "ConnectNetsuiteDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "ConnectQboDto": {
+        "type": "object",
+        "properties": {}
+      },
       "CreateApiKeyDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateOAuthClientDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "TokenDto": {
         "type": "object",
         "properties": {}
       },
@@ -4275,12 +6253,55 @@
           },
           "notes": {
             "type": "string"
+          },
+          "agreementType": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "serviceDescription": {
+            "type": "string"
+          },
+          "costCenter": {
+            "type": "string"
+          },
+          "termType": {
+            "type": "string"
+          },
+          "noticePeriod": {
+            "type": "string"
+          },
+          "clmTool": {
+            "type": "string"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "contractDate": {
+            "type": "string"
           }
         },
         "required": [
           "number",
           "title"
         ]
+      },
+      "AiIntakeDto": {
+        "type": "object",
+        "properties": {
+          "vendorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 2
+          }
+        }
       },
       "CreateContractCommentDto": {
         "type": "object",
@@ -4292,6 +6313,39 @@
         },
         "required": [
           "body"
+        ]
+      },
+      "CompleteSignatureDto": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "AddDocumentDto": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "executed",
+              "correspondence",
+              "paymentForm",
+              "misc",
+              "others"
+            ]
+          },
+          "fileName": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "category",
+          "fileName"
         ]
       },
       "UpdateContractDto": {
@@ -4328,6 +6382,42 @@
             "nullable": true
           },
           "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "agreementType": {
+            "type": "string",
+            "nullable": true
+          },
+          "purpose": {
+            "type": "string",
+            "nullable": true
+          },
+          "serviceDescription": {
+            "type": "string",
+            "nullable": true
+          },
+          "costCenter": {
+            "type": "string",
+            "nullable": true
+          },
+          "termType": {
+            "type": "string",
+            "nullable": true
+          },
+          "noticePeriod": {
+            "type": "string",
+            "nullable": true
+          },
+          "clmTool": {
+            "type": "string",
+            "nullable": true
+          },
+          "ownerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "contractDate": {
             "type": "string",
             "nullable": true
           }
@@ -4374,7 +6464,15 @@
         "type": "object",
         "properties": {}
       },
+      "AcceptProposalDto": {
+        "type": "object",
+        "properties": {}
+      },
       "CreatePrDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdatePrDto": {
         "type": "object",
         "properties": {}
       },
@@ -4383,6 +6481,10 @@
         "properties": {}
       },
       "CreatePoDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdatePoDto": {
         "type": "object",
         "properties": {}
       },
