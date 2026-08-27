@@ -167,6 +167,7 @@ Hosting follows the product; don’t freeze feature work waiting on perfect infr
 
 ## Related docs
 
+- [GOLIVE_CHECKLIST.md](./GOLIVE_CHECKLIST.md) — prod release plan (DNS, AWS, CI/CD, legal, go/no-go)  
 - [E0_FOUNDATION.md](./E0_FOUNDATION.md) — run locally  
 - [MONOREPO.md](./MONOREPO.md) — module boundaries  
 - [PRODUCT_BLUEPRINT.md](../PRODUCT_BLUEPRINT.md) — §8 hosting decisions  
