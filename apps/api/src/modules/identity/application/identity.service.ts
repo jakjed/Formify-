@@ -51,8 +51,161 @@ export class IdentityService {
       type: row.type,
       enabled: row.enabled,
       order: row.order,
-      settings: (row.settings ?? {}) as Record<string, unknown>,
+      settings: this.publicSettings(
+        row.type,
+        (row.settings ?? {}) as Record<string, unknown>,
+      ),
     }));
+  }
+
+  async listProvidersAdmin(tenantId: string) {
+    const rows = await this.prisma.authProviderConfig.findMany({
+      where: { tenantId },
+      orderBy: { order: 'asc' },
+    });
+    return rows.map((row) => {
+      const settings = (row.settings ?? {}) as Record<string, unknown>;
+      const { clientSecret, ...rest } = settings;
+      return {
+        type: row.type,
+        enabled: row.enabled,
+        order: row.order,
+        settings: rest,
+        clientSecretSet: Boolean(clientSecret),
+      };
+    });
+  }
+
+  async updateOidcProvider(
+    tenantId: string,
+    input: {
+      enabled?: boolean;
+      settings?: {
+        issuer?: string;
+        clientId?: string;
+        clientSecret?: string | null;
+        scopes?: string;
+        displayName?: string;
+        mode?: 'live' | 'mock';
+        mockEmail?: string;
+      };
+    },
+  ) {
+    const existing = await this.prisma.authProviderConfig.findUnique({
+      where: { tenantId_type: { tenantId, type: 'oidc' } },
+    });
+    const prev = (existing?.settings ?? {}) as Record<string, unknown>;
+    const nextSettings = { ...prev };
+    if (input.settings) {
+      for (const [key, value] of Object.entries(input.settings)) {
+        if (key === 'clientSecret') {
+          if (value === null) {
+            delete nextSettings.clientSecret;
+          } else if (typeof value === 'string' && value.trim()) {
+            nextSettings.clientSecret = value.trim();
+          }
+          continue;
+        }
+        if (value !== undefined) {
+          nextSettings[key] = value;
+        }
+      }
+    }
+    const row = await this.prisma.authProviderConfig.upsert({
+      where: { tenantId_type: { tenantId, type: 'oidc' } },
+      create: {
+        tenantId,
+        type: 'oidc',
+        enabled: input.enabled ?? false,
+        order: 2,
+        settings: nextSettings as Prisma.InputJsonValue,
+      },
+      update: {
+        ...(input.enabled !== undefined ? { enabled: input.enabled } : {}),
+        settings: nextSettings as Prisma.InputJsonValue,
+      },
+    });
+    const { clientSecret, ...safe } = (row.settings ?? {}) as Record<
+      string,
+      unknown
+    >;
+    return {
+      type: row.type,
+      enabled: row.enabled,
+      order: row.order,
+      settings: safe,
+      clientSecretSet: Boolean(clientSecret),
+    };
+  }
+
+  /**
+   * Create a session for an existing active user matched by email (SSO).
+   */
+  async createSessionForEmail(input: {
+    tenantId: string;
+    email: string;
+    displayName?: string;
+  }) {
+    const email = input.email.toLowerCase();
+    const user = await this.prisma.user.findUnique({
+      where: { tenantId_email: { tenantId: input.tenantId, email } },
+    });
+    if (!user) {
+      throw new UnauthorizedException(
+        'No Aptora user for this email — invite or create the user first',
+      );
+    }
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      throw new ForbiddenException(
+        `Account locked until ${user.lockedUntil.toISOString()}`,
+      );
+    }
+    if (user.status === 'invited') {
+      throw new UnauthorizedException(
+        'Account pending invite acceptance before SSO login',
+      );
+    }
+    if (user.status === 'locked') {
+      throw new ForbiddenException('Account is locked');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginCount: 0,
+        lockedUntil: null,
+        status: 'active',
+        ...(input.displayName && !user.displayName
+          ? { displayName: input.displayName }
+          : {}),
+      },
+    });
+
+    const token = randomUUID();
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
+    await this.prisma.session.create({
+      data: {
+        tokenHash: hashToken(token),
+        userId: updated.id,
+        tenantId: updated.tenantId,
+        expiresAt,
+      },
+    });
+    return { token, user: this.toSafeUser(updated) };
+  }
+
+  private publicSettings(
+    type: string,
+    settings: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (type !== 'oidc') return {};
+    return {
+      displayName:
+        typeof settings.displayName === 'string'
+          ? settings.displayName
+          : 'SSO',
+      mode: settings.mode === 'mock' ? 'mock' : 'live',
+    };
   }
 
   async register(input: {
