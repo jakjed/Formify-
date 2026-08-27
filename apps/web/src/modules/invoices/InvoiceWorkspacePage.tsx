@@ -437,6 +437,10 @@ export function InvoiceWorkspacePage() {
     setMessage(`Applied “${value}” to ${field}`);
   }
 
+  function clearArmedOnEdit() {
+    if (armedChip) setArmedChip(null);
+  }
+
   function onChipDragStart(e: DragEvent, chip: OcrChip) {
     e.dataTransfer.setData(OCR_MIME, chip.value);
     e.dataTransfer.setData('text/plain', chip.value);
@@ -695,7 +699,10 @@ export function InvoiceWorkspacePage() {
             >
               <input
                 value={invoiceNumber}
-                onChange={(e) => setInvoiceNumber(e.target.value)}
+                onChange={(e) => {
+                  clearArmedOnEdit();
+                  setInvoiceNumber(e.target.value);
+                }}
                 onFocus={() => onFieldFocus('invoiceNumber')}
               />
             </DropField>
@@ -707,7 +714,10 @@ export function InvoiceWorkspacePage() {
             >
               <input
                 value={vendorNameRaw}
-                onChange={(e) => setVendorNameRaw(e.target.value)}
+                onChange={(e) => {
+                  clearArmedOnEdit();
+                  setVendorNameRaw(e.target.value);
+                }}
                 onFocus={() => onFieldFocus('vendorNameRaw')}
               />
             </DropField>
@@ -746,7 +756,10 @@ export function InvoiceWorkspacePage() {
             >
               <input
                 value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
+                onChange={(e) => {
+                  clearArmedOnEdit();
+                  setCurrency(e.target.value);
+                }}
                 maxLength={3}
                 onFocus={() => onFieldFocus('currency')}
               />
@@ -760,7 +773,10 @@ export function InvoiceWorkspacePage() {
               <input
                 type="date"
                 value={invoiceDate}
-                onChange={(e) => setInvoiceDate(e.target.value)}
+                onChange={(e) => {
+                  clearArmedOnEdit();
+                  setInvoiceDate(e.target.value);
+                }}
                 onFocus={() => onFieldFocus('invoiceDate')}
               />
             </DropField>
@@ -773,7 +789,10 @@ export function InvoiceWorkspacePage() {
               <input
                 type="date"
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                onChange={(e) => {
+                  clearArmedOnEdit();
+                  setDueDate(e.target.value);
+                }}
                 onFocus={() => onFieldFocus('dueDate')}
               />
             </DropField>
@@ -785,7 +804,10 @@ export function InvoiceWorkspacePage() {
             >
               <input
                 value={subtotal}
-                onChange={(e) => setSubtotal(e.target.value)}
+                onChange={(e) => {
+                  clearArmedOnEdit();
+                  setSubtotal(e.target.value);
+                }}
                 inputMode="decimal"
                 onFocus={() => onFieldFocus('subtotal')}
               />
@@ -798,7 +820,10 @@ export function InvoiceWorkspacePage() {
             >
               <input
                 value={tax}
-                onChange={(e) => setTax(e.target.value)}
+                onChange={(e) => {
+                  clearArmedOnEdit();
+                  setTax(e.target.value);
+                }}
                 inputMode="decimal"
                 onFocus={() => onFieldFocus('tax')}
               />
@@ -811,7 +836,10 @@ export function InvoiceWorkspacePage() {
             >
               <input
                 value={total}
-                onChange={(e) => setTotal(e.target.value)}
+                onChange={(e) => {
+                  clearArmedOnEdit();
+                  setTotal(e.target.value);
+                }}
                 inputMode="decimal"
                 required
                 onFocus={() => onFieldFocus('total')}
@@ -825,7 +853,10 @@ export function InvoiceWorkspacePage() {
             >
               <textarea
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={(e) => {
+                  clearArmedOnEdit();
+                  setNotes(e.target.value);
+                }}
                 rows={3}
                 onFocus={() => onFieldFocus('notes')}
               />
