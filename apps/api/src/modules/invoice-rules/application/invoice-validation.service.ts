@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
+import { TenancyService } from '../../tenancy/application/tenancy.service';
 
 export type ValidationIssue = {
   code: string;
@@ -22,14 +23,21 @@ export const MANAGED_EXCEPTION_CODES = [
   'CODING',
   'TAX',
   'ENTITY',
+  'PO_TOTAL',
+  'PO_VENDOR',
+  'PO_RECEIPT',
 ] as const;
 
 const TOTAL_TOLERANCE_MINOR = 1; // 1 cent
 const DUP_LOOKBACK_DAYS = 365;
+const PO_TOTAL_TOLERANCE_MINOR = 1;
 
 @Injectable()
 export class InvoiceValidationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenancy: TenancyService,
+  ) {}
 
   async evaluate(tenantId: string, invoiceId: string): Promise<ValidationResult> {
     const invoice = await this.prisma.invoice.findFirst({
@@ -147,6 +155,69 @@ export class InvoiceValidationService {
           message: `Possible duplicate of invoice ${duplicate.invoiceNumber ?? duplicate.id.slice(0, 8)} (${duplicate.status})`,
           blocking: true,
         });
+      }
+    }
+
+    const poLicensed = await this.tenancy.isModuleEnabled(
+      tenantId,
+      'purchase_orders',
+    );
+    if (poLicensed && invoice.purchaseOrderId) {
+      const po = await this.prisma.purchaseOrder.findFirst({
+        where: { id: invoice.purchaseOrderId, tenantId },
+        include: { lines: true },
+      });
+      if (!po) {
+        issues.push({
+          code: 'PO_TOTAL',
+          message: 'Linked purchase order not found',
+          blocking: true,
+        });
+      } else {
+        if (
+          invoice.vendorId &&
+          po.vendorId &&
+          invoice.vendorId !== po.vendorId
+        ) {
+          issues.push({
+            code: 'PO_VENDOR',
+            message: 'Invoice vendor does not match purchase order vendor',
+            blocking: true,
+          });
+        }
+
+        const poTotal =
+          po.totalMinor ??
+          po.lines.reduce((sum, line) => {
+            if (line.amountMinor != null) return sum + line.amountMinor;
+            if (line.unitPriceMinor != null && line.quantity != null) {
+              return sum + Math.round(line.unitPriceMinor * line.quantity);
+            }
+            return sum;
+          }, 0);
+
+        if (invoice.totalMinor != null && poTotal > 0) {
+          if (
+            Math.abs(invoice.totalMinor - poTotal) > PO_TOTAL_TOLERANCE_MINOR
+          ) {
+            issues.push({
+              code: 'PO_TOTAL',
+              message: `2-way match failed: invoice total ${invoice.totalMinor} vs PO ${poTotal} (±${PO_TOTAL_TOLERANCE_MINOR})`,
+              blocking: true,
+            });
+          }
+        }
+
+        const receiptOk = ['partially_received', 'received', 'closed'].includes(
+          po.status,
+        );
+        if (!receiptOk) {
+          issues.push({
+            code: 'PO_RECEIPT',
+            message: `3-way match failed: PO ${po.number} is ${po.status} (needs receipt)`,
+            blocking: true,
+          });
+        }
       }
     }
 

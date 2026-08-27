@@ -267,6 +267,16 @@ export class InvoicesService {
         fileAsset: true,
         exceptions: true,
         lines: { orderBy: { lineNo: 'asc' } },
+        purchaseOrder: {
+          select: {
+            id: true,
+            number: true,
+            title: true,
+            status: true,
+            totalMinor: true,
+            vendorId: true,
+          },
+        },
       },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
@@ -287,10 +297,18 @@ export class InvoicesService {
       taxMinor?: number | null;
       totalMinor?: number | null;
       notes?: string | null;
+      purchaseOrderId?: string | null;
       actorUserId?: string;
     },
   ) {
     await this.get(tenantId, id);
+    if (data.purchaseOrderId) {
+      const po = await this.prisma.purchaseOrder.findFirst({
+        where: { id: data.purchaseOrderId, tenantId },
+        select: { id: true },
+      });
+      if (!po) throw new BadRequestException('Purchase order not found');
+    }
     await this.prisma.invoice.update({
       where: { id },
       data: {
@@ -312,6 +330,7 @@ export class InvoicesService {
         taxMinor: data.taxMinor,
         totalMinor: data.totalMinor,
         notes: data.notes,
+        purchaseOrderId: data.purchaseOrderId,
       },
     });
     await this.validation.syncExceptions(tenantId, id);

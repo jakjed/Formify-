@@ -3773,6 +3773,11 @@
           "notes": {
             "type": "string",
             "nullable": true
+          },
+          "purchaseOrderId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
           }
         }
       },
