@@ -276,6 +276,82 @@
   padding: 0;
 }
 
+.status-chip {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: rgb(15 118 110 / 12%);
+  color: var(--aptora-teal);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.ok {
+  color: var(--aptora-teal);
+  margin: 0;
+}
+
+.workspace-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1rem;
+  max-width: 52rem;
+  margin-top: 1rem;
+}
+
+.workspace-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.workspace-form input,
+.workspace-form select,
+.workspace-form textarea {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--aptora-border);
+  border-radius: var(--aptora-radius);
+  font: inherit;
+  background: white;
+}
+
+.workspace-form .span-2 {
+  grid-column: 1 / -1;
+}
+
+.workspace-form .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.workspace-form button,
+.secondary-btn {
+  border: 0;
+  border-radius: var(--aptora-radius);
+  padding: 0.65rem 1rem;
+  background: var(--aptora-teal);
+  color: white;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.secondary-btn {
+  background: transparent;
+  color: var(--aptora-ink);
+  border: 1px solid var(--aptora-border);
+}
+
+.inline-form select {
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--aptora-border);
+  border-radius: var(--aptora-radius);
+  font: inherit;
+  background: white;
+}
+
 @media (max-width: 800px) {
   .shell {
     grid-template-columns: 1fr;
@@ -284,5 +360,9 @@
   .shell__nav {
     border-right: 0;
     border-bottom: 1px solid var(--aptora-border);
+  }
+
+  .workspace-form {
+    grid-template-columns: 1fr;
   }
 }

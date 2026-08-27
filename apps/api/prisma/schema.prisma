@@ -42,6 +42,10 @@ model Tenant {
   costCenters    CostCenter[]
   taxCodes       TaxCode[]
   paymentTerms   PaymentTerm[]
+  fileAssets     FileAsset[]
+  invoices       Invoice[]
+  usageEvents    UsageEvent[]
+  ocrPageMeters  OcrPageMeter[]
 }
 
 model ModuleLicense {
@@ -196,3 +200,118 @@ model PaymentTerm {
   @@unique([tenantId, code])
   @@index([tenantId])
 }
+
+enum InvoiceStatus {
+  captured
+  extracting
+  needs_review
+  exception
+  in_approval
+  approved
+  exported
+  void
+  paid
+}
+
+model FileAsset {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  storagePath  String
+  pageCount    Int      @default(1)
+  createdAt    DateTime @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
+
+  @@index([tenantId])
+}
+
+model Invoice {
+  id             String        @id @default(uuid()) @db.Uuid
+  tenantId       String        @db.Uuid
+  entityId       String?       @db.Uuid
+  vendorId       String?       @db.Uuid
+  fileAssetId    String?       @db.Uuid
+  status         InvoiceStatus @default(captured)
+  invoiceNumber  String?
+  invoiceDate    DateTime?     @db.Date
+  dueDate        DateTime?     @db.Date
+  currency       String        @default("EUR")
+  subtotalMinor  Int?
+  taxMinor       Int?
+  totalMinor     Int?
+  vendorNameRaw  String?
+  notes          String?
+  ocrConfidence  Float?
+  approvedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  tenant    Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fileAsset FileAsset?         @relation(fields: [fileAssetId], references: [id], onDelete: SetNull)
+  lines     InvoiceLine[]
+  exceptions InvoiceException[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, invoiceNumber])
+}
+
+model InvoiceLine {
+  id          String  @id @default(uuid()) @db.Uuid
+  invoiceId   String  @db.Uuid
+  lineNo      Int
+  description String?
+  quantity    Float?
+  unitPriceMinor Int?
+  amountMinor Int?
+  glAccountId String? @db.Uuid
+  costCenterId String? @db.Uuid
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, lineNo])
+  @@index([invoiceId])
+}
+
+model InvoiceException {
+  id        String   @id @default(uuid()) @db.Uuid
+  invoiceId String   @db.Uuid
+  code      String
+  message   String
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model UsageEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  type      String
+  refId     String
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, type, refId])
+  @@index([tenantId, type])
+}
+
+model OcrPageMeter {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  yearMonth String
+  pages     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, yearMonth])
+}
+

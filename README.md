@@ -21,6 +21,7 @@ Formerly working name: Formify.
 - [docs/architecture/E0_FOUNDATION.md](docs/architecture/E0_FOUNDATION.md) — run the foundation locally
 - [docs/architecture/HOSTING.md](docs/architecture/HOSTING.md) — where to host & what to do first
 - [docs/architecture/E1_MASTERDATA.md](docs/architecture/E1_MASTERDATA.md) — auth guard + directory master data
+- [docs/architecture/E2_CAPTURE.md](docs/architecture/E2_CAPTURE.md) — capture upload + invoice workspace
 
 ## Workspace
 
