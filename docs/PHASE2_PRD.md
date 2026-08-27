@@ -28,8 +28,8 @@ Default for new tenants: Phase 2 modules **off** until admin enables them. `invo
 |---|---|
 | P2-E0 Foundation | Schema, licenses, CRUD APIs, nav, admin enable ✅ |
 | P2-E1 Contracts workspace | Approvals, amendments, renewals, vendor link ✅ |
-| P2-E2 PR → PO convert | Convert approved PR to PO draft; line carry-over (this slice) |
-| P2-E3 Receiving | Receive against PO lines; partial receive |
+| P2-E2 PR → PO convert | Convert approved PR to PO draft; line carry-over ✅ |
+| P2-E3 Receiving | Receive against PO lines; partial receive (this slice) |
 | P2-E4 Invoice match | 2/3-way match exceptions into Invoices when PO licensed |
 | P2-E5 Integration | PR/PO/Contract templates + export jobs |
 
@@ -63,3 +63,10 @@ Default for new tenants: Phase 2 modules **off** until admin enables them. `invo
 - [x] Requires `purchase_orders` license  
 - [x] Web Convert action + PO↔PR links  
 - [x] Docs: `P2_E2_PR_TO_PO.md`  
+
+## 9. Exit (P2-E3)
+
+- [x] `POST /api/purchase-orders/:id/receive` (partial + full)  
+- [x] `receivedQty` updates + status derivation  
+- [x] Web receive controls on Orders list  
+- [x] Docs: `P2_E3_RECEIVING.md`  

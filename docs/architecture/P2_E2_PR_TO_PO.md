@@ -32,4 +32,4 @@ Response: `{ purchaseRequest, purchaseOrder }` — PR status becomes `converted`
 
 ## Next
 
-P2-E3 Receiving · P2-E4 Invoice match
+P2-E3 Receiving ✅ · P2-E4 Invoice match · P2-E5 Integration

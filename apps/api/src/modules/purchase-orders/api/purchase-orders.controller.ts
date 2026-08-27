@@ -91,15 +91,26 @@ class CreatePoDto {
 }
 
 class TransitionDto {
-  @IsIn([
-    'draft',
-    'issued',
-    'partially_received',
-    'received',
-    'closed',
-    'cancelled',
-  ])
+  @IsIn(['draft', 'issued', 'received', 'closed', 'cancelled'])
   status!: PurchaseOrderStatus;
+}
+
+class ReceiveLineDto {
+  @IsInt()
+  @Min(1)
+  lineNo!: number;
+
+  @IsNumber()
+  @Min(0.0001)
+  quantity!: number;
+}
+
+class ReceivePoDto {
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ReceiveLineDto)
+  lines?: ReceiveLineDto[];
 }
 
 @ApiTags('purchase-orders')
@@ -116,12 +127,6 @@ export class PurchaseOrdersController {
     return this.pos.list(tenantId);
   }
 
-  @Get(':id')
-  @ApiOperation({ summary: 'Get purchase order' })
-  get(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
-    return this.pos.get(tenantId, id);
-  }
-
   @Post()
   @ApiOperation({ summary: 'Create purchase order draft' })
   create(
@@ -132,8 +137,27 @@ export class PurchaseOrdersController {
     return this.pos.create(tenantId, user.id, dto);
   }
 
+  @Get(':id')
+  @ApiOperation({ summary: 'Get purchase order' })
+  get(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
+    return this.pos.get(tenantId, id);
+  }
+
+  @Post(':id/receive')
+  @ApiOperation({
+    summary: 'Receive against PO lines (partial or full); omit lines to receive all remaining',
+  })
+  receive(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: ReceivePoDto,
+  ) {
+    return this.pos.receive(tenantId, id, user.id, dto);
+  }
+
   @Post(':id/transition')
-  @ApiOperation({ summary: 'Transition PO status' })
+  @ApiOperation({ summary: 'Transition PO status (issue / cancel / close)' })
   transition(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
