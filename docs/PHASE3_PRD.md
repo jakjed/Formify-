@@ -20,8 +20,8 @@ After AP Invoices (Phase 1) and Procure (Phase 2), open Aptora to **partners and
 |---|---|
 | P3-E0 Foundation | Webhooks + connector pack registry + PRD ✅ |
 | P3-E1 SSO OIDC | First IdP (Google or Entra) via `AuthProviderConfig` (this slice) |
-| P3-E2 Partner OAuth apps | OAuth2 client apps + scoped API access (this slice) |
-| P3-E3 SCIM | User provisioning |
+| P3-E2 Partner OAuth apps | OAuth2 client apps + scoped API access ✅ |
+| P3-E3 SCIM | User provisioning (this slice) |
 | P3-E4 Connector runtime | First ERP pack (OAuth + sync jobs) |
 | P3-E5 Advanced SoD | Segregation-of-duties policies beyond Phase 1 approvals |
 
@@ -54,3 +54,10 @@ After AP Invoices (Phase 1) and Procure (Phase 2), open Aptora to **partners and
 - [x] AuthGuard resolves `aptoauth_` tokens with `@RequireScopes`  
 - [x] Admin → OAuth apps UI  
 - [x] Docs: `P3_E2_PARTNER_OAUTH.md`  
+
+## 8. Exit (P3-E3)
+
+- [x] `scim:read` / `scim:write` on API key (+ OAuth) scopes  
+- [x] `/api/scim/v2/Users` GET/POST/PATCH + DELETE→deactivate  
+- [x] Map to existing `User`; SSO-ready active users (null password)  
+- [x] Docs: `P3_E3_SCIM.md`  

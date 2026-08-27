@@ -12,6 +12,8 @@ export const API_KEY_SCOPES = [
   'invoices:write',
   'masterdata:write',
   'exports:read',
+  'scim:read',
+  'scim:write',
 ] as const;
 
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];

@@ -15,6 +15,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ApiKeysModule } from './modules/apikeys/apikeys.module';
 import { OAuthModule } from './modules/oauth/oauth.module';
+import { ScimModule } from './modules/scim/scim.module';
 import { OpsModule } from './modules/ops/ops.module';
 import { SearchModule } from './modules/search/search.module';
 import { ContractsModule } from './modules/contracts/contracts.module';
@@ -45,6 +46,7 @@ import { ModuleLicenseGuard } from './common/module-license.guard';
     NotificationsModule,
     ApiKeysModule,
     OAuthModule,
+    ScimModule,
     OpsModule,
     SearchModule,
     ContractsModule,
