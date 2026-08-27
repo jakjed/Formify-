@@ -310,6 +310,17 @@
   grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
   gap: 0.75rem;
   margin: 1.25rem 0 1.5rem;
+  width: 100%;
+}
+
+.stat-grid--panels {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  align-items: stretch;
+}
+
+.stat-grid--panels .panel {
+  margin-top: 0;
+  height: 100%;
 }
 
 .stat-tile {
@@ -368,11 +379,19 @@
 }
 
 .shell__main {
-  padding: 2.25rem 2rem 3rem;
+  padding: 2.25rem clamp(1.25rem, 2.5vw, 2.5rem) 3rem;
   animation: aptora-rise 420ms var(--aptora-ease);
   overflow-y: auto;
+  overflow-x: hidden;
   height: 100vh;
   min-width: 0;
+  width: 100%;
+}
+
+.page {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
 }
 
 .page h1,
@@ -409,10 +428,16 @@
   background:
     linear-gradient(160deg, rgb(255 255 255 / 92%) 0%, rgb(240 250 247 / 78%) 100%);
   box-shadow: var(--aptora-shadow);
-  max-width: 36rem;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
   transition:
     transform var(--aptora-duration) var(--aptora-ease),
     box-shadow var(--aptora-duration) var(--aptora-ease);
+}
+
+.panel--narrow {
+  max-width: 36rem;
 }
 
 .panel--wide {
@@ -606,6 +631,7 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
+  width: 100%;
 }
 
 .inline-form input {
@@ -630,6 +656,7 @@
 .table-wrap {
   overflow: auto;
   max-height: min(70vh, 720px);
+  width: 100%;
   border: 1px solid var(--aptora-border);
   border-radius: var(--aptora-radius-lg);
   background: rgb(255 255 255 / 90%);
@@ -704,9 +731,10 @@
 
 .workspace-form {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
   gap: 0.85rem 1rem;
-  max-width: 52rem;
+  width: 100%;
+  max-width: none;
   margin-top: 1rem;
 }
 
@@ -950,6 +978,8 @@
   gap: 0.75rem 1rem;
   align-items: flex-end;
   margin: 1rem 0 1.25rem;
+  width: 100%;
+}
 }
 
 .worklist-toolbar .inline-form {
@@ -1610,7 +1640,7 @@
 
 /* —— My Work cockpit —— */
 .page--cockpit {
-  max-width: 1100px;
+  max-width: none;
 }
 
 .page--worklist {
@@ -1624,6 +1654,7 @@
   justify-content: space-between;
   gap: 1.25rem;
   margin-bottom: 1.5rem;
+  width: 100%;
 }
 
 .cockpit-hero__actions {
@@ -1634,9 +1665,10 @@
 
 .cockpit-stats {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
   gap: 0.85rem;
   margin-bottom: 1.25rem;
+  width: 100%;
 }
 
 .stat-orb {
@@ -1738,7 +1770,7 @@
 
 .approval-card {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 1rem;
   align-items: center;
   padding: 1rem 1.1rem;
@@ -1750,6 +1782,7 @@
     transform var(--aptora-duration) var(--aptora-ease),
     border-color var(--aptora-duration) var(--aptora-ease),
     box-shadow var(--aptora-duration) var(--aptora-ease);
+  width: 100%;
 }
 
 .approval-card:hover {
