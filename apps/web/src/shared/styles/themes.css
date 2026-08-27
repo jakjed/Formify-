@@ -182,9 +182,19 @@
   color: #fdf4ff;
 }
 
+[data-aptora-theme='electric'] .shell__entity {
+  color: rgb(250 232 255 / 78%);
+}
+
 [data-aptora-theme='electric'] .shell__entity select {
-  background: rgb(255 255 255 / 10%);
-  border-color: rgb(244 114 182 / 35%);
+  background: #2a1052;
+  border-color: rgb(244 114 182 / 45%);
+  color: #fdf4ff;
+  color-scheme: dark;
+}
+
+[data-aptora-theme='electric'] .shell__entity select option {
+  background: #1a0a2e;
   color: #fdf4ff;
 }
 
@@ -353,5 +363,259 @@
 [data-aptora-theme='electric'] .shell__link,
 [data-aptora-theme='electric'] .shell__link:hover,
 [data-aptora-theme='electric'] a.shell__link {
+  color: inherit;
+}
+
+/* —— Forge: masculine industrial — steel, cobalt voltage, molten amber —— */
+
+[data-aptora-theme='forge'] {
+  --aptora-ink: #0b1220;
+  --aptora-ink-soft: #1e293b;
+  --aptora-paper: #dce4ee;
+  --aptora-paper-deep: #c5d0de;
+  --aptora-surface: #f1f5f9;
+  --aptora-surface-tint: #e8eef6;
+  --aptora-muted: #475569;
+  --aptora-border: rgb(37 99 235 / 22%);
+  --aptora-border-strong: rgb(15 23 42 / 28%);
+  --aptora-brand: #2563eb;
+  --aptora-brand-bright: #3b82f6;
+  --aptora-teal: #0284c7;
+  --aptora-teal-deep: #1d4ed8;
+  --aptora-teal-hover: #60a5fa;
+  --aptora-teal-glow: rgb(37 99 235 / 42%);
+  --aptora-forest: #0f172a;
+  --aptora-sage: #64748b;
+  --aptora-sky: #0ea5e9;
+  --aptora-success: #16a34a;
+  --aptora-success-soft: #dcfce7;
+  --aptora-warning: #ea580c;
+  --aptora-warning-soft: #ffedd5;
+  --aptora-danger: #dc2626;
+  --aptora-danger-soft: #fee2e2;
+  --aptora-info: #0284c7;
+  --aptora-info-soft: #e0f2fe;
+  --aptora-amber: #f59e0b;
+  --aptora-amber-soft: #fef3c7;
+  --aptora-shadow:
+    0 2px 8px rgb(15 23 42 / 14%),
+    0 12px 32px rgb(37 99 235 / 14%);
+  --aptora-shadow-lift:
+    0 10px 28px rgb(37 99 235 / 28%),
+    0 22px 48px rgb(15 23 42 / 22%);
+  --aptora-focus-ring: 0 0 0 3px rgb(59 130 246 / 45%);
+}
+
+[data-aptora-theme='forge'] .shell {
+  background:
+    radial-gradient(960px 540px at -4% -6%, rgb(37 99 235 / 36%), transparent 54%),
+    radial-gradient(820px 480px at 104% 8%, rgb(245 158 11 / 32%), transparent 50%),
+    radial-gradient(700px 420px at 48% 112%, rgb(14 165 233 / 22%), transparent 52%),
+    linear-gradient(162deg, #cbd5e1 0%, #e2e8f0 38%, #f8fafc 100%);
+}
+
+[data-aptora-theme='forge'] .shell__nav {
+  background: linear-gradient(172deg, #020617 0%, #0f172a 38%, #1e3a8a 100%);
+  border-right-color: rgb(59 130 246 / 38%);
+  box-shadow:
+    inset -1px 0 0 rgb(148 163 184 / 12%),
+    6px 0 32px rgb(15 23 42 / 35%);
+}
+
+[data-aptora-theme='forge'] .shell__brand span {
+  color: #f8fafc;
+  text-shadow: 0 0 24px rgb(59 130 246 / 35%);
+}
+
+[data-aptora-theme='forge'] .shell__collapse-btn {
+  background: rgb(30 58 138 / 55%);
+  border-color: rgb(96 165 250 / 45%);
+  color: #e2e8f0;
+}
+
+[data-aptora-theme='forge'] .shell__entity {
+  color: rgb(148 163 184 / 92%);
+}
+
+[data-aptora-theme='forge'] .shell__entity select {
+  background: #0f172a;
+  border-color: rgb(96 165 250 / 42%);
+  color: #f1f5f9;
+  color-scheme: dark;
+}
+
+[data-aptora-theme='forge'] .shell__entity select option {
+  background: #020617;
+  color: #f1f5f9;
+}
+
+[data-aptora-theme='forge'] .shell__nav-group {
+  color: rgb(148 163 184 / 62%);
+}
+
+[data-aptora-theme='forge'] .shell__link {
+  color: rgb(226 232 240 / 92%);
+}
+
+[data-aptora-theme='forge'] .shell__link:hover {
+  background: rgb(37 99 235 / 22%);
+  color: #ffffff;
+}
+
+[data-aptora-theme='forge'] .shell__link--active {
+  background: linear-gradient(
+    95deg,
+    rgb(37 99 235 / 38%) 0%,
+    rgb(245 158 11 / 18%) 100%
+  );
+  color: #ffffff;
+  box-shadow:
+    inset 0 0 0 1px rgb(96 165 250 / 55%),
+    0 4px 18px rgb(37 99 235 / 35%);
+}
+
+[data-aptora-theme='forge'] .shell__link--muted {
+  color: rgb(203 213 225 / 78%);
+}
+
+[data-aptora-theme='forge'] .user-menu__panel {
+  background: #0f172a;
+  border-color: rgb(96 165 250 / 38%);
+  color: #f1f5f9;
+}
+
+[data-aptora-theme='forge'] .user-menu__name {
+  color: #f8fafc;
+}
+
+[data-aptora-theme='forge'] .user-menu__email {
+  color: rgb(148 163 184 / 88%);
+}
+
+[data-aptora-theme='forge'] .user-menu__item {
+  color: rgb(226 232 240 / 94%);
+}
+
+[data-aptora-theme='forge'] .user-menu__item:hover {
+  background: rgb(37 99 235 / 18%);
+  color: #ffffff;
+}
+
+[data-aptora-theme='forge'] .user-menu__theme strong {
+  color: #f8fafc;
+}
+
+[data-aptora-theme='forge'] .panel {
+  background: linear-gradient(
+    158deg,
+    rgb(248 250 252 / 98%) 0%,
+    rgb(226 232 240 / 72%) 100%
+  );
+  border-color: rgb(37 99 235 / 22%);
+  box-shadow: var(--aptora-shadow);
+}
+
+[data-aptora-theme='forge'] .stat-tile {
+  background: linear-gradient(145deg, #f8fafc 0%, rgb(219 234 254 / 85%) 100%);
+  border-color: rgb(37 99 235 / 30%);
+  border-left: 3px solid #2563eb;
+}
+
+[data-aptora-theme='forge'] .procure__kpi {
+  background: linear-gradient(145deg, #f8fafc 0%, rgb(254 243 199 / 55%) 100%);
+  border-color: rgb(245 158 11 / 28%);
+  border-left: 3px solid #f59e0b;
+}
+
+[data-aptora-theme='forge'] .stat-orb--teal {
+  background: linear-gradient(145deg, #bfdbfe 0%, #f8fafc 58%);
+  border-color: rgb(37 99 235 / 40%);
+}
+
+[data-aptora-theme='forge'] .stat-orb--teal::after {
+  background: radial-gradient(circle, rgb(59 130 246 / 78%), transparent 68%);
+}
+
+[data-aptora-theme='forge'] .stat-orb--amber {
+  background: linear-gradient(145deg, #fde68a 0%, #f8fafc 58%);
+  border-color: rgb(245 158 11 / 38%);
+}
+
+[data-aptora-theme='forge'] .stat-orb--amber::after {
+  background: radial-gradient(circle, rgb(245 158 11 / 75%), transparent 68%);
+}
+
+[data-aptora-theme='forge'] .stat-orb--sky {
+  background: linear-gradient(145deg, #bae6fd 0%, #f8fafc 58%);
+  border-color: rgb(14 165 233 / 35%);
+}
+
+[data-aptora-theme='forge'] .stat-orb--sky::after {
+  background: radial-gradient(circle, rgb(14 165 233 / 72%), transparent 68%);
+}
+
+[data-aptora-theme='forge'] .stat-orb--forest {
+  background: linear-gradient(145deg, #cbd5e1 0%, #f8fafc 58%);
+  border-color: rgb(71 85 105 / 32%);
+}
+
+[data-aptora-theme='forge'] .btn--primary {
+  background: linear-gradient(128deg, #1d4ed8 0%, #2563eb 45%, #ea580c 100%);
+  border-color: transparent;
+  box-shadow:
+    0 6px 22px rgb(37 99 235 / 42%),
+    inset 0 1px 0 rgb(255 255 255 / 18%);
+  color: #ffffff;
+}
+
+[data-aptora-theme='forge'] .btn--primary:hover {
+  filter: brightness(1.08);
+  box-shadow:
+    0 8px 28px rgb(37 99 235 / 50%),
+    0 2px 12px rgb(234 88 12 / 28%);
+}
+
+[data-aptora-theme='forge'] .btn--ghost {
+  border-color: rgb(37 99 235 / 35%);
+  color: #1e293b;
+  background: rgb(248 250 252 / 80%);
+}
+
+[data-aptora-theme='forge'] .btn--ghost:hover {
+  background: rgb(219 234 254 / 85%);
+  border-color: rgb(37 99 235 / 50%);
+  color: #1d4ed8;
+}
+
+[data-aptora-theme='forge'] .eyebrow {
+  color: #1d4ed8;
+  letter-spacing: 0.14em;
+  font-weight: 800;
+}
+
+[data-aptora-theme='forge'] .procure__tab--active {
+  color: #1d4ed8;
+  background: rgb(37 99 235 / 14%);
+  border-color: rgb(37 99 235 / 32%);
+}
+
+[data-aptora-theme='forge'] .tabs__btn--active,
+[data-aptora-theme='forge'] .view-chip--active {
+  border-color: #2563eb;
+  color: #1d4ed8;
+  background: rgb(37 99 235 / 12%);
+}
+
+[data-aptora-theme='forge'] a:not(.shell__link):not(.btn) {
+  color: #1d4ed8;
+}
+
+[data-aptora-theme='forge'] a:not(.shell__link):not(.btn):hover {
+  color: #ea580c;
+}
+
+[data-aptora-theme='forge'] .shell__link,
+[data-aptora-theme='forge'] .shell__link:hover,
+[data-aptora-theme='forge'] a.shell__link {
   color: inherit;
 }

@@ -1,4 +1,4 @@
-export type AptoraTheme = 'default' | 'contrast' | 'vivid' | 'electric';
+export type AptoraTheme = 'default' | 'contrast' | 'vivid' | 'electric' | 'forge';
 
 export const THEME_KEY = 'aptora_theme';
 
@@ -11,6 +11,11 @@ export const THEME_OPTIONS: { id: AptoraTheme; label: string; hint: string }[] =
     label: 'Electric',
     hint: 'Bold violet-magenta — saturated, focused accents',
   },
+  {
+    id: 'forge',
+    label: 'Forge',
+    hint: 'Steel & cobalt fire — industrial, high-voltage',
+  },
 ];
 
 export function getTheme(): AptoraTheme {
@@ -19,6 +24,7 @@ export function getTheme(): AptoraTheme {
     stored === 'contrast' ||
     stored === 'vivid' ||
     stored === 'electric' ||
+    stored === 'forge' ||
     stored === 'default'
   ) {
     return stored;
