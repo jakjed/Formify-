@@ -365,7 +365,7 @@ export function AppShell() {
           )}
           <button
             type="button"
-            className="shell__link shell__link--muted"
+            className="shell__link shell__search"
             onClick={() => setPaletteOpen(true)}
             title="Search (⌘K)"
             aria-label="Search"

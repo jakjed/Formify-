@@ -140,7 +140,7 @@ export class TenancyController {
     @Body() dto: CreateEntityDto,
   ) {
     assertAdmin(user);
-    const entity = await this.tenancy.createEntity(tenantId, dto);
+    const entity = await this.tenancy.createEntity(tenantId, dto, user.id);
     await this.audit.record({
       tenantId,
       actorId: user.id,

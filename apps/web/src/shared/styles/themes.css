@@ -360,10 +360,142 @@
   color: #0e7490;
 }
 
-[data-aptora-theme='electric'] .shell__link,
-[data-aptora-theme='electric'] .shell__link:hover,
-[data-aptora-theme='electric'] a.shell__link {
+[data-aptora-theme='forge'] a:not(.shell__link):not(.btn) {
+  color: #1d4ed8;
+}
+
+[data-aptora-theme='forge'] a:not(.shell__link):not(.btn):hover {
+  color: #ea580c;
+}
+
+/* —— Nav + Search contrast per theme —— */
+
+[data-aptora-theme='default'] .shell__search {
+  color: var(--aptora-ink-soft);
+  background: rgb(255 255 255 / 78%);
+  border-color: var(--aptora-border);
+}
+
+[data-aptora-theme='default'] .shell__search:hover {
+  background: rgb(13 148 136 / 10%);
+  color: var(--aptora-teal-deep);
+  border-color: rgb(13 148 136 / 28%);
+}
+
+[data-aptora-theme='contrast'] .shell__search {
+  color: var(--aptora-ink);
+  background: #ffffff;
+  border-color: var(--aptora-border-strong);
+  font-weight: 600;
+}
+
+[data-aptora-theme='contrast'] .shell__search:hover {
+  background: rgb(15 118 110 / 10%);
+  color: var(--aptora-teal-deep);
+}
+
+[data-aptora-theme='vivid'] .shell__search {
+  color: var(--aptora-teal-deep);
+  background: rgb(204 251 241 / 55%);
+  border-color: rgb(13 148 136 / 32%);
+  font-weight: 600;
+}
+
+[data-aptora-theme='vivid'] .shell__search:hover {
+  background: rgb(13 148 136 / 18%);
+  color: #0f766e;
+}
+
+[data-aptora-theme='electric'] .shell__nav .shell__link,
+[data-aptora-theme='electric'] .shell__nav .shell__link .shell__link-label {
+  color: rgb(250 232 255 / 94%);
+}
+
+[data-aptora-theme='electric'] .shell__nav .shell__link .shell__icon {
+  color: rgb(250 232 255 / 94%);
+}
+
+[data-aptora-theme='electric'] .shell__nav .shell__link:hover,
+[data-aptora-theme='electric'] .shell__nav .shell__link:hover .shell__link-label {
+  color: #ffffff;
+}
+
+[data-aptora-theme='electric'] .shell__nav .shell__link--active,
+[data-aptora-theme='electric'] .shell__nav .shell__link--active .shell__link-label {
+  color: #ffffff;
+}
+
+[data-aptora-theme='electric'] .shell__search {
+  color: #fdf4ff;
+  background: rgb(42 16 82 / 88%);
+  border-color: rgb(244 114 182 / 45%);
+  font-weight: 600;
+}
+
+[data-aptora-theme='electric'] .shell__search:hover {
+  background: rgb(88 28 135 / 92%);
+  color: #ffffff;
+  border-color: rgb(232 121 249 / 55%);
+}
+
+[data-aptora-theme='electric'] .shell__search .shell__icon {
   color: inherit;
+}
+
+[data-aptora-theme='forge'] .shell__nav .shell__link,
+[data-aptora-theme='forge'] .shell__nav .shell__link .shell__link-label {
+  color: rgb(241 245 249 / 96%);
+}
+
+[data-aptora-theme='forge'] .shell__nav .shell__link .shell__icon {
+  color: rgb(241 245 249 / 96%);
+}
+
+[data-aptora-theme='forge'] .shell__nav .shell__link:hover,
+[data-aptora-theme='forge'] .shell__nav .shell__link:hover .shell__link-label {
+  color: #ffffff;
+}
+
+[data-aptora-theme='forge'] .shell__nav .shell__link--active,
+[data-aptora-theme='forge'] .shell__nav .shell__link--active .shell__link-label {
+  color: #ffffff;
+}
+
+[data-aptora-theme='forge'] .shell__search {
+  color: #f8fafc;
+  background: rgb(15 23 42 / 88%);
+  border-color: rgb(96 165 250 / 48%);
+  font-weight: 600;
+}
+
+[data-aptora-theme='forge'] .shell__search:hover {
+  background: rgb(30 58 138 / 92%);
+  color: #ffffff;
+  border-color: rgb(147 197 253 / 58%);
+}
+
+[data-aptora-theme='forge'] .shell__search .shell__icon {
+  color: inherit;
+}
+
+[data-aptora-theme='forge'] .user-menu__trigger,
+[data-aptora-theme='forge'] .user-menu__trigger .shell__link-label {
+  color: rgb(241 245 249 / 94%);
+}
+
+[data-aptora-theme='electric'] .user-menu__trigger,
+[data-aptora-theme='electric'] .user-menu__trigger .shell__link-label {
+  color: rgb(250 232 255 / 94%);
+}
+
+[data-aptora-theme='forge'] .shell__signout,
+[data-aptora-theme='forge'] .shell__signout .shell__link-label {
+  color: rgb(203 213 225 / 88%);
+}
+
+[data-aptora-theme='electric'] .shell__signout,
+[data-aptora-theme='electric'] .shell__signout .shell__link-label {
+  color: rgb(250 232 255 / 78%);
 }
 
 /* —— Forge: masculine industrial — steel, cobalt voltage, molten amber —— */
@@ -606,16 +738,6 @@
   background: rgb(37 99 235 / 12%);
 }
 
-[data-aptora-theme='forge'] a:not(.shell__link):not(.btn) {
-  color: #1d4ed8;
-}
-
 [data-aptora-theme='forge'] a:not(.shell__link):not(.btn):hover {
   color: #ea580c;
-}
-
-[data-aptora-theme='forge'] .shell__link,
-[data-aptora-theme='forge'] .shell__link:hover,
-[data-aptora-theme='forge'] a.shell__link {
-  color: inherit;
 }

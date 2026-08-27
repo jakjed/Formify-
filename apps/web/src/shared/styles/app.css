@@ -181,6 +181,23 @@
   font-weight: 400;
 }
 
+/* Search control in nav — themed per profile in themes.css */
+.shell__search {
+  border: 1px solid var(--aptora-border);
+  background: rgb(255 255 255 / 72%);
+  cursor: pointer;
+  font: inherit;
+  width: 100%;
+}
+
+.shell__search .shell__link-label {
+  font-weight: 500;
+}
+
+.shell__search:hover {
+  transform: translateX(2px);
+}
+
 .shell__signout {
   border: 0;
   background: transparent;
