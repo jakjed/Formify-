@@ -64,6 +64,7 @@ model Tenant {
   auditEvents    AuditEvent[]
   apiKeys        ApiKey[]
   invoiceComments InvoiceComment[]
+  contractComments ContractComment[]
   userInvites    UserInvite[]
   passwordResets PasswordResetToken[]
   contracts      Contract[]
@@ -89,7 +90,8 @@ model Entity {
   name     String
   code     String
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contracts Contract[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -193,6 +195,7 @@ model Vendor {
 
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   paymentTerm PaymentTerm? @relation(fields: [paymentTermId], references: [id], onDelete: SetNull)
+  contracts   Contract[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -581,11 +584,29 @@ model Contract {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  vendor         Vendor?           @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  entity         Entity?           @relation(fields: [entityId], references: [id], onDelete: SetNull)
   purchaseOrders PurchaseOrder[]
+  comments       ContractComment[]
 
   @@unique([tenantId, number])
   @@index([tenantId, status])
+  @@index([tenantId, vendorId])
+}
+
+model ContractComment {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  contractId String   @db.Uuid
+  authorId   String   @db.Uuid
+  body       String
+  createdAt  DateTime @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, contractId, createdAt])
 }
 
 model PurchaseRequest {
