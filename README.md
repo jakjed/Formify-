@@ -41,6 +41,8 @@ Formerly working name: Formify.
 - [docs/architecture/P2_E2_PR_TO_PO.md](docs/architecture/P2_E2_PR_TO_PO.md) — PR → PO convert
 - [docs/architecture/P2_E3_RECEIVING.md](docs/architecture/P2_E3_RECEIVING.md) — PO receiving (partial/full)
 - [docs/architecture/P2_E4_INVOICE_MATCH.md](docs/architecture/P2_E4_INVOICE_MATCH.md) — Invoice 2/3-way PO match
+- [docs/architecture/P2_E5_INTEGRATION.md](docs/architecture/P2_E5_INTEGRATION.md) — Procure Integration templates/exports
+- [docs/architecture/PHASE2_COMPLETE.md](docs/architecture/PHASE2_COMPLETE.md) — Phase 2 Procure track complete
 
 ## Workspace
 

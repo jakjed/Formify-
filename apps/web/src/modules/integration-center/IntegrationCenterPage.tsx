@@ -7,6 +7,7 @@ type Template = {
   direction: string;
   format: string;
   headers: string[];
+  module?: string;
   note?: string;
 };
 
@@ -20,20 +21,29 @@ type Job = {
   createdAt: string;
 };
 
+type ModuleRow = { moduleKey: string; enabled: boolean };
+
 export function IntegrationCenterPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [modules, setModules] = useState<ModuleRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  function moduleOn(key: string) {
+    return modules.some((m) => m.moduleKey === key && m.enabled);
+  }
+
   async function refresh() {
-    const [t, j] = await Promise.all([
+    const [t, j, m] = await Promise.all([
       apiFetch<Template[]>('/api/integration/templates'),
       apiFetch<Job[]>('/api/integration/jobs'),
+      apiFetch<ModuleRow[]>('/api/modules').catch(() => [] as ModuleRow[]),
     ]);
     setTemplates(t);
     setJobs(j);
+    setModules(m);
   }
 
   useEffect(() => {
@@ -56,12 +66,16 @@ export function IntegrationCenterPage() {
   }
 
   async function exportApproved() {
+    await runExport('/api/integration/exports/approved-invoices', 'approved-invoices.csv');
+  }
+
+  async function runExport(path: string, fallbackName: string) {
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
       const token = getToken();
-      const res = await fetch('/api/integration/exports/approved-invoices', {
+      const res = await fetch(path, {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       });
@@ -75,7 +89,7 @@ export function IntegrationCenterPage() {
       a.href = url;
       a.download =
         res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] ??
-        'approved-invoices.csv';
+        fallbackName;
       a.click();
       URL.revokeObjectURL(url);
       setMessage(`Exported ${res.headers.get('X-Aptora-Row-Count') ?? '?'} rows`);
@@ -181,9 +195,53 @@ export function IntegrationCenterPage() {
 
       <div className="panel">
         <h2>Export</h2>
-        <button type="button" onClick={() => void exportApproved()} disabled={busy}>
-          {busy ? 'Working…' : 'Export approved invoices'}
-        </button>
+        <div className="actions">
+          <button type="button" onClick={() => void exportApproved()} disabled={busy}>
+            {busy ? 'Working…' : 'Export approved invoices'}
+          </button>
+          {moduleOn('contracts') && (
+            <button
+              type="button"
+              className="secondary-btn"
+              disabled={busy}
+              onClick={() =>
+                void runExport('/api/integration/exports/contracts', 'contracts.csv')
+              }
+            >
+              Export contracts
+            </button>
+          )}
+          {moduleOn('purchase_requests') && (
+            <button
+              type="button"
+              className="secondary-btn"
+              disabled={busy}
+              onClick={() =>
+                void runExport(
+                  '/api/integration/exports/purchase-requests',
+                  'purchase-requests.csv',
+                )
+              }
+            >
+              Export purchase requests
+            </button>
+          )}
+          {moduleOn('purchase_orders') && (
+            <button
+              type="button"
+              className="secondary-btn"
+              disabled={busy}
+              onClick={() =>
+                void runExport(
+                  '/api/integration/exports/purchase-orders',
+                  'purchase-orders.csv',
+                )
+              }
+            >
+              Export purchase orders
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="panel">

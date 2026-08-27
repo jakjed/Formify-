@@ -436,6 +436,9 @@ model ApprovalTask {
 
 enum IntegrationJobType {
   export_approved_invoices
+  export_contracts
+  export_purchase_requests
+  export_purchase_orders
   import_vendors
   import_gl_accounts
 }
