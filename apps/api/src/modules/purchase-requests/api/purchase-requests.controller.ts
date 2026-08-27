@@ -59,6 +59,27 @@ class CreatePrDto {
   entityId?: string;
 
   @IsOptional()
+  @IsUUID()
+  vendorId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  sourceContractId?: string;
+
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  approvalStage?: number;
+
+  @IsOptional()
   @IsString()
   currency?: string;
 
@@ -98,6 +119,25 @@ class ConvertPrDto {
   contractId?: string;
 }
 
+class AcceptProposalDto {
+  @IsOptional()
+  @IsString()
+  department?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  totalMinor?: number;
+
+  @IsOptional()
+  @IsUUID()
+  entityId?: string;
+}
+
 @ApiTags('purchase-requests')
 @ApiBearerAuth('bearer')
 @RequireModule('purchase_requests')
@@ -110,6 +150,28 @@ export class PurchaseRequestsController {
   @ApiOperation({ summary: 'List purchase requests' })
   list(@CurrentTenantId() tenantId: string) {
     return this.prs.list(tenantId);
+  }
+
+  @Get('proposals')
+  @ApiOperation({
+    summary: 'List active contracts available as PR proposals (no linked PR yet)',
+  })
+  listProposals(@CurrentTenantId() tenantId: string) {
+    return this.prs.listProposals(tenantId);
+  }
+
+  @Post('proposals/:contractId/accept')
+  @ApiOperation({ summary: 'Accept contract proposal into an in_approval PR' })
+  acceptProposal(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('contractId') contractId: string,
+    @Body() dto: AcceptProposalDto,
+  ) {
+    return this.prs.createFromProposal(tenantId, user.id, {
+      contractId,
+      ...dto,
+    });
   }
 
   @Post()

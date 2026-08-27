@@ -74,8 +74,10 @@ model Tenant {
   userInvites    UserInvite[]
   passwordResets PasswordResetToken[]
   contracts      Contract[]
+  contractDocuments ContractDocument[]
   purchaseRequests PurchaseRequest[]
   purchaseOrders PurchaseOrder[]
+  apAccruals     ApAccrual[]
   webhookEndpoints WebhookEndpoint[]
   connectorConnections ConnectorConnection[]
 }
@@ -718,8 +720,17 @@ model OAuthAccessToken {
 enum ContractStatus {
   draft
   in_approval
+  pending_signature
   active
   expired
+  cancelled
+}
+
+enum ApAccrualStatus {
+  draft
+  in_approval
+  approved
+  posted
   cancelled
 }
 
@@ -741,30 +752,61 @@ enum PurchaseOrderStatus {
 }
 
 model Contract {
-  id          String         @id @default(uuid()) @db.Uuid
-  tenantId    String         @db.Uuid
-  entityId    String?        @db.Uuid
-  vendorId    String?        @db.Uuid
-  number      String
-  title       String
-  status      ContractStatus @default(draft)
-  startDate   DateTime?      @db.Date
-  endDate     DateTime?      @db.Date
-  currency    String         @default("EUR")
-  valueMinor  Int?
-  notes       String?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id                 String         @id @default(uuid()) @db.Uuid
+  tenantId           String         @db.Uuid
+  entityId           String?        @db.Uuid
+  vendorId           String?        @db.Uuid
+  number             String
+  title              String
+  status             ContractStatus @default(draft)
+  startDate          DateTime?      @db.Date
+  endDate            DateTime?      @db.Date
+  currency           String         @default("EUR")
+  valueMinor         Int?
+  notes              String?
+  agreementType      String?
+  purpose            String?
+  serviceDescription String?
+  costCenter         String?
+  termType           String?
+  noticePeriod       String?
+  clmTool            String?
+  ownerName          String?
+  approvalStage      Int            @default(0)
+  contractDate       DateTime?      @db.Date
+  aiExtracted        Boolean        @default(false)
+  redFlagsJson       Json?
+  signatureJson      Json?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   vendor         Vendor?           @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   entity         Entity?           @relation(fields: [entityId], references: [id], onDelete: SetNull)
   purchaseOrders PurchaseOrder[]
   comments       ContractComment[]
+  documents      ContractDocument[]
+  purchaseRequests PurchaseRequest[]
+  apAccruals     ApAccrual[]
 
   @@unique([tenantId, number])
   @@index([tenantId, status])
   @@index([tenantId, vendorId])
+}
+
+model ContractDocument {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  contractId  String   @db.Uuid
+  category    String
+  fileName    String
+  storagePath String?
+  createdAt   DateTime @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, contractId])
 }
 
 model ContractComment {
@@ -782,25 +824,32 @@ model ContractComment {
 }
 
 model PurchaseRequest {
-  id           String                @id @default(uuid()) @db.Uuid
-  tenantId     String                @db.Uuid
-  entityId     String?               @db.Uuid
-  number       String
-  title        String
-  status       PurchaseRequestStatus @default(draft)
-  requesterId  String?               @db.Uuid
-  currency     String                @default("EUR")
-  totalMinor   Int?
-  notes        String?
-  createdAt    DateTime              @default(now())
-  updatedAt    DateTime              @updatedAt
+  id               String                @id @default(uuid()) @db.Uuid
+  tenantId         String                @db.Uuid
+  entityId         String?               @db.Uuid
+  vendorId         String?               @db.Uuid
+  sourceContractId String?               @db.Uuid
+  number           String
+  title            String
+  status           PurchaseRequestStatus @default(draft)
+  requesterId      String?               @db.Uuid
+  currency         String                @default("EUR")
+  totalMinor       Int?
+  notes            String?
+  department       String?
+  category         String?
+  approvalStage    Int                   @default(0)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
-  tenant  Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  lines   PurchaseRequestLine[]
+  tenant         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sourceContract Contract?             @relation(fields: [sourceContractId], references: [id], onDelete: SetNull)
+  lines          PurchaseRequestLine[]
   purchaseOrders PurchaseOrder[]
 
   @@unique([tenantId, number])
   @@index([tenantId, status])
+  @@index([tenantId, sourceContractId])
 }
 
 model PurchaseRequestLine {
@@ -841,6 +890,7 @@ model PurchaseOrder {
   purchaseRequest PurchaseRequest?    @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
   lines           PurchaseOrderLine[]
   invoices        Invoice[]
+  accruals        ApAccrual[]
 
   @@unique([tenantId, number])
   @@index([tenantId, status])
@@ -863,6 +913,29 @@ model PurchaseOrderLine {
   @@index([purchaseOrderId])
 }
 
+model ApAccrual {
+  id              String         @id @default(uuid()) @db.Uuid
+  tenantId        String         @db.Uuid
+  purchaseOrderId String         @db.Uuid
+  contractId      String?        @db.Uuid
+  vendorName      String?
+  entityId        String?        @db.Uuid
+  department      String?
+  category        String?
+  amountMinor     Int
+  currency        String         @default("EUR")
+  status          ApAccrualStatus @default(draft)
+  approvalStage   Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  contract      Contract?     @relation(fields: [contractId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([tenantId, purchaseOrderId])
+}
 
 enum WebhookDeliveryStatus {
   pending
