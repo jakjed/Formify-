@@ -70,6 +70,7 @@ model Tenant {
   contracts      Contract[]
   purchaseRequests PurchaseRequest[]
   purchaseOrders PurchaseOrder[]
+  webhookEndpoints WebhookEndpoint[]
 }
 
 model ModuleLicense {
@@ -697,3 +698,45 @@ model PurchaseOrderLine {
   @@index([purchaseOrderId])
 }
 
+
+enum WebhookDeliveryStatus {
+  pending
+  succeeded
+  failed
+}
+
+model WebhookEndpoint {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  url       String
+  secret    String
+  events    String[]
+  enabled   Boolean  @default(true)
+  description String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId, enabled])
+}
+
+model WebhookDelivery {
+  id             String                @id @default(uuid()) @db.Uuid
+  tenantId       String                @db.Uuid
+  endpointId     String                @db.Uuid
+  event          String
+  payloadJson    String
+  status         WebhookDeliveryStatus @default(pending)
+  httpStatus     Int?
+  errorMessage   String?
+  attemptCount   Int                   @default(0)
+  createdAt      DateTime              @default(now())
+  finishedAt     DateTime?
+
+  endpoint WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([endpointId, createdAt])
+}

@@ -9,6 +9,7 @@ import { AuditService } from '../../audit/application/audit.service';
 import { InvoiceValidationService } from '../../invoice-rules/application/invoice-validation.service';
 import { UsageService } from '../../usage/application/usage.service';
 import { WorkflowService } from '../../workflow/application/workflow.service';
+import { WebhooksService } from '../../webhooks/application/webhooks.service';
 
 export type InvoiceListQuery = {
   status?: InvoiceStatus | InvoiceStatus[];
@@ -27,6 +28,7 @@ export class InvoicesService {
     private readonly workflow: WorkflowService,
     private readonly validation: InvoiceValidationService,
     private readonly audit: AuditService,
+    private readonly webhooks: WebhooksService,
   ) {}
 
   list(tenantId: string, query: InvoiceListQuery = {}) {
@@ -542,6 +544,17 @@ export class InvoicesService {
     });
 
     await this.usage.recordInvoiceApproved(tenantId, id);
+    void this.webhooks
+      .dispatch(tenantId, 'invoice.approved', {
+        invoiceId: id,
+        invoiceNumber: updated.invoiceNumber,
+        totalMinor: updated.totalMinor,
+        currency: updated.currency,
+        vendorId: updated.vendorId,
+        purchaseOrderId: updated.purchaseOrderId,
+        approvedAt: updated.approvedAt?.toISOString() ?? null,
+      })
+      .catch(() => undefined);
     return updated;
   }
 

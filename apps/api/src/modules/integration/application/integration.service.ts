@@ -158,6 +158,35 @@ export class IntegrationService {
     });
   }
 
+  listConnectorPacks() {
+    return [
+      {
+        key: 'netsuite',
+        name: 'NetSuite',
+        status: 'planned',
+        description: 'Vendor bills + PO sync via SuiteTalk (Phase 3 connector pack).',
+      },
+      {
+        key: 'quickbooks',
+        name: 'QuickBooks Online',
+        status: 'planned',
+        description: 'Bills and vendors via Intuit OAuth (Phase 3 connector pack).',
+      },
+      {
+        key: 'xero',
+        name: 'Xero',
+        status: 'planned',
+        description: 'Accounts payable bills via Xero OAuth (Phase 3 connector pack).',
+      },
+      {
+        key: 'sap-b1',
+        name: 'SAP Business One',
+        status: 'planned',
+        description: 'Service Layer draft documents (Phase 3 connector pack).',
+      },
+    ];
+  }
+
   async exportApprovedInvoices(tenantId: string, userId: string) {
     const invoices = await this.prisma.invoice.findMany({
       where: { tenantId, status: 'approved' },
