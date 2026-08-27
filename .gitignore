@@ -15,3 +15,5 @@ apps/mobile/.expo
 apps/mobile/node_modules
 *.tsbuildinfo
 apps/api/storage/
+e2e/test-results/
+e2e/playwright-report/
