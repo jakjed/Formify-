@@ -24,6 +24,7 @@ type Invoice = {
   totalMinor: number | null;
   notes: string | null;
   ocrConfidence: number | null;
+  ocrPayload: OcrPayload | null;
   fileAsset: { originalName: string; mimeType: string } | null;
   purchaseOrder: {
     id: string;
@@ -41,6 +42,30 @@ type Invoice = {
     amountMinor: number | null;
   }[];
   exceptions: { id: string; code: string; message: string; resolved: boolean }[];
+};
+
+type OcrBBox = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  page: number;
+};
+
+type OcrFieldHit = {
+  id: string;
+  key: string;
+  label: string;
+  text: string;
+  confidence: number | null;
+  bbox: OcrBBox | null;
+};
+
+type OcrPayload = {
+  version: 1;
+  provider: 'stub' | 'textract';
+  extractedAt: string;
+  fields: OcrFieldHit[];
 };
 
 type Vendor = { id: string; code: string; name: string };
@@ -79,6 +104,7 @@ type OcrChip = {
   id: string;
   label: string;
   value: string;
+  bbox: OcrBBox | null;
 };
 
 type FieldKey =
@@ -93,6 +119,12 @@ type FieldKey =
   | 'notes';
 
 const OCR_MIME = 'application/x-aptora-ocr';
+
+function isOcrPayload(value: unknown): value is OcrPayload {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as OcrPayload;
+  return v.version === 1 && Array.isArray(v.fields);
+}
 
 function formatAction(action: string) {
   const labels: Record<string, string> = {
@@ -124,11 +156,22 @@ function toMajor(minor: number | null): string {
 }
 
 function buildOcrChips(invoice: Invoice): OcrChip[] {
+  if (isOcrPayload(invoice.ocrPayload) && invoice.ocrPayload.fields.length > 0) {
+    return invoice.ocrPayload.fields
+      .filter((f) => f.text?.trim())
+      .map((f) => ({
+        id: f.id,
+        label: f.label,
+        value: f.text.trim(),
+        bbox: f.bbox,
+      }));
+  }
+
   const chips: OcrChip[] = [];
   const push = (id: string, label: string, value: string | null | undefined) => {
     const v = value?.trim();
     if (!v) return;
-    chips.push({ id, label, value: v });
+    chips.push({ id, label, value: v, bbox: null });
   };
 
   push('vendor', 'Vendor', invoice.vendorNameRaw);
@@ -155,17 +198,79 @@ function buildOcrChips(invoice: Invoice): OcrChip[] {
   return chips;
 }
 
+function GeometryOverlays({
+  chips,
+  armedId,
+  onDragStart,
+  onDragEnd,
+  onClick,
+  mode,
+}: {
+  chips: OcrChip[];
+  armedId: string | null;
+  onDragStart: (e: DragEvent, chip: OcrChip) => void;
+  onDragEnd: () => void;
+  onClick: (chip: OcrChip) => void;
+  mode: 'image' | 'map';
+}) {
+  const withBox = chips.filter((c) => c.bbox);
+  if (withBox.length === 0) return null;
+
+  return (
+    <div
+      className={`hitl-geom hitl-geom--${mode}`}
+      aria-label="OCR regions on document"
+    >
+      {withBox.map((chip) => {
+        const b = chip.bbox!;
+        return (
+          <button
+            key={chip.id}
+            type="button"
+            className={`hitl-bbox${armedId === chip.id ? ' hitl-bbox--armed' : ''}`}
+            style={{
+              left: `${b.left * 100}%`,
+              top: `${b.top * 100}%`,
+              width: `${Math.max(b.width * 100, 4)}%`,
+              height: `${Math.max(b.height * 100, 2.5)}%`,
+            }}
+            title={`${chip.label}: ${chip.value}`}
+            draggable
+            onDragStart={(e) => onDragStart(e, chip)}
+            onDragEnd={onDragEnd}
+            onClick={() => onClick(chip)}
+          >
+            <span className="hitl-bbox__label">{chip.label}</span>
+            <span className="hitl-bbox__value">{chip.value}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function DocumentViewer({
   invoiceId,
   fileAsset,
+  chips,
+  armedId,
+  onDragStart,
+  onDragEnd,
+  onClick,
 }: {
   invoiceId: string;
   fileAsset: { originalName: string; mimeType: string } | null;
+  chips: OcrChip[];
+  armedId: string | null;
+  onDragStart: (e: DragEvent, chip: OcrChip) => void;
+  onDragEnd: () => void;
+  onClick: (chip: OcrChip) => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [textPreview, setTextPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const hasGeometry = chips.some((c) => c.bbox);
 
   useEffect(() => {
     if (!fileAsset) {
@@ -232,36 +337,83 @@ function DocumentViewer({
 
   const mime = fileAsset.mimeType;
   const isImage = mime.startsWith('image/');
-  const isPdf = mime === 'application/pdf' || fileAsset.originalName.toLowerCase().endsWith('.pdf');
+  const isPdf =
+    mime === 'application/pdf' ||
+    fileAsset.originalName.toLowerCase().endsWith('.pdf');
 
   return (
-    <div className="hitl-doc__canvas">
-      {textPreview != null && (
-        <pre className="hitl-doc__text" aria-label="Scanned document text">
-          {textPreview}
-        </pre>
-      )}
-      {url && isImage && (
-        <img
-          className="hitl-doc__image"
-          src={url}
-          alt={`Scan of ${fileAsset.originalName}`}
-          draggable={false}
-        />
-      )}
-      {url && isPdf && (
-        <iframe
-          className="hitl-doc__frame"
-          title={fileAsset.originalName}
-          src={url}
-        />
-      )}
-      {url && !isImage && !isPdf && (
-        <div className="hitl-doc__empty">
-          <p>Preview not available for this file type.</p>
-          <a href={url} download={fileAsset.originalName}>
-            Download {fileAsset.originalName}
-          </a>
+    <div className="hitl-doc__stack">
+      <div className="hitl-doc__canvas">
+        {textPreview != null && (
+          <div className="hitl-doc__text-wrap">
+            <pre className="hitl-doc__text" aria-label="Scanned document text">
+              {textPreview}
+            </pre>
+            {hasGeometry && (
+              <GeometryOverlays
+                chips={chips}
+                armedId={armedId}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+                onClick={onClick}
+                mode="image"
+              />
+            )}
+          </div>
+        )}
+        {url && isImage && (
+          <div className="hitl-doc__image-wrap">
+            <img
+              className="hitl-doc__image"
+              src={url}
+              alt={`Scan of ${fileAsset.originalName}`}
+              draggable={false}
+            />
+            {hasGeometry && (
+              <GeometryOverlays
+                chips={chips}
+                armedId={armedId}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+                onClick={onClick}
+                mode="image"
+              />
+            )}
+          </div>
+        )}
+        {url && isPdf && (
+          <iframe
+            className="hitl-doc__frame"
+            title={fileAsset.originalName}
+            src={url}
+          />
+        )}
+        {url && !isImage && !isPdf && (
+          <div className="hitl-doc__empty">
+            <p>Preview not available for this file type.</p>
+            <a href={url} download={fileAsset.originalName}>
+              Download {fileAsset.originalName}
+            </a>
+          </div>
+        )}
+      </div>
+
+      {url && isPdf && hasGeometry && (
+        <div className="hitl-geom-map-panel">
+          <h3>Detected regions</h3>
+          <p className="muted">
+            Drag a region onto a form field (PDF preview cannot host overlays).
+          </p>
+          <div className="hitl-geom-map-page">
+            <GeometryOverlays
+              chips={chips}
+              armedId={armedId}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onClick={onClick}
+              mode="map"
+            />
+          </div>
         </div>
       )}
     </div>
@@ -610,19 +762,27 @@ export function InvoiceWorkspacePage() {
           <div className="hitl-doc__toolbar">
             <h2>Original scan</h2>
             <p>
-              Drag a recognized value onto a form field
+              Drag a highlighted region (or chip) onto a form field
               {armedChip ? (
                 <>
                   {' '}
                   · armed: <strong>{armedChip.label}</strong>
                 </>
               ) : (
-                <> · or click a chip, then click a field</>
+                <> · or click a region, then click a field</>
               )}
             </p>
           </div>
 
-          <DocumentViewer invoiceId={invoice.id} fileAsset={invoice.fileAsset} />
+          <DocumentViewer
+            invoiceId={invoice.id}
+            fileAsset={invoice.fileAsset}
+            chips={chips}
+            armedId={armedChip?.id ?? null}
+            onDragStart={onChipDragStart}
+            onDragEnd={onChipDragEnd}
+            onClick={onChipClick}
+          />
 
           <div className="hitl-chips" aria-label="Recognized OCR values">
             <h3>Recognized values</h3>
@@ -634,12 +794,16 @@ export function InvoiceWorkspacePage() {
                   <li key={chip.id}>
                     <button
                       type="button"
-                      className={`hitl-chip${armedChip?.id === chip.id ? ' hitl-chip--armed' : ''}`}
+                      className={`hitl-chip${armedChip?.id === chip.id ? ' hitl-chip--armed' : ''}${chip.bbox ? ' hitl-chip--geo' : ''}`}
                       draggable
                       onDragStart={(e) => onChipDragStart(e, chip)}
                       onDragEnd={onChipDragEnd}
                       onClick={() => onChipClick(chip)}
-                      title="Drag onto a field, or click then click a field"
+                      title={
+                        chip.bbox
+                          ? 'Drag from chip or document region onto a field'
+                          : 'Drag onto a field, or click then click a field'
+                      }
                     >
                       <span className="hitl-chip__label">{chip.label}</span>
                       <span className="hitl-chip__value">{chip.value}</span>

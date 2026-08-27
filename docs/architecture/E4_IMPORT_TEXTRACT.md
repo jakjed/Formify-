@@ -17,3 +17,5 @@
 Set AWS credentials + `AWS_REGION` when enabling Textract.
 
 Invoice `notes` records `ocr:stub` or `ocr:textract` for traceability.
+
+Structured OCR hits (including normalized bounding boxes) are stored on `Invoice.ocrPayload` for HITL overlays — see [HITL_OCR_GEOMETRY.md](./HITL_OCR_GEOMETRY.md).
