@@ -14,6 +14,9 @@ import { AdminPage } from '../modules/admin/AdminPage';
 import { DirectoryPage } from '../modules/directory/DirectoryPage';
 import { ExceptionsPage } from '../modules/ops/ExceptionsPage';
 import { OpsDashboardPage } from '../modules/ops/OpsDashboardPage';
+import { ContractsPage } from '../modules/contracts/ContractsPage';
+import { PurchaseRequestsPage } from '../modules/purchase-requests/PurchaseRequestsPage';
+import { PurchaseOrdersPage } from '../modules/purchase-orders/PurchaseOrdersPage';
 import {
   ForbiddenPage,
   NotFoundPage,
@@ -36,6 +39,9 @@ export function App() {
           <Route path="/invoices/:id" element={<InvoiceWorkspacePage />} />
           <Route path="/exceptions" element={<ExceptionsPage />} />
           <Route path="/ops" element={<OpsDashboardPage />} />
+          <Route path="/contracts" element={<ContractsPage />} />
+          <Route path="/purchase-requests" element={<PurchaseRequestsPage />} />
+          <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
           <Route path="/integration" element={<IntegrationCenterPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Route>

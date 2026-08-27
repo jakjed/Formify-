@@ -1,0 +1,145 @@
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  IsArray,
+  IsIn,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { PurchaseOrderStatus } from '@prisma/client';
+import { PurchaseOrdersService } from '../application/purchase-orders.service';
+import {
+  CurrentTenantId,
+  CurrentUser,
+} from '../../../common/current-user.decorator';
+import type { RequestUser } from '../../identity/domain/identity.types';
+import {
+  ModuleLicenseGuard,
+  RequireModule,
+} from '../../../common/module-license.guard';
+
+class PoLineDto {
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsNumber()
+  quantity?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  unitPriceMinor?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  amountMinor?: number;
+}
+
+class CreatePoDto {
+  @IsString()
+  @MinLength(1)
+  number!: string;
+
+  @IsString()
+  @MinLength(2)
+  title!: string;
+
+  @IsOptional()
+  @IsUUID()
+  vendorId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  entityId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  contractId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  purchaseRequestId?: string;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  totalMinor?: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PoLineDto)
+  lines?: PoLineDto[];
+}
+
+class TransitionDto {
+  @IsIn([
+    'draft',
+    'issued',
+    'partially_received',
+    'received',
+    'closed',
+    'cancelled',
+  ])
+  status!: PurchaseOrderStatus;
+}
+
+@ApiTags('purchase-orders')
+@ApiBearerAuth('bearer')
+@RequireModule('purchase_orders')
+@UseGuards(ModuleLicenseGuard)
+@Controller('purchase-orders')
+export class PurchaseOrdersController {
+  constructor(private readonly pos: PurchaseOrdersService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'List purchase orders' })
+  list(@CurrentTenantId() tenantId: string) {
+    return this.pos.list(tenantId);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get purchase order' })
+  get(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
+    return this.pos.get(tenantId, id);
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Create purchase order draft' })
+  create(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreatePoDto,
+  ) {
+    return this.pos.create(tenantId, user.id, dto);
+  }
+
+  @Post(':id/transition')
+  @ApiOperation({ summary: 'Transition PO status' })
+  transition(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: TransitionDto,
+  ) {
+    return this.pos.transition(tenantId, id, user.id, dto.status);
+  }
+}

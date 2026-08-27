@@ -16,8 +16,12 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ApiKeysModule } from './modules/apikeys/apikeys.module';
 import { OpsModule } from './modules/ops/ops.module';
 import { SearchModule } from './modules/search/search.module';
+import { ContractsModule } from './modules/contracts/contracts.module';
+import { PurchaseRequestsModule } from './modules/purchase-requests/purchase-requests.module';
+import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { AuthGuard } from './common/auth.guard';
 import { RateLimitGuard } from './common/rate-limit.guard';
+import { ModuleLicenseGuard } from './common/module-license.guard';
 
 @Module({
   imports: [
@@ -40,8 +44,12 @@ import { RateLimitGuard } from './common/rate-limit.guard';
     ApiKeysModule,
     OpsModule,
     SearchModule,
+    ContractsModule,
+    PurchaseRequestsModule,
+    PurchaseOrdersModule,
   ],
   providers: [
+    ModuleLicenseGuard,
     {
       provide: APP_GUARD,
       useClass: AuthGuard,

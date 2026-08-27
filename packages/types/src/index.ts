@@ -1,5 +1,10 @@
 export type { ModuleKey } from './modules/common/product';
-export { PRODUCT_NAME, PHASE1_MODULES } from './modules/common/product';
+export {
+  PRODUCT_NAME,
+  PHASE1_MODULES,
+  PHASE2_MODULES,
+  ALL_MODULE_KEYS,
+} from './modules/common/product';
 export type {
   TenantId,
   EntityId,

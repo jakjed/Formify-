@@ -5,6 +5,7 @@ import { apiFetch } from '../../shared/lib/api';
 type Tab =
   | 'users'
   | 'entities'
+  | 'modules'
   | 'keys'
   | 'usage'
   | 'mailbox'
@@ -85,9 +86,12 @@ type Usage = {
   hardBlocked: boolean;
 };
 
+type ModuleRow = { moduleKey: string; enabled: boolean };
+
 const TABS: { id: Tab; label: string }[] = [
   { id: 'users', label: 'Users' },
   { id: 'entities', label: 'Entities' },
+  { id: 'modules', label: 'Modules' },
   { id: 'keys', label: 'API keys' },
   { id: 'usage', label: 'Usage' },
   { id: 'mailbox', label: 'Mailbox' },
@@ -108,6 +112,7 @@ export function AdminPage() {
   const [keys, setKeys] = useState<ApiKeyRow[]>([]);
   const [scopes, setScopes] = useState<string[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [moduleRows, setModuleRows] = useState<ModuleRow[]>([]);
   const [newKeyToken, setNewKeyToken] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +120,7 @@ export function AdminPage() {
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
-    const [m, i, a, n, u, e, k, s, usageRow] = await Promise.all([
+    const [m, i, a, n, u, e, k, s, usageRow, mods] = await Promise.all([
       apiFetch<Mailbox>('/api/capture/mailbox'),
       apiFetch<EmailIngest[]>('/api/capture/email-ingests'),
       apiFetch<AuditEvent[]>('/api/audit/events?limit=40'),
@@ -125,6 +130,7 @@ export function AdminPage() {
       apiFetch<ApiKeyRow[]>('/api/api-keys'),
       apiFetch<string[]>('/api/api-keys/scopes'),
       apiFetch<Usage>('/api/usage/summary'),
+      apiFetch<ModuleRow[]>('/api/modules'),
     ]);
     setMailbox(m);
     setIngests(i);
@@ -135,6 +141,7 @@ export function AdminPage() {
     setKeys(k);
     setScopes(s);
     setUsage(usageRow);
+    setModuleRows(mods);
   }
 
   useEffect(() => {
@@ -459,6 +466,57 @@ export function AdminPage() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {tab === 'modules' && (
+        <div className="panel">
+          <h2>Module licenses</h2>
+          <p className="lede">
+            Enable Phase 2 procure modules independently. Invoices stays on.
+          </p>
+          <ul className="task-list">
+            {moduleRows.map((mod) => (
+              <li key={mod.moduleKey}>
+                <div>
+                  <strong>{mod.moduleKey}</strong>
+                  <span className="muted">
+                    {' '}
+                    · {mod.enabled ? 'enabled' : 'disabled'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  disabled={busy || mod.moduleKey === 'invoices'}
+                  onClick={() =>
+                    void (async () => {
+                      setBusy(true);
+                      setError(null);
+                      try {
+                        await apiFetch(`/api/modules/${mod.moduleKey}`, {
+                          method: 'PATCH',
+                          body: JSON.stringify({ enabled: !mod.enabled }),
+                        });
+                        setMessage(
+                          `${mod.moduleKey} ${!mod.enabled ? 'enabled' : 'disabled'}`,
+                        );
+                        await refresh();
+                      } catch (err) {
+                        setError(
+                          err instanceof Error ? err.message : 'Update failed',
+                        );
+                      } finally {
+                        setBusy(false);
+                      }
+                    })()
+                  }
+                >
+                  {mod.enabled ? 'Disable' : 'Enable'}
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 

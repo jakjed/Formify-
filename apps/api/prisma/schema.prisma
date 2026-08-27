@@ -66,6 +66,9 @@ model Tenant {
   invoiceComments InvoiceComment[]
   userInvites    UserInvite[]
   passwordResets PasswordResetToken[]
+  contracts      Contract[]
+  purchaseRequests PurchaseRequest[]
+  purchaseOrders PurchaseOrder[]
 }
 
 model ModuleLicense {
@@ -535,5 +538,134 @@ model ApiKey {
 
   @@index([tenantId])
   @@index([prefix])
+}
+
+enum ContractStatus {
+  draft
+  in_approval
+  active
+  expired
+  cancelled
+}
+
+enum PurchaseRequestStatus {
+  draft
+  in_approval
+  approved
+  converted
+  cancelled
+}
+
+enum PurchaseOrderStatus {
+  draft
+  issued
+  partially_received
+  received
+  closed
+  cancelled
+}
+
+model Contract {
+  id          String         @id @default(uuid()) @db.Uuid
+  tenantId    String         @db.Uuid
+  entityId    String?        @db.Uuid
+  vendorId    String?        @db.Uuid
+  number      String
+  title       String
+  status      ContractStatus @default(draft)
+  startDate   DateTime?      @db.Date
+  endDate     DateTime?      @db.Date
+  currency    String         @default("EUR")
+  valueMinor  Int?
+  notes       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+}
+
+model PurchaseRequest {
+  id           String                @id @default(uuid()) @db.Uuid
+  tenantId     String                @db.Uuid
+  entityId     String?               @db.Uuid
+  number       String
+  title        String
+  status       PurchaseRequestStatus @default(draft)
+  requesterId  String?               @db.Uuid
+  currency     String                @default("EUR")
+  totalMinor   Int?
+  notes        String?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  tenant  Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lines   PurchaseRequestLine[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+}
+
+model PurchaseRequestLine {
+  id             String  @id @default(uuid()) @db.Uuid
+  purchaseRequestId String @db.Uuid
+  lineNo         Int
+  description    String?
+  quantity       Float?
+  unitPriceMinor Int?
+  amountMinor    Int?
+  glAccountId    String? @db.Uuid
+
+  purchaseRequest PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([purchaseRequestId, lineNo])
+  @@index([purchaseRequestId])
+}
+
+model PurchaseOrder {
+  id          String              @id @default(uuid()) @db.Uuid
+  tenantId    String              @db.Uuid
+  entityId    String?             @db.Uuid
+  vendorId    String?             @db.Uuid
+  contractId  String?             @db.Uuid
+  purchaseRequestId String?       @db.Uuid
+  number      String
+  title       String
+  status      PurchaseOrderStatus @default(draft)
+  currency    String              @default("EUR")
+  totalMinor  Int?
+  notes       String?
+  issuedAt    DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  tenant          Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contract        Contract?           @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  purchaseRequest PurchaseRequest?    @relation(fields: [purchaseRequestId], references: [id], onDelete: SetNull)
+  lines           PurchaseOrderLine[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+}
+
+model PurchaseOrderLine {
+  id             String  @id @default(uuid()) @db.Uuid
+  purchaseOrderId String @db.Uuid
+  lineNo         Int
+  description    String?
+  quantity       Float?
+  receivedQty    Float?  @default(0)
+  unitPriceMinor Int?
+  amountMinor    Int?
+  glAccountId    String? @db.Uuid
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([purchaseOrderId, lineNo])
+  @@index([purchaseOrderId])
 }
 

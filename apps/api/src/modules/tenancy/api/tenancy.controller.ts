@@ -7,7 +7,14 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { IsInt, IsOptional, IsString, Min, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { TenancyService } from '../application/tenancy.service';
 import { CreateTenantDto } from './create-tenant.dto';
@@ -18,6 +25,7 @@ import {
 } from '../../../common/current-user.decorator';
 import type { RequestUser } from '../../identity/domain/identity.types';
 import { AuditService } from '../../audit/application/audit.service';
+import { ALL_MODULE_KEYS } from '@aptora/types';
 
 class CreateEntityDto {
   @IsString()
@@ -58,6 +66,11 @@ class UpdatePlanDto {
   @IsInt()
   @Min(0)
   approvedHardLimit?: number | null;
+}
+
+class UpdateModuleDto {
+  @IsBoolean()
+  enabled!: boolean;
 }
 
 function assertAdmin(user: RequestUser) {
@@ -162,5 +175,36 @@ export class TenancyController {
       meta: plan,
     });
     return plan;
+  }
+
+  @Get('modules')
+  listModules(@CurrentTenantId() tenantId: string) {
+    return this.tenancy.listModules(tenantId);
+  }
+
+  @Patch('modules/:key')
+  async setModule(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('key') key: string,
+    @Body() dto: UpdateModuleDto,
+  ) {
+    assertAdmin(user);
+    if (!(ALL_MODULE_KEYS as readonly string[]).includes(key)) {
+      throw new ForbiddenException(`Unknown module key: ${key}`);
+    }
+    if (key === 'invoices' && dto.enabled === false) {
+      throw new ForbiddenException('Cannot disable invoices in Phase 2 foundation');
+    }
+    const row = await this.tenancy.setModuleEnabled(tenantId, key, dto.enabled);
+    await this.audit.record({
+      tenantId,
+      actorId: user.id,
+      action: 'module.updated',
+      entityType: 'ModuleLicense',
+      entityId: row.id,
+      meta: { moduleKey: key, enabled: dto.enabled },
+    });
+    return row;
   }
 }
