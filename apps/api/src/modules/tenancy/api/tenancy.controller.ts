@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -81,6 +82,16 @@ function assertAdmin(user: RequestUser) {
   ) {
     throw new ForbiddenException('Admin session required');
   }
+}
+
+class UpdateAiSettingsDto {
+  @IsOptional()
+  @IsBoolean()
+  aiAssistEnabled?: boolean;
+
+  @IsOptional()
+  @IsIn(['none', 'bedrock', 'byo'])
+  llmProvider?: 'none' | 'bedrock' | 'byo';
 }
 
 @Controller()
@@ -217,5 +228,33 @@ export class TenancyController {
       meta: { moduleKey: key, enabled: dto.enabled },
     });
     return row;
+  }
+
+  @Get('ai-settings')
+  getAiSettings(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    assertAdmin(user);
+    return this.tenancy.getAiSettings(tenantId);
+  }
+
+  @Patch('ai-settings')
+  async updateAiSettings(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateAiSettingsDto,
+  ) {
+    assertAdmin(user);
+    const settings = await this.tenancy.updateAiSettings(tenantId, dto);
+    await this.audit.record({
+      tenantId,
+      actorId: user.id,
+      action: 'tenant.ai_settings_updated',
+      entityType: 'Tenant',
+      entityId: tenantId,
+      meta: settings,
+    });
+    return settings;
   }
 }

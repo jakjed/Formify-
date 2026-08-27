@@ -263,6 +263,10 @@ export function AdminPage() {
   const [oidc, setOidc] = useState<AuthProviderAdmin | null>(null);
   const [saml, setSaml] = useState<AuthProviderAdmin | null>(null);
   const [outboundEmail, setOutboundEmail] = useState<OutboundEmail | null>(null);
+  const [aiSettings, setAiSettings] = useState<{
+    aiAssistEnabled: boolean;
+    llmProvider: string;
+  } | null>(null);
   const [policy, setPolicy] = useState<ApprovalPolicy | null>(null);
   const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([]);
   const [sodPolicies, setSodPolicies] = useState<SodPolicy[]>([]);
@@ -310,6 +314,7 @@ export function AdminPage() {
       whd,
       providers,
       outbound,
+      aiSet,
       pol,
       rules,
       sod,
@@ -341,6 +346,9 @@ export function AdminPage() {
       apiFetch<OutboundEmail>('/api/notifications/outbound-email').catch(
         () => null as OutboundEmail | null,
       ),
+      apiFetch<{ aiAssistEnabled: boolean; llmProvider: string }>(
+        '/api/ai-settings',
+      ).catch(() => null),
       apiFetch<ApprovalPolicy>(
         `/api/workflow/policy?moduleKey=${approvalModule}`,
       ).catch(() => null as ApprovalPolicy | null),
@@ -367,6 +375,7 @@ export function AdminPage() {
     setOidc(providers.find((p) => p.type === 'oidc') ?? null);
     setSaml(providers.find((p) => p.type === 'saml') ?? null);
     setOutboundEmail(outbound);
+    setAiSettings(aiSet);
     setPolicy(pol);
     setApprovalRules(rules);
     setSodPolicies(sod);
@@ -1640,6 +1649,69 @@ export function AdminPage() {
               </button>
             </div>
           </form>
+          <h3>AI assist (optional LLM)</h3>
+          <p className="lede">
+            Off by default. When enabled, future Bedrock/BYO assist runs on extracted
+            text only — never on raw PDFs. OCR and rule-based scanning work regardless.
+          </p>
+          {aiSettings && (
+            <form
+              className="workspace-form"
+              onSubmit={(e) =>
+                void (async (ev: FormEvent<HTMLFormElement>) => {
+                  ev.preventDefault();
+                  const form = ev.currentTarget;
+                  const data = new FormData(form);
+                  setBusy(true);
+                  setError(null);
+                  setMessage(null);
+                  try {
+                    const updated = await apiFetch<{
+                      aiAssistEnabled: boolean;
+                      llmProvider: string;
+                    }>('/api/ai-settings', {
+                      method: 'PATCH',
+                      body: JSON.stringify({
+                        aiAssistEnabled: data.get('aiAssistEnabled') === 'on',
+                        llmProvider: data.get('llmProvider') || 'none',
+                      }),
+                    });
+                    setAiSettings(updated);
+                    setMessage('AI settings saved');
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Save failed');
+                  } finally {
+                    setBusy(false);
+                  }
+                })(e)
+              }
+            >
+              <label>
+                <input
+                  type="checkbox"
+                  name="aiAssistEnabled"
+                  defaultChecked={aiSettings.aiAssistEnabled}
+                />{' '}
+                Enable AI assist (LLM on extracted text)
+              </label>
+              <label>
+                LLM provider
+                <select
+                  name="llmProvider"
+                  defaultValue={aiSettings.llmProvider ?? 'none'}
+                >
+                  <option value="none">None</option>
+                  <option value="bedrock">AWS Bedrock (future)</option>
+                  <option value="byo">Customer BYO endpoint (future)</option>
+                </select>
+              </label>
+              <div className="span-2 actions">
+                <button type="submit" disabled={busy}>
+                  Save AI settings
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       )}
 

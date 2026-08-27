@@ -28,7 +28,7 @@ tooling/
 | `identity` | Users, password auth, roles, permissions, AuthProviderConfig | 0 |
 | `masterdata` | Vendors, GL, cost centers, tax, terms | 1 |
 | `invoices` | Invoice aggregate, lines, exceptions, states | 1 |
-| `capture` | Upload/email ingest, Textract pipeline, file assets | 1 |
+| `capture` | Upload/email ingest, **document extraction** (invoice + contract profiles), file assets | 1 |
 | `workflow` | Approval policies, tasks, delegation, escalation | 1 |
 | `integration` | Integration Center templates, import/export jobs | 1 |
 | `usage` | `invoice.approved` billable events, OCR page meters | 1 |
@@ -37,7 +37,7 @@ tooling/
 
 **Later (Phase 2) — add folders, do not overload invoices:**
 
-- `contracts`
+- `contracts` — calls `capture` for document scan-intake (no duplicate OCR stack)
 - `purchase-requests`
 - `purchase-orders`
 

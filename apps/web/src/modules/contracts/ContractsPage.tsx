@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { apiFetch } from '../../shared/lib/api';
+import { apiFetch, getToken } from '../../shared/lib/api';
+import { FileSelect } from '../../shared/components/FileSelect';
 import { appendEntityParam, formatEntityCell } from '../../shared/lib/entity';
 import {
   CLM_TOOLS,
@@ -159,20 +160,36 @@ export function ContractsPage() {
     }, 'Draft created');
   }
 
-  async function onAiIntake(e: FormEvent<HTMLFormElement>) {
+  async function onScanIntake(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
+    const file = data.get('file');
+    if (!(file instanceof File) || file.size === 0) {
+      setError('Select a document to scan');
+      return;
+    }
     await run(async () => {
-      const created = await apiFetch<Contract>('/api/contracts/ai-intake', {
+      const body = new FormData();
+      body.append('file', file);
+      const vendorId = String(data.get('vendorId') ?? '').trim();
+      const title = String(data.get('title') ?? '').trim();
+      if (vendorId) body.append('vendorId', vendorId);
+      if (title) body.append('title', title);
+      const token = getToken();
+      const res = await fetch('/api/contracts/scan-intake', {
         method: 'POST',
-        body: JSON.stringify({
-          vendorId: data.get('vendorId') || undefined,
-          fileName: data.get('fileName') || undefined,
-          title: data.get('title') || undefined,
-        }),
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body,
       });
+      if (!res.ok) {
+        const errBody = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        throw new Error(errBody.message ?? `Scan failed (${res.status})`);
+      }
+      const created = (await res.json()) as Contract;
       setComposer(null);
-      setMessage(`AI prefilled ${created.number} — review before approval`);
+      setMessage(`Document scanned — review ${created.number} before approval`);
       await refresh();
     });
   }
@@ -247,7 +264,7 @@ export function ContractsPage() {
                 disabled={busy}
                 onClick={() => setComposer(composer === 'ai' ? null : 'ai')}
               >
-                AI scan from supplier
+                Scan document
               </button>
               <button
                 type="button"
@@ -331,16 +348,21 @@ export function ContractsPage() {
 
           {composer === 'ai' && (
             <div className="procure__composer">
-              <h3>Upload from supplier · AI scan</h3>
+              <h3>Upload from supplier · Scan document</h3>
               <div className="procure__ai" style={{ marginBottom: '0.85rem' }}>
                 <div className="procure__ai-tag">How it works</div>
-                Upload the supplier PDF. Aptora stubs extraction into a draft with a first-pass
-                red-flag scan — you review, then send for approval.
+                Upload the supplier PDF or text agreement. Aptora extracts fields once,
+                runs a rule-based red-flag pass on the text, and opens a draft for your review.
               </div>
-              <form className="workspace-form" onSubmit={(e) => void onAiIntake(e)}>
-                <label>
-                  File name
-                  <input name="fileName" required placeholder="Nimbus_MSA.pdf" />
+              <form className="workspace-form" onSubmit={(e) => void onScanIntake(e)}>
+                <label className="span-2">
+                  Document
+                  <FileSelect
+                    name="file"
+                    accept=".pdf,.txt,.png,.jpg,.jpeg"
+                    required
+                    buttonLabel="Select document"
+                  />
                 </label>
                 <label>
                   Vendor
@@ -353,16 +375,16 @@ export function ContractsPage() {
                     ))}
                   </select>
                 </label>
-                <label className="span-2">
+                <label>
                   Title (optional)
-                  <input name="title" placeholder="Prefills if blank" />
+                  <input name="title" placeholder="Prefills from scan" />
                 </label>
                 <div className="span-2 actions">
                   <button type="button" className="btn btn--ghost" onClick={() => setComposer(null)}>
                     Cancel
                   </button>
                   <button type="submit" className="btn btn--primary" disabled={busy}>
-                    Scan with AI
+                    Scan document
                   </button>
                 </div>
               </form>

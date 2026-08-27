@@ -1,41 +1,24 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import path from 'node:path';
-import { randomBytes, randomUUID } from 'node:crypto';
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
 import { InvoiceValidationService } from '../../invoice-rules/application/invoice-validation.service';
 import { NotificationsService } from '../../notifications/application/notifications.service';
-import { UsageService } from '../../usage/application/usage.service';
-import { OcrService } from './ocr.service';
+import { DocumentExtractionService } from './document-extraction.service';
 import {
   scoreVendorName,
   VENDOR_MATCH_THRESHOLD,
 } from './vendor-match';
+import type { UploadedFile } from '../domain/upload.types';
 
-export type UploadedFile = {
-  originalname: string;
-  mimetype: string;
-  size: number;
-  buffer: Buffer;
-};
+export type { UploadedFile } from '../domain/upload.types';
 
 @Injectable()
 export class CaptureService {
-  private readonly storageRoot = path.resolve(
-    process.cwd(),
-    process.env.STORAGE_PATH ?? 'storage/uploads',
-  );
-
   constructor(
     private readonly prisma: PrismaService,
-    private readonly usage: UsageService,
-    private readonly ocr: OcrService,
+    private readonly documents: DocumentExtractionService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly validation: InvoiceValidationService,
@@ -192,41 +175,13 @@ export class CaptureService {
     },
   ) {
     if (!file) throw new BadRequestException('File is required');
-    const allowed = [
-      'application/pdf',
-      'image/png',
-      'image/jpeg',
-      'image/jpg',
-      'text/plain',
-    ];
-    if (
-      !allowed.includes(file.mimetype) &&
-      !file.originalname.match(/\.(pdf|png|jpe?g|txt)$/i)
-    ) {
-      throw new BadRequestException('Unsupported file type');
+
+    const { fileAsset, extraction, source } =
+      await this.documents.extractDocument(tenantId, file, 'invoice');
+    const stub = extraction.invoice;
+    if (!stub) {
+      throw new BadRequestException('Invoice extraction failed');
     }
-
-    await mkdir(this.storageRoot, { recursive: true });
-    const id = randomUUID();
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storagePath = path.join(
-      this.storageRoot,
-      `${tenantId}_${id}_${safeName}`,
-    );
-    await writeFile(storagePath, file.buffer);
-
-    const pageCount = Math.max(1, Math.ceil(file.size / 50_000));
-
-    const fileAsset = await this.prisma.fileAsset.create({
-      data: {
-        tenantId,
-        originalName: file.originalname,
-        mimeType: file.mimetype || 'application/octet-stream',
-        sizeBytes: file.size,
-        storagePath,
-        pageCount,
-      },
-    });
 
     const entity = await this.prisma.entity.findFirst({
       where: { tenantId },
@@ -242,12 +197,6 @@ export class CaptureService {
         notes: options?.source === 'email' ? 'source:email' : 'source:upload',
       },
       include: { lines: true, exceptions: true, fileAsset: true },
-    });
-
-    const stub = await this.ocr.extract({
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      buffer: file.buffer,
     });
 
     const vendors = stub.vendorName
@@ -281,7 +230,7 @@ export class CaptureService {
         totalMinor: stub.totalMinor,
         ocrConfidence: stub.confidence,
         ocrPayload: stub.payload as unknown as Prisma.InputJsonValue,
-        notes: `ocr:${stub.provider};source:${options?.source ?? 'upload'}${
+        notes: `ocr:${source === 'cache' ? 'cache' : stub.provider};source:${options?.source ?? 'upload'}${
           vendor
             ? `;vendorMatch:${vendor.score}`
             : ''
@@ -331,8 +280,6 @@ export class CaptureService {
         });
       }
     }
-
-    await this.usage.incrementOcrPages(tenantId, pageCount);
 
     await this.validation.syncExceptions(tenantId, invoice.id);
     invoice = await this.prisma.invoice.findFirstOrThrow({
