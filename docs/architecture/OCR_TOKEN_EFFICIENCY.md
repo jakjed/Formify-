@@ -1,86 +1,178 @@
-# OCR and token efficiency
+# Document intelligence — OCR, field recognition, token efficiency
 
-Plan for leveraging invoice scanning **without re-spending OCR/API tokens** on every touch.
+Shared plan for **Invoices** and **Contracts**: scan once, recognize fields with geometry, human-in-the-loop (HITL), never re-pay for the same bytes.
 
-## Goals
+Aligns with [PRODUCT_BLUEPRINT.md](../PRODUCT_BLUEPRINT.md) §7 — buy OCR, invest in HITL workspace, not base models.
 
-1. **Billable transactions** (approved invoices) stay separate from **OCR page metering** — see [PRODUCT_BLUEPRINT.md](../PRODUCT_BLUEPRINT.md) §7.
-2. Run Textract (or stub) **once per immutable file**, not on every HITL edit or re-open.
-3. Prefer **local/stub extraction** when the file is already structured text.
-4. Never re-OCR unchanged bytes after HITL corrections.
+---
 
-## Current behavior (Phase 1)
+## Is this how world-class tools do it?
+
+**Yes — on the principles.** Leaders (Stampli, Coupa AP, Ironclad, Icertis, Kofax, Rossum-class) converge on the same architecture:
+
+| Principle | World-class pattern | Aptora today | Aptora target |
+| --- | --- | --- | --- |
+| **Scan once per file version** | Immutable document → one extraction job; edits are human corrections on stored results | Invoices: yes on upload/ingest | + hash cache; contracts wired |
+| **Structured payload + geometry** | Bounding boxes, confidence, field keys for click/drag HITL | Invoices: `ocrPayload` on `Invoice` | Same shape on `Contract` / `ContractDocument` |
+| **HITL over re-OCR** | User fixes fields; system does not re-run OCR on save/approve | Invoices: yes | Contracts: same |
+| **Provider by document type** | Invoice/expense model for AP docs; document/queries/LLM for legal text | Invoices: Textract Analyze Expense | Contracts: Analyze Document + Queries, then optional LLM on **text layer** |
+| **Dedup / cache** | Same PDF uploaded twice → reuse extraction | Planned (hash on `FileAsset`) | Shared cache table |
+| **Meter OCR pages, not edits** | Cloud OCR billed per page; STP and HITL are product value | `OcrPageMeter` | Same meter for contract pages |
+| **LLM for interpretation, not vision** | Summaries, red flags, clause ID run on extracted text | Invoices: not yet; Contracts: **stub only** | LLM reads cached text + field hits |
+
+What separates category leaders is not “OCR on every click” — it is **extraction quality + HITL speed + learning** (vendor/layout memory). Aptora’s blueprint matches that: Textract for vision, Aptora for workspace and workflow.
+
+---
+
+## Shared platform (Invoices + Contracts)
+
+One internal pipeline; different **extractor profiles** by module.
+
+```
+Upload / email / API
+        │
+        ▼
+  FileAsset (bytes + sha256 + mime)
+        │
+        ├─ cache hit? ──► reuse DocumentExtraction
+        │
+        ▼
+  Route by docType
+        │
+   ┌────┴────┐
+   ▼         ▼
+invoice    contract
+profile    profile
+   │         │
+   ▼         ▼
+Analyze    Analyze Document
+Expense    + Queries (clauses)
+   │         │
+   └────┬────┘
+        ▼
+ DocumentExtraction (versioned JSON)
+   • fields[] with bbox + confidence
+   • fullText (for search + LLM)
+   • lines[] (invoices only)
+   • provider, extractedAt, pageCount
+        │
+        ├─► Map to domain record (Invoice / Contract)
+        └─► HITL workspace (shared UX patterns)
+```
+
+### Persistence (target schema)
+
+| Artifact | Invoices (now) | Contracts (target) |
+| --- | --- | --- |
+| File bytes | `FileAsset` | `FileAsset` (link from `ContractDocument`) |
+| Extraction JSON | `Invoice.ocrPayload` | `ContractDocument.extractionPayload` or shared `DocumentExtraction` row |
+| Domain fields | Invoice columns | Contract columns (`termType`, `noticePeriod`, …) |
+| AI interpretation | Future (exceptions) | `redFlagsJson`, summary — **from cached text**, not re-OCR |
+
+Contracts today use **stub** AI intake and red-flag scan (`contracts.service.ts`); they do **not** yet share `OcrService`. Wiring contracts into the same pipeline is explicit backlog below.
+
+---
+
+## Invoice profile (implemented)
 
 | Step | Token / meter impact |
 | --- | --- |
 | Upload or email ingest | One OCR pass per new `FileAsset` |
 | `OCR_PROVIDER=stub` | No external tokens; parses `.txt` / placeholders locally |
-| `OCR_PROVIDER=textract` | AWS AnalyzeExpense; counted in `OcrPageMeter` |
+| `OCR_PROVIDER=textract` | AWS **Analyze Expense**; counted in `OcrPageMeter` |
 | HITL field edit | No re-OCR; writes to invoice fields only |
 | Re-submit for approval | No re-OCR unless a **new attachment** is added |
 
-OCR payload (including geometry) is persisted on `Invoice.ocrPayload` — see [HITL_OCR_GEOMETRY.md](./HITL_OCR_GEOMETRY.md).
+See [HITL_OCR_GEOMETRY.md](./HITL_OCR_GEOMETRY.md) for payload shape.
 
-## Planned optimizations
+---
+
+## Contract profile (planned — same rules)
+
+| Step | Behavior |
+| --- | --- |
+| Upload draft / executed PDF | One **Analyze Document** (or sync **Queries**) pass per new file hash |
+| Field targets | Counterparty, effective dates, value, term, notice, governing law, auto-renewal, liability caps — each as `OcrFieldHit` with bbox where possible |
+| Red-flag / AI summary | Run on **`fullText` + field hits** from stored extraction; **never** re-send PDF to OCR |
+| HITL | Same drag-from-scan / geometry map as invoice workspace |
+| Re-scan | Only on new document version or explicit “Re-scan” (counts pages) |
+
+**Textract choice:** Invoices → **Analyze Expense** (tables, amounts). Contracts → **Analyze Document** + named **Queries** (clause-style fields). Optional LLM pass for narrative red flags — input is text, metered separately from OCR pages.
+
+---
+
+## Token efficiency rules (both modules)
 
 ### A. Content-hash cache (per tenant)
 
-- Compute SHA-256 of uploaded bytes at ingest.
-- Before calling Textract, look up prior `FileAsset` / OCR result with same hash in tenant.
-- **Reuse** stored `ocrPayload` and skip provider call → **zero additional OCR pages**.
+- SHA-256 at ingest on `FileAsset`.
+- Before any provider call, lookup prior extraction with same hash.
+- Reuse payload → **zero additional OCR pages** (`ocr:cache` in audit notes).
 
 ### B. Stub-first routing
 
 ```
-if mimetype is text/plain or CSV-like invoice export:
-  use stub parser (no Textract)
-else if PDF/image and hash cache hit:
-  reuse ocrPayload
-else if PDF/image:
-  Textract once, persist payload + increment OcrPageMeter
+if structured text / EDI / CSV export:
+  local parser (no cloud OCR)
+else if hash cache hit:
+  reuse DocumentExtraction
+else if docType == invoice:
+  Textract Analyze Expense (once)
+else if docType == contract:
+  Textract Analyze Document + Queries (once)
 ```
 
 ### C. HITL without re-scan
 
-- User corrections update invoice fields and audit trail only.
-- Optional flag `ocrPayload.staleFields` when user overrides a boxed field (UI already shows geometry overlay).
-- **Do not** trigger OCR on save, approve, or export.
+- Corrections update domain fields + audit only.
+- Track `staleFields` when user overrides a boxed value.
+- No OCR on save, approve, export, or “Scan red flags”.
 
 ### D. Re-OCR only on explicit events
 
-Re-run OCR only when:
+- New file version (new hash).
+- User/admin **Re-scan document** (confirmation + page meter).
+- Single idempotent retry after provider failure.
 
-- New file version attached (new `FileAsset` id / hash).
-- Admin “Re-scan document” action (future) with confirmation (counts pages).
-- Provider failure retry (single retry, same hash — not a new meter tick if idempotent job id matches).
+### E. LLM assist (optional, both modules)
 
-### E. LLM assist (future, optional)
+| Use | Input | Not |
+| --- | --- | --- |
+| Invoice exception hints | Extracted fields + snippets | Raw PDF each time |
+| Contract summary | Cached `fullText` + key fields | Re-OCR |
+| Contract red flags | Cached `fullText` + clause hits | Re-OCR |
 
-If LLM is used for exception explanation or vendor matching:
+Cache LLM output per `recordId + field + documentHash`.
 
-- Input = **already extracted fields + OCR snippets**, not raw PDF each time.
-- Cache LLM suggestions per `invoiceId + field + revision`.
-- LLM usage is **not** mixed into OCR page metering.
+---
 
 ## Metrics and guardrails
 
-- `UsageEvent` / `OcrPageMeter`: increment only on **provider OCR calls**, not cache hits or stub.
-- Invoice `notes` keeps `ocr:stub` / `ocr:textract` / `ocr:cache` for support.
-- Soft/hard limits on approved invoices unchanged; OCR overage billed separately per blueprint.
+- `OcrPageMeter`: increment only on **provider OCR calls** (Analyze Expense / Analyze Document pages), not cache hits or stub.
+- Billable transactions (`invoice.approved`) stay separate from OCR — see blueprint §7.
+- Contract volume metering (when sold) should follow the same pattern: **approved/active contract events**, not per-field edit.
+
+---
 
 ## Implementation backlog
 
-| Priority | Item | Effort |
+| Priority | Item | Modules |
 | --- | --- | --- |
-| P1 | File hash on `FileAsset`; cache lookup before Textract | Small schema + capture service |
-| P1 | Stub route for `.txt` / structured imports | Capture/OCR service |
-| P2 | Admin “OCR pages this month” already in Usage; add cache-hit counter | Usage API |
-| P2 | Explicit re-scan action with meter warning | Invoice workspace |
-| P3 | LLM assist behind feature flag with revision cache | Separate epic |
+| P0 | **`DocumentExtraction` or extend `FileAsset`** with `contentHash`, `extractionPayload`, `fullText` | Shared |
+| P0 | Hash lookup before Textract | Invoices, then Contracts |
+| P1 | Contract upload → shared `OcrService` with **contract profile** | Contracts |
+| P1 | Persist extraction on `ContractDocument`; HITL geometry in contract workspace | Contracts |
+| P1 | Red-flag / AI summary reads cached text only | Contracts |
+| P2 | Cache-hit counter in Admin Usage | Shared |
+| P2 | Explicit re-scan with meter warning | Both workspaces |
+| P3 | Per-vendor / per-layout learning (field location hints) | Both |
+| P3 | LLM assist with revision cache | Both |
+
+---
 
 ## Related docs
 
 - [E2_CAPTURE.md](./E2_CAPTURE.md)
 - [E4_IMPORT_TEXTRACT.md](./E4_IMPORT_TEXTRACT.md)
 - [HITL_OCR_GEOMETRY.md](./HITL_OCR_GEOMETRY.md)
-- [E5_EMAIL_NOTIFY_AUDIT.md](./E5_EMAIL_NOTIFY_AUDIT.md)
+- [P2_E1_CONTRACTS_WORKSPACE.md](./P2_E1_CONTRACTS_WORKSPACE.md)
