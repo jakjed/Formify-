@@ -23,10 +23,18 @@ type Job = {
 
 type ModuleRow = { moduleKey: string; enabled: boolean };
 
+type ConnectorPack = {
+  key: string;
+  name: string;
+  status: string;
+  description: string;
+};
+
 export function IntegrationCenterPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [modules, setModules] = useState<ModuleRow[]>([]);
+  const [packs, setPacks] = useState<ConnectorPack[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -36,14 +44,18 @@ export function IntegrationCenterPage() {
   }
 
   async function refresh() {
-    const [t, j, m] = await Promise.all([
+    const [t, j, m, p] = await Promise.all([
       apiFetch<Template[]>('/api/integration/templates'),
       apiFetch<Job[]>('/api/integration/jobs'),
       apiFetch<ModuleRow[]>('/api/modules').catch(() => [] as ModuleRow[]),
+      apiFetch<ConnectorPack[]>('/api/integration/connector-packs').catch(
+        () => [] as ConnectorPack[],
+      ),
     ]);
     setTemplates(t);
     setJobs(j);
     setModules(m);
+    setPacks(p);
   }
 
   useEffect(() => {
@@ -145,10 +157,32 @@ export function IntegrationCenterPage() {
   return (
     <section className="page">
       <h1>Integration Center</h1>
-      <p className="lede">Templates, CSV import/export — connectors come later.</p>
+      <p className="lede">
+        Templates, CSV import/export, webhook-ready APIs — connector packs are
+        registered below (runtime later).
+      </p>
 
       {error && <p className="error">{error}</p>}
       {message && <p className="ok">{message}</p>}
+
+      <div className="panel">
+        <h2>Connector packs</h2>
+        <p className="muted">
+          Registry only — OAuth/runtime connectors land in later Phase 3 slices.
+        </p>
+        <ul className="task-list">
+          {packs.map((pack) => (
+            <li key={pack.key}>
+              <div>
+                <strong>{pack.name}</strong>
+                <span className="muted"> · {pack.status}</span>
+                <p className="muted">{pack.description}</p>
+              </div>
+            </li>
+          ))}
+          {packs.length === 0 && <li className="muted">No packs listed.</li>}
+        </ul>
+      </div>
 
       <div className="panel">
         <h2>Templates</h2>

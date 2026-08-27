@@ -2049,6 +2049,193 @@
         ]
       }
     },
+    "/api/webhooks/events": {
+      "get": {
+        "operationId": "events",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List supported webhook event names",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/api/webhooks/endpoints": {
+      "get": {
+        "operationId": "list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List webhook endpoints",
+        "tags": [
+          "webhooks"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Create webhook endpoint (secret returned once)",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/api/webhooks/endpoints/{id}": {
+      "patch": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWebhookDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update webhook endpoint",
+        "tags": [
+          "webhooks"
+        ]
+      },
+      "delete": {
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete webhook endpoint",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
+    "/api/webhooks/deliveries": {
+      "get": {
+        "operationId": "deliveries",
+        "parameters": [
+          {
+            "name": "endpointId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Recent webhook delivery attempts",
+        "tags": [
+          "webhooks"
+        ]
+      }
+    },
     "/api/capture/upload": {
       "post": {
         "operationId": "upload",
@@ -2269,6 +2456,26 @@
           }
         ],
         "summary": "List import/export jobs",
+        "tags": [
+          "integration"
+        ]
+      }
+    },
+    "/api/integration/connector-packs": {
+      "get": {
+        "operationId": "connectorPacks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List planned ERP connector packs (registry; not runtime connectors)",
         "tags": [
           "integration"
         ]
@@ -3846,6 +4053,14 @@
         "properties": {}
       },
       "DecideDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreateWebhookDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "UpdateWebhookDto": {
         "type": "object",
         "properties": {}
       },

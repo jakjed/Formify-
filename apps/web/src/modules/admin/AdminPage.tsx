@@ -9,6 +9,7 @@ type Tab =
   | 'keys'
   | 'usage'
   | 'mailbox'
+  | 'webhooks'
   | 'notifications'
   | 'audit';
 
@@ -88,6 +89,26 @@ type Usage = {
 
 type ModuleRow = { moduleKey: string; enabled: boolean };
 
+type WebhookEndpoint = {
+  id: string;
+  url: string;
+  events: string[];
+  enabled: boolean;
+  description: string | null;
+  createdAt: string;
+};
+
+type WebhookDelivery = {
+  id: string;
+  endpointId: string;
+  event: string;
+  status: string;
+  httpStatus: number | null;
+  errorMessage: string | null;
+  attemptCount: number;
+  createdAt: string;
+};
+
 const TABS: { id: Tab; label: string }[] = [
   { id: 'users', label: 'Users' },
   { id: 'entities', label: 'Entities' },
@@ -95,6 +116,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'keys', label: 'API keys' },
   { id: 'usage', label: 'Usage' },
   { id: 'mailbox', label: 'Mailbox' },
+  { id: 'webhooks', label: 'Webhooks' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'audit', label: 'Audit' },
 ];
@@ -113,6 +135,14 @@ export function AdminPage() {
   const [scopes, setScopes] = useState<string[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [moduleRows, setModuleRows] = useState<ModuleRow[]>([]);
+  const [webhookEndpoints, setWebhookEndpoints] = useState<WebhookEndpoint[]>(
+    [],
+  );
+  const [webhookEvents, setWebhookEvents] = useState<string[]>([]);
+  const [webhookDeliveries, setWebhookDeliveries] = useState<WebhookDelivery[]>(
+    [],
+  );
+  const [newWebhookSecret, setNewWebhookSecret] = useState<string | null>(null);
   const [newKeyToken, setNewKeyToken] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -120,18 +150,26 @@ export function AdminPage() {
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
-    const [m, i, a, n, u, e, k, s, usageRow, mods] = await Promise.all([
-      apiFetch<Mailbox>('/api/capture/mailbox'),
-      apiFetch<EmailIngest[]>('/api/capture/email-ingests'),
-      apiFetch<AuditEvent[]>('/api/audit/events?limit=40'),
-      apiFetch<Notification[]>('/api/notifications'),
-      apiFetch<UserRow[]>('/api/users'),
-      apiFetch<EntityRow[]>('/api/entities'),
-      apiFetch<ApiKeyRow[]>('/api/api-keys'),
-      apiFetch<string[]>('/api/api-keys/scopes'),
-      apiFetch<Usage>('/api/usage/summary'),
-      apiFetch<ModuleRow[]>('/api/modules'),
-    ]);
+    const [m, i, a, n, u, e, k, s, usageRow, mods, wh, whe, whd] =
+      await Promise.all([
+        apiFetch<Mailbox>('/api/capture/mailbox'),
+        apiFetch<EmailIngest[]>('/api/capture/email-ingests'),
+        apiFetch<AuditEvent[]>('/api/audit/events?limit=40'),
+        apiFetch<Notification[]>('/api/notifications'),
+        apiFetch<UserRow[]>('/api/users'),
+        apiFetch<EntityRow[]>('/api/entities'),
+        apiFetch<ApiKeyRow[]>('/api/api-keys'),
+        apiFetch<string[]>('/api/api-keys/scopes'),
+        apiFetch<Usage>('/api/usage/summary'),
+        apiFetch<ModuleRow[]>('/api/modules'),
+        apiFetch<WebhookEndpoint[]>('/api/webhooks/endpoints').catch(
+          () => [] as WebhookEndpoint[],
+        ),
+        apiFetch<string[]>('/api/webhooks/events').catch(() => [] as string[]),
+        apiFetch<WebhookDelivery[]>('/api/webhooks/deliveries').catch(
+          () => [] as WebhookDelivery[],
+        ),
+      ]);
     setMailbox(m);
     setIngests(i);
     setEvents(a);
@@ -142,6 +180,9 @@ export function AdminPage() {
     setScopes(s);
     setUsage(usageRow);
     setModuleRows(mods);
+    setWebhookEndpoints(wh);
+    setWebhookEvents(whe);
+    setWebhookDeliveries(whd);
   }
 
   useEffect(() => {
@@ -696,6 +737,173 @@ export function AdminPage() {
             </ul>
           </div>
         </>
+      )}
+
+      {tab === 'webhooks' && (
+        <div className="panel">
+          <h2>Outbound webhooks</h2>
+          <p className="lede">
+            HMAC-signed JSON POSTs for ecosystem events (Phase 3). Secret is
+            shown once on create.
+          </p>
+          {newWebhookSecret && (
+            <p className="ok">
+              Signing secret (copy now): <code>{newWebhookSecret}</code>
+            </p>
+          )}
+          <ul className="task-list">
+            {webhookEndpoints.map((ep) => (
+              <li key={ep.id}>
+                <div>
+                  <strong>{ep.url}</strong>
+                  <span className="muted">
+                    {' '}
+                    · {ep.enabled ? 'on' : 'off'} · {ep.events.join(', ')}
+                  </span>
+                </div>
+                <div className="actions">
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    disabled={busy}
+                    onClick={() =>
+                      void (async () => {
+                        setBusy(true);
+                        try {
+                          await apiFetch(`/api/webhooks/endpoints/${ep.id}`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({ enabled: !ep.enabled }),
+                          });
+                          await refresh();
+                        } catch (err) {
+                          setError(
+                            err instanceof Error ? err.message : 'Update failed',
+                          );
+                        } finally {
+                          setBusy(false);
+                        }
+                      })()
+                    }
+                  >
+                    {ep.enabled ? 'Disable' : 'Enable'}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    disabled={busy}
+                    onClick={() =>
+                      void (async () => {
+                        setBusy(true);
+                        try {
+                          await apiFetch(`/api/webhooks/endpoints/${ep.id}`, {
+                            method: 'DELETE',
+                          });
+                          await refresh();
+                        } catch (err) {
+                          setError(
+                            err instanceof Error ? err.message : 'Delete failed',
+                          );
+                        } finally {
+                          setBusy(false);
+                        }
+                      })()
+                    }
+                  >
+                    Delete
+                  </button>
+                </div>
+              </li>
+            ))}
+            {webhookEndpoints.length === 0 && (
+              <li className="muted">No endpoints yet.</li>
+            )}
+          </ul>
+          <form
+            className="workspace-form"
+            onSubmit={(e) =>
+              void (async (ev: FormEvent<HTMLFormElement>) => {
+                ev.preventDefault();
+                const form = ev.currentTarget;
+                const data = new FormData(form);
+                const selected = webhookEvents.filter(
+                  (name) => data.get(`event_${name}`) === 'on',
+                );
+                setBusy(true);
+                setError(null);
+                setNewWebhookSecret(null);
+                try {
+                  const created = await apiFetch<{ secret: string }>(
+                    '/api/webhooks/endpoints',
+                    {
+                      method: 'POST',
+                      body: JSON.stringify({
+                        url: data.get('url'),
+                        description: data.get('description') || undefined,
+                        events: selected.length
+                          ? selected
+                          : ['invoice.approved'],
+                      }),
+                    },
+                  );
+                  setNewWebhookSecret(created.secret);
+                  form.reset();
+                  await refresh();
+                } catch (err) {
+                  setError(
+                    err instanceof Error ? err.message : 'Create failed',
+                  );
+                } finally {
+                  setBusy(false);
+                }
+              })(e)
+            }
+          >
+            <label className="span-2">
+              URL
+              <input name="url" required placeholder="https://example.com/hooks" />
+            </label>
+            <label className="span-2">
+              Description
+              <input name="description" placeholder="ERP listener" />
+            </label>
+            {webhookEvents.map((name) => (
+              <label key={name}>
+                <input
+                  type="checkbox"
+                  name={`event_${name}`}
+                  defaultChecked={name === 'invoice.approved'}
+                />{' '}
+                {name}
+              </label>
+            ))}
+            <div className="span-2 actions">
+              <button type="submit" disabled={busy}>
+                Add endpoint
+              </button>
+            </div>
+          </form>
+          <h3>Recent deliveries</h3>
+          <ul className="task-list">
+            {webhookDeliveries.map((d) => (
+              <li key={d.id}>
+                <div>
+                  <strong>{d.event}</strong>
+                  <span className="muted">
+                    {' '}
+                    · {d.status}
+                    {d.httpStatus != null ? ` · HTTP ${d.httpStatus}` : ''}
+                    {' · '}
+                    {new Date(d.createdAt).toLocaleString()}
+                  </span>
+                  {d.errorMessage && <p className="error">{d.errorMessage}</p>}
+                </div>
+              </li>
+            ))}
+            {webhookDeliveries.length === 0 && (
+              <li className="muted">No deliveries yet.</li>
+            )}
+          </ul>
+        </div>
       )}
 
       {tab === 'notifications' && (

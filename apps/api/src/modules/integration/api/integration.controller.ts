@@ -60,6 +60,14 @@ export class IntegrationController {
     return this.integration.listJobs(tenantId);
   }
 
+  @Get('connector-packs')
+  @ApiOperation({
+    summary: 'List planned ERP connector packs (registry; not runtime connectors)',
+  })
+  connectorPacks() {
+    return this.integration.listConnectorPacks();
+  }
+
   @Post('exports/approved-invoices')
   @RequireScopes('exports:read')
   @ApiOperation({ summary: 'Export approved invoices as CSV' })

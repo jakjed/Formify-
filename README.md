@@ -18,6 +18,7 @@ Formerly working name: Formify.
 - **[docs/PRODUCT_BLUEPRINT.md](docs/PRODUCT_BLUEPRINT.md)** — full product, UX, architecture, hosting, packaging, roadmap
 - **[docs/PHASE1_PRD.md](docs/PHASE1_PRD.md)** — Phase 1 PRD + screen inventory (Aptora AP web wedge)
 - **[docs/PHASE2_PRD.md](docs/PHASE2_PRD.md)** — Phase 2 Procure (Contracts + PR + PO)
+- **[docs/PHASE3_PRD.md](docs/PHASE3_PRD.md)** — Phase 3 Ecosystem (webhooks, connectors, SSO…)
 - [docs/architecture/MONOREPO.md](docs/architecture/MONOREPO.md) — folder & module rules
 - [docs/architecture/E0_FOUNDATION.md](docs/architecture/E0_FOUNDATION.md) — run the foundation locally
 - [docs/architecture/HOSTING.md](docs/architecture/HOSTING.md) — where to host & what to do first
@@ -43,6 +44,8 @@ Formerly working name: Formify.
 - [docs/architecture/P2_E4_INVOICE_MATCH.md](docs/architecture/P2_E4_INVOICE_MATCH.md) — Invoice 2/3-way PO match
 - [docs/architecture/P2_E5_INTEGRATION.md](docs/architecture/P2_E5_INTEGRATION.md) — Procure Integration templates/exports
 - [docs/architecture/PHASE2_COMPLETE.md](docs/architecture/PHASE2_COMPLETE.md) — Phase 2 Procure track complete
+- [docs/architecture/P3_E0_ECOSYSTEM_FOUNDATION.md](docs/architecture/P3_E0_ECOSYSTEM_FOUNDATION.md) — Phase 3 webhooks + connector registry
+- [docs/architecture/PHASE3_MODULES.md](docs/architecture/PHASE3_MODULES.md) — Phase 3 ecosystem surfaces
 
 ## Workspace
 
