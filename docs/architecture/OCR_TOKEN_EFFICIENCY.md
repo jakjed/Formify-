@@ -134,7 +134,9 @@ else if docType == contract:
 - User/admin **Re-scan document** (confirmation + page meter).
 - Single idempotent retry after provider failure.
 
-### E. LLM assist (optional, both modules)
+### E. LLM assist (optional, both modules — **off by default**)
+
+Only when tenant admin enables AI assist. See [AI_DATA_POLICY.md](./AI_DATA_POLICY.md) — no public ChatGPT; prefer same-region Bedrock on extracted text only; never train on customer data.
 
 | Use | Input | Not |
 | --- | --- | --- |
