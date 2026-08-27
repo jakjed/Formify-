@@ -26,6 +26,7 @@ export function buildOpenApiDocument(app: INestApplication) {
     .addTag('invoices', 'Invoice list, workspace, comments, validation')
     .addTag('capture', 'Upload / email ingest (file assets)')
     .addTag('integration', 'Templates, import/export jobs')
+    .addTag('search', 'Global search')
     .addTag('health', 'Liveness')
     .build();
 

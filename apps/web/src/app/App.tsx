@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { AppShell } from './AppShell';
 import { HomePage } from '../modules/my-work/HomePage';
 import { LoginPage } from '../modules/auth/LoginPage';
@@ -14,6 +14,10 @@ import { AdminPage } from '../modules/admin/AdminPage';
 import { DirectoryPage } from '../modules/directory/DirectoryPage';
 import { ExceptionsPage } from '../modules/ops/ExceptionsPage';
 import { OpsDashboardPage } from '../modules/ops/OpsDashboardPage';
+import {
+  ForbiddenPage,
+  NotFoundPage,
+} from '../shared/components/SystemPages';
 
 export function App() {
   return (
@@ -23,6 +27,7 @@ export function App() {
       <Route path="/invite/:token" element={<InviteAcceptPage />} />
       <Route path="/reset" element={<PasswordResetRequestPage />} />
       <Route path="/reset/:token" element={<PasswordResetConfirmPage />} />
+      <Route path="/403" element={<ForbiddenPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<HomePage />} />
@@ -35,7 +40,7 @@ export function App() {
           <Route path="/admin" element={<AdminPage />} />
         </Route>
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }
