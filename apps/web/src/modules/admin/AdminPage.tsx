@@ -35,6 +35,14 @@ type ApprovalRule = {
   enabled: boolean;
 };
 
+type SodPolicy = {
+  id: string;
+  ruleKey: string;
+  enabled: boolean;
+  submitterRole: string | null;
+  approverRole: string | null;
+};
+
 type Mailbox = {
   id: string;
   address: string;
@@ -201,6 +209,7 @@ export function AdminPage() {
   const [oidc, setOidc] = useState<OidcAdmin | null>(null);
   const [policy, setPolicy] = useState<ApprovalPolicy | null>(null);
   const [approvalRules, setApprovalRules] = useState<ApprovalRule[]>([]);
+  const [sodPolicies, setSodPolicies] = useState<SodPolicy[]>([]);
   const [newKeyToken, setNewKeyToken] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -227,6 +236,7 @@ export function AdminPage() {
       providers,
       pol,
       rules,
+      sod,
     ] = await Promise.all([
       apiFetch<Mailbox>('/api/capture/mailbox'),
       apiFetch<EmailIngest[]>('/api/capture/email-ingests'),
@@ -258,6 +268,7 @@ export function AdminPage() {
       apiFetch<ApprovalRule[]>('/api/workflow/rules').catch(
         () => [] as ApprovalRule[],
       ),
+      apiFetch<SodPolicy[]>('/api/workflow/sod').catch(() => [] as SodPolicy[]),
     ]);
     setMailbox(m);
     setIngests(i);
@@ -277,19 +288,22 @@ export function AdminPage() {
     setOidc(providers.find((p) => p.type === 'oidc') ?? null);
     setPolicy(pol);
     setApprovalRules(rules);
+    setSodPolicies(sod);
   }
 
   async function loadWorkflowTab() {
-    const [e, rules, pol] = await Promise.all([
+    const [e, rules, pol, sod] = await Promise.all([
       apiFetch<EntityRow[]>('/api/entities'),
       apiFetch<ApprovalRule[]>('/api/workflow/rules'),
       apiFetch<ApprovalPolicy>('/api/workflow/policy').catch(
         () => null as ApprovalPolicy | null,
       ),
+      apiFetch<SodPolicy[]>('/api/workflow/sod').catch(() => [] as SodPolicy[]),
     ]);
     setEntities(e);
     setApprovalRules(rules);
     setPolicy(pol);
+    setSodPolicies(sod);
   }
 
   useEffect(() => {
@@ -639,6 +653,67 @@ export function AdminPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete rule failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleSod(policyRow: SodPolicy) {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch(`/api/workflow/sod/${policyRow.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled: !policyRow.enabled }),
+      });
+      setMessage(
+        policyRow.enabled ? 'SoD policy disabled' : 'SoD policy enabled',
+      );
+      await loadWorkflowTab();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Update SoD failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onCreateRolePair(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch('/api/workflow/sod/role-pair', {
+        method: 'POST',
+        body: JSON.stringify({
+          submitterRole: data.get('submitterRole'),
+          approverRole: data.get('approverRole'),
+          enabled: true,
+        }),
+      });
+      form.reset();
+      setMessage('Role-pair SoD rule created');
+      await loadWorkflowTab();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Create SoD failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteSod(id: string) {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch(`/api/workflow/sod/${id}`, { method: 'DELETE' });
+      setMessage('SoD rule deleted');
+      await loadWorkflowTab();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete SoD failed');
     } finally {
       setBusy(false);
     }
@@ -1611,6 +1686,77 @@ export function AdminPage() {
             <div className="span-2 actions">
               <button type="submit" disabled={busy}>
                 Add rule
+              </button>
+            </div>
+          </form>
+
+          <h3>Segregation of duties</h3>
+          <p className="muted">
+            Block self-approval and optional role-pair conflicts on invoice
+            submit/approve. Policy auto-approve thresholds still apply.
+          </p>
+          <ul className="task-list">
+            {sodPolicies.map((row) => (
+              <li key={row.id}>
+                <div>
+                  <strong>{row.ruleKey}</strong>
+                  <span className="muted">
+                    {row.ruleKey === 'role_pair_conflict'
+                      ? ` · ${row.submitterRole} → blocked approver ${row.approverRole}`
+                      : ' · submitter cannot approve own invoice'}
+                    {row.enabled ? '' : ' · disabled'}
+                  </span>
+                </div>
+                <div className="actions">
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    disabled={busy}
+                    onClick={() => void toggleSod(row)}
+                  >
+                    {row.enabled ? 'Disable' : 'Enable'}
+                  </button>
+                  {row.ruleKey === 'role_pair_conflict' && (
+                    <button
+                      type="button"
+                      className="secondary-btn"
+                      disabled={busy}
+                      onClick={() => void deleteSod(row.id)}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+          <form
+            className="workspace-form"
+            onSubmit={(e) => void onCreateRolePair(e)}
+          >
+            <label>
+              Submitter role
+              <select name="submitterRole" defaultValue="ap_clerk" required>
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Cannot be approved by
+              <select name="approverRole" defaultValue="ap_clerk" required>
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="span-2 actions">
+              <button type="submit" disabled={busy}>
+                Add role-pair rule
               </button>
             </div>
           </form>

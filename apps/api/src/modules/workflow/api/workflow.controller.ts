@@ -129,6 +129,24 @@ class DecideDto {
   comment?: string;
 }
 
+class UpdateSodPolicyDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+}
+
+class CreateRolePairSodDto {
+  @IsEnum(UserRole)
+  submitterRole!: UserRole;
+
+  @IsEnum(UserRole)
+  approverRole!: UserRole;
+
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+}
+
 @Controller()
 export class WorkflowController {
   constructor(private readonly workflow: WorkflowService) {}
@@ -174,6 +192,36 @@ export class WorkflowController {
     @Param('id') id: string,
   ) {
     return this.workflow.deleteRule(tenantId, id);
+  }
+
+  @Get('workflow/sod')
+  listSod(@CurrentTenantId() tenantId: string) {
+    return this.workflow.listSodPolicies(tenantId);
+  }
+
+  @Patch('workflow/sod/:id')
+  updateSod(
+    @CurrentTenantId() tenantId: string,
+    @Param('id') id: string,
+    @Body() dto: UpdateSodPolicyDto,
+  ) {
+    return this.workflow.updateSodPolicy(tenantId, id, dto);
+  }
+
+  @Post('workflow/sod/role-pair')
+  createRolePair(
+    @CurrentTenantId() tenantId: string,
+    @Body() dto: CreateRolePairSodDto,
+  ) {
+    return this.workflow.createRolePairSod(tenantId, dto);
+  }
+
+  @Delete('workflow/sod/:id')
+  deleteSod(
+    @CurrentTenantId() tenantId: string,
+    @Param('id') id: string,
+  ) {
+    return this.workflow.deleteSodPolicy(tenantId, id);
   }
 
   @Get('approvals/my-work')

@@ -283,8 +283,12 @@ export class InvoicesController {
   @Post(':id/approve')
   @RequireScopes('invoices:write')
   @ApiOperation({ summary: 'Approve invoice (manager path)' })
-  approve(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
-    return this.invoices.approve(tenantId, id);
+  approve(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.invoices.approve(tenantId, id, user.id);
   }
 
   @Post(':id/void')

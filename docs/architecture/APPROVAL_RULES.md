@@ -13,6 +13,8 @@ First match wins:
 
 If **no rule** matches, the default `ApprovalPolicy.autoApproveUnderMinor` threshold applies (Admin → Approvals).
 
+Assignee selection then applies **SoD** (`SodPolicy`) — see [P3_E5_ADVANCED_SOD.md](./P3_E5_ADVANCED_SOD.md).
+
 ## API
 
 | Method | Path |
@@ -22,3 +24,4 @@ If **no rule** matches, the default `ApprovalPolicy.autoApproveUnderMinor` thres
 | PATCH | `/api/workflow/rules/:id` |
 | DELETE | `/api/workflow/rules/:id` |
 | GET/PATCH | `/api/workflow/policy` (fallback) |
+| GET/PATCH/POST/DELETE | `/api/workflow/sod` (segregation of duties) |

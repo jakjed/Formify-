@@ -60,6 +60,7 @@ model Tenant {
   approvalPolicies ApprovalPolicy[]
   approvalTasks  ApprovalTask[]
   approvalRules  ApprovalRule[]
+  sodPolicies    SodPolicy[]
   integrationJobs IntegrationJob[]
   captureMailbox CaptureMailbox?
   emailIngests   EmailIngest[]
@@ -345,6 +346,7 @@ model Invoice {
   ocrConfidence  Float?
   /// Structured OCR hits + normalized geometry for HITL overlays (versioned JSON)
   ocrPayload     Json?
+  submittedById  String?       @db.Uuid
   approvedAt     DateTime?
   exportedAt     DateTime?
   createdAt      DateTime      @default(now())
@@ -362,6 +364,7 @@ model Invoice {
   @@index([tenantId, createdAt])
   @@index([tenantId, invoiceNumber])
   @@index([tenantId, purchaseOrderId])
+  @@index([tenantId, submittedById])
 }
 
 model InvoiceLine {
@@ -491,6 +494,29 @@ model ApprovalRule {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, enabled, priority])
+}
+
+enum SodRuleKey {
+  cannot_approve_own_invoice
+  role_pair_conflict
+}
+
+/// Tenant segregation-of-duties policies for invoice approvals.
+model SodPolicy {
+  id             String     @id @default(uuid()) @db.Uuid
+  tenantId       String     @db.Uuid
+  ruleKey        SodRuleKey
+  enabled        Boolean    @default(true)
+  /// For role_pair_conflict: submitter role that cannot be approved by approverRole
+  submitterRole  UserRole?
+  approverRole   UserRole?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, enabled])
+  @@index([tenantId, ruleKey])
 }
 
 model ApprovalTask {

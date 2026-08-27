@@ -83,7 +83,9 @@ export class WorkflowService {
     );
 
     if (matchedRule?.autoApprove) {
-      return this.finalizeApprove(tenantId, invoiceId, actorUserId);
+      return this.finalizeApprove(tenantId, invoiceId, actorUserId, {
+        submittedById: actorUserId,
+      });
     }
 
     const underAuto =
@@ -93,27 +95,58 @@ export class WorkflowService {
       ready.totalMinor <= policy.autoApproveUnderMinor;
 
     if (underAuto) {
-      return this.finalizeApprove(tenantId, invoiceId, actorUserId);
+      return this.finalizeApprove(tenantId, invoiceId, actorUserId, {
+        submittedById: actorUserId,
+      });
     }
+
+    const submitter = await this.prisma.user.findFirst({
+      where: { id: actorUserId, tenantId },
+    });
+    const sod = await this.listEnabledSod(tenantId);
+    const blockOwn = sod.some((p) => p.ruleKey === 'cannot_approve_own_invoice');
 
     const roleFilter = matchedRule?.assigneeRole
       ? [matchedRule.assigneeRole]
       : (['admin', 'approver', 'ap_manager'] as const);
 
-    const assignees = await this.prisma.user.findMany({
+    let candidates = await this.prisma.user.findMany({
       where: {
         tenantId,
         role: { in: [...roleFilter] },
-        NOT: { id: actorUserId },
+        status: 'active',
       },
     });
-    const fallback = assignees.length
-      ? assignees
-      : await this.prisma.user.findMany({ where: { tenantId, role: 'admin' } });
 
-    if (fallback.length === 0) {
-      // no approver available — auto-approve
-      return this.finalizeApprove(tenantId, invoiceId, actorUserId);
+    candidates = this.applySodAssigneeFilter(
+      candidates,
+      actorUserId,
+      submitter?.role ?? null,
+      sod,
+    );
+
+    if (candidates.length === 0) {
+      // Admin fallback, still SoD-filtered
+      const admins = await this.prisma.user.findMany({
+        where: { tenantId, role: 'admin', status: 'active' },
+      });
+      candidates = this.applySodAssigneeFilter(
+        admins,
+        actorUserId,
+        submitter?.role ?? null,
+        sod,
+      );
+    }
+
+    if (candidates.length === 0) {
+      if (blockOwn) {
+        throw new BadRequestException(
+          'No eligible approvers after segregation-of-duties rules. Add another approver or adjust SoD policy.',
+        );
+      }
+      return this.finalizeApprove(tenantId, invoiceId, actorUserId, {
+        submittedById: actorUserId,
+      });
     }
 
     await this.prisma.approvalTask.updateMany({
@@ -122,7 +155,7 @@ export class WorkflowService {
     });
 
     await this.prisma.approvalTask.createMany({
-      data: fallback.map((user) => ({
+      data: candidates.map((user) => ({
         tenantId,
         invoiceId,
         assigneeId: user.id,
@@ -130,7 +163,7 @@ export class WorkflowService {
     });
 
     await this.notifications.notifyMany(
-      fallback.map((user) => ({
+      candidates.map((user) => ({
         tenantId,
         userId: user.id,
         type: 'approval.assigned',
@@ -155,7 +188,7 @@ export class WorkflowService {
 
     return this.prisma.invoice.update({
       where: { id: invoiceId },
-      data: { status: 'in_approval' },
+      data: { status: 'in_approval', submittedById: actorUserId },
       include: {
         fileAsset: true,
         exceptions: true,
@@ -321,6 +354,10 @@ export class WorkflowService {
       throw new BadRequestException('Task already decided');
     }
 
+    if (decision === 'approved') {
+      await this.assertCanApprove(tenantId, task.invoiceId, userId);
+    }
+
     await this.prisma.approvalTask.update({
       where: { id: taskId },
       data: {
@@ -372,10 +409,174 @@ export class WorkflowService {
     return this.finalizeApprove(tenantId, task.invoiceId, userId);
   }
 
+  /** Force-approve path — still respects SoD own-approve when submittedBy is known. */
+  async assertCanApprove(tenantId: string, invoiceId: string, userId: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, tenantId },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+
+    const sod = await this.listEnabledSod(tenantId);
+    const blockOwn = sod.some((p) => p.ruleKey === 'cannot_approve_own_invoice');
+    const submitterId = invoice.submittedById;
+
+    if (blockOwn && submitterId && submitterId === userId) {
+      throw new ForbiddenException(
+        'Segregation of duties: you cannot approve an invoice you submitted',
+      );
+    }
+
+    if (submitterId) {
+      const [submitter, approver] = await Promise.all([
+        this.prisma.user.findFirst({ where: { id: submitterId, tenantId } }),
+        this.prisma.user.findFirst({ where: { id: userId, tenantId } }),
+      ]);
+      if (submitter && approver) {
+        const conflict = sod.find(
+          (p) =>
+            p.ruleKey === 'role_pair_conflict' &&
+            p.submitterRole === submitter.role &&
+            p.approverRole === approver.role,
+        );
+        if (conflict) {
+          throw new ForbiddenException(
+            `Segregation of duties: ${submitter.role} submissions cannot be approved by ${approver.role}`,
+          );
+        }
+      }
+    }
+  }
+
+  async listSodPolicies(tenantId: string) {
+    await this.ensureDefaultSod(tenantId);
+    return this.prisma.sodPolicy.findMany({
+      where: { tenantId },
+      orderBy: [{ ruleKey: 'asc' }, { createdAt: 'asc' }],
+    });
+  }
+
+  async updateSodPolicy(
+    tenantId: string,
+    id: string,
+    data: { enabled?: boolean },
+  ) {
+    const existing = await this.prisma.sodPolicy.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) throw new NotFoundException('SoD policy not found');
+    return this.prisma.sodPolicy.update({
+      where: { id },
+      data: { enabled: data.enabled },
+    });
+  }
+
+  async createRolePairSod(
+    tenantId: string,
+    data: {
+      submitterRole: 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
+      approverRole: 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
+      enabled?: boolean;
+    },
+  ) {
+    if (data.submitterRole === data.approverRole) {
+      throw new BadRequestException('Submitter and approver roles must differ');
+    }
+    const existing = await this.prisma.sodPolicy.findFirst({
+      where: {
+        tenantId,
+        ruleKey: 'role_pair_conflict',
+        submitterRole: data.submitterRole,
+        approverRole: data.approverRole,
+      },
+    });
+    if (existing) {
+      return this.prisma.sodPolicy.update({
+        where: { id: existing.id },
+        data: { enabled: data.enabled ?? true },
+      });
+    }
+    return this.prisma.sodPolicy.create({
+      data: {
+        tenantId,
+        ruleKey: 'role_pair_conflict',
+        submitterRole: data.submitterRole,
+        approverRole: data.approverRole,
+        enabled: data.enabled ?? true,
+      },
+    });
+  }
+
+  async deleteSodPolicy(tenantId: string, id: string) {
+    const existing = await this.prisma.sodPolicy.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) throw new NotFoundException('SoD policy not found');
+    if (existing.ruleKey === 'cannot_approve_own_invoice') {
+      throw new BadRequestException(
+        'Disable cannot_approve_own_invoice instead of deleting it',
+      );
+    }
+    await this.prisma.sodPolicy.delete({ where: { id } });
+    return { ok: true };
+  }
+
+  private async ensureDefaultSod(tenantId: string) {
+    const own = await this.prisma.sodPolicy.findFirst({
+      where: { tenantId, ruleKey: 'cannot_approve_own_invoice' },
+    });
+    if (!own) {
+      await this.prisma.sodPolicy.create({
+        data: {
+          tenantId,
+          ruleKey: 'cannot_approve_own_invoice',
+          enabled: true,
+        },
+      });
+    }
+  }
+
+  private async listEnabledSod(tenantId: string) {
+    await this.ensureDefaultSod(tenantId);
+    return this.prisma.sodPolicy.findMany({
+      where: { tenantId, enabled: true },
+    });
+  }
+
+  private applySodAssigneeFilter<
+    T extends { id: string; role: string },
+  >(
+    users: T[],
+    submitterId: string,
+    submitterRole: string | null,
+    sod: {
+      ruleKey: string;
+      submitterRole: string | null;
+      approverRole: string | null;
+    }[],
+  ): T[] {
+    const blockOwn = sod.some((p) => p.ruleKey === 'cannot_approve_own_invoice');
+    const pairs = sod.filter((p) => p.ruleKey === 'role_pair_conflict');
+    return users.filter((user) => {
+      if (blockOwn && user.id === submitterId) return false;
+      if (submitterRole) {
+        for (const pair of pairs) {
+          if (
+            pair.submitterRole === submitterRole &&
+            pair.approverRole === user.role
+          ) {
+            return false;
+          }
+        }
+      }
+      return true;
+    });
+  }
+
   private async finalizeApprove(
     tenantId: string,
     invoiceId: string,
     actorId?: string,
+    extras?: { submittedById?: string },
   ) {
     const usage = await this.usage.getUsageSummary(tenantId);
     if (usage.hardBlocked) {
@@ -389,6 +590,9 @@ export class WorkflowService {
       data: {
         status: 'approved',
         approvedAt: new Date(),
+        ...(extras?.submittedById
+          ? { submittedById: extras.submittedById }
+          : {}),
         exceptions: {
           updateMany: {
             where: { resolved: false },
