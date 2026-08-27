@@ -98,7 +98,16 @@ export function AppShell() {
   return (
     <div className="shell">
       <aside className="shell__nav">
-        <div className="shell__brand">{PRODUCT_NAME}</div>
+        <div className="shell__brand">
+          <img
+            className="shell__brand-mark"
+            src="/brand/aptora-mark-64.png"
+            width={36}
+            height={36}
+            alt=""
+          />
+          <span>{PRODUCT_NAME}</span>
+        </div>
         {entities.length > 0 && (
           <label className="shell__entity">
             Entity

@@ -78,7 +78,16 @@ export function LoginPage() {
   return (
     <div className="auth">
       <form className="auth__card" onSubmit={onSubmit}>
-        <h1>{PRODUCT_NAME}</h1>
+        <div className="auth__brand">
+          <img
+            className="auth__mark"
+            src="/brand/aptora-mark.png"
+            width={72}
+            height={72}
+            alt=""
+          />
+          <h1>{PRODUCT_NAME}</h1>
+        </div>
         <p className="lede">Sign in with local password or SSO.</p>
         <label>
           Tenant ID
