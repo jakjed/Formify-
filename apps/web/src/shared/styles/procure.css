@@ -63,6 +63,7 @@ a.procure__kpi {
 }
 
 .procure__kpi-label {
+  font-family: var(--aptora-font-ui);
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -72,12 +73,13 @@ a.procure__kpi {
 }
 
 .procure__kpi-value {
-  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-family: var(--aptora-font-ui);
   font-size: 1.35rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--aptora-ink);
   line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .procure__tabs {
@@ -117,8 +119,9 @@ a.procure__kpi {
 
 .procure__tab-count {
   margin-left: 0.35rem;
-  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-family: var(--aptora-font-ui);
   font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
   opacity: 0.75;
 }
 

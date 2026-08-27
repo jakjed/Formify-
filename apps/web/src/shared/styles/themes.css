@@ -1,0 +1,117 @@
+/* Aptora visual themes — override tokens on :root via data-aptora-theme */
+
+[data-aptora-theme='contrast'] {
+  --aptora-ink: #020807;
+  --aptora-ink-soft: #122018;
+  --aptora-paper: #eef2ef;
+  --aptora-paper-deep: #dce6df;
+  --aptora-surface: #ffffff;
+  --aptora-surface-tint: #e8f5f0;
+  --aptora-muted: #2f4038;
+  --aptora-border: rgb(8 18 14 / 22%);
+  --aptora-border-strong: rgb(8 18 14 / 34%);
+  --aptora-brand: #0a5c55;
+  --aptora-teal-deep: #0a5c55;
+  --aptora-teal: #0f766e;
+  --aptora-shadow:
+    0 1px 2px rgb(8 18 14 / 8%),
+    0 6px 20px rgb(8 18 14 / 10%);
+  --aptora-shadow-lift:
+    0 8px 20px rgb(8 18 14 / 14%),
+    0 18px 40px rgb(8 18 14 / 12%);
+}
+
+[data-aptora-theme='contrast'] .shell__nav {
+  background: linear-gradient(180deg, #ffffff 0%, #edf3ef 100%);
+  border-right-color: var(--aptora-border-strong);
+}
+
+[data-aptora-theme='contrast'] .panel {
+  background: linear-gradient(160deg, #ffffff 0%, #eef5f1 100%);
+  border-color: var(--aptora-border-strong);
+}
+
+[data-aptora-theme='contrast'] .stat-tile,
+[data-aptora-theme='contrast'] .procure__kpi {
+  border-color: var(--aptora-border-strong);
+  background: #ffffff;
+}
+
+[data-aptora-theme='vivid'] {
+  --aptora-paper: #e8f3ee;
+  --aptora-paper-deep: #d4ebe3;
+  --aptora-surface-tint: #e0faf4;
+  --aptora-brand: #0d9488;
+  --aptora-brand-bright: #2dd4bf;
+  --aptora-teal-glow: rgb(45 212 191 / 42%);
+  --aptora-amber: #ea580c;
+  --aptora-amber-soft: #ffedd5;
+  --aptora-sky: #0284c7;
+  --aptora-info-soft: #e0f2fe;
+}
+
+[data-aptora-theme='vivid'] .shell__main {
+  background:
+    radial-gradient(900px 480px at 8% 0%, rgb(20 184 166 / 22%), transparent 58%),
+    radial-gradient(720px 420px at 92% 8%, rgb(245 158 11 / 20%), transparent 52%),
+    radial-gradient(640px 380px at 50% 100%, rgb(8 145 178 / 16%), transparent 55%),
+    var(--aptora-paper);
+}
+
+[data-aptora-theme='vivid'] .shell__nav {
+  background:
+    linear-gradient(165deg, rgb(255 255 255 / 96%) 0%, rgb(224 250 244 / 88%) 100%);
+  border-right-color: rgb(13 148 136 / 28%);
+}
+
+[data-aptora-theme='vivid'] .shell__link--active {
+  background: linear-gradient(
+    90deg,
+    rgb(13 148 136 / 22%) 0%,
+    rgb(13 148 136 / 8%) 100%
+  );
+  color: var(--aptora-teal-deep);
+}
+
+[data-aptora-theme='vivid'] .panel {
+  background:
+    linear-gradient(155deg, rgb(255 255 255 / 94%) 0%, rgb(204 251 241 / 42%) 100%);
+  border-color: rgb(13 148 136 / 24%);
+  box-shadow:
+    0 2px 8px rgb(13 148 136 / 10%),
+    0 12px 32px rgb(12 22 18 / 8%);
+}
+
+[data-aptora-theme='vivid'] .stat-tile {
+  background: linear-gradient(145deg, #ffffff 0%, rgb(240 253 250 / 90%) 100%);
+  border-color: rgb(13 148 136 / 26%);
+}
+
+[data-aptora-theme='vivid'] .procure__kpi {
+  background: linear-gradient(145deg, #ffffff 0%, rgb(255 247 237 / 55%) 100%);
+  border-color: rgb(13 148 136 / 22%);
+}
+
+[data-aptora-theme='vivid'] .stat-orb--teal {
+  background: linear-gradient(145deg, #ccfbf1 0%, #ffffff 55%);
+  border-color: rgb(13 148 136 / 35%);
+}
+
+[data-aptora-theme='vivid'] .stat-orb--amber {
+  background: linear-gradient(145deg, #ffedd5 0%, #ffffff 55%);
+  border-color: rgb(234 88 12 / 32%);
+}
+
+[data-aptora-theme='vivid'] .stat-orb--sky {
+  background: linear-gradient(145deg, #e0f2fe 0%, #ffffff 55%);
+  border-color: rgb(2 132 199 / 30%);
+}
+
+[data-aptora-theme='vivid'] .btn--primary {
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+  box-shadow: 0 4px 14px rgb(13 148 136 / 35%);
+}
+
+[data-aptora-theme='vivid'] .eyebrow {
+  color: var(--aptora-brand);
+}

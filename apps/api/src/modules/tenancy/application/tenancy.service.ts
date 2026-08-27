@@ -124,8 +124,10 @@ export class TenancyService {
   }
 
   /**
-   * Users with entity memberships only see those entities (including admin).
-   * Admin with zero memberships sees all (bootstrap). Non-admin with none sees none.
+   * Admins always see every tenant entity (memberships apply to non-admins).
+   * Non-admin with memberships → assigned entities only.
+   * Non-admin without memberships → none.
+   * Admin without memberships → all (bootstrap).
    */
   async listEntitiesFiltered(
     tenantId: string,
@@ -133,6 +135,9 @@ export class TenancyService {
     role: string,
   ): Promise<EntityRecord[]> {
     await this.getTenant(tenantId);
+    if (role === 'admin') {
+      return this.listEntities(tenantId);
+    }
     const memberships = await this.prisma.userEntityMembership.findMany({
       where: { tenantId, userId },
       include: { entity: true },
@@ -145,9 +150,6 @@ export class TenancyService {
         name: m.entity.name,
         code: m.entity.code,
       }));
-    }
-    if (role === 'admin') {
-      return this.listEntities(tenantId);
     }
     return [];
   }

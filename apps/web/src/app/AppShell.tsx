@@ -10,12 +10,15 @@ import {
   setSelectedEntityId,
 } from '../shared/lib/entity';
 import { CommandPalette } from '../shared/components/CommandPalette';
+import { UserMenu } from '../shared/components/UserMenu';
 
 type ModuleRow = { moduleKey: string; enabled: boolean };
 type EntityRow = { id: string; name: string; code: string };
 type MeUser = {
   id: string;
   role: string;
+  email?: string;
+  displayName?: string;
   canAccessDirectory?: boolean;
 };
 
@@ -251,6 +254,14 @@ export function AppShell() {
   useEffect(() => {
     if (!getToken()) return;
     let cancelled = false;
+    async function loadEntities() {
+      try {
+        const ents = await apiFetch<EntityRow[]>('/api/entities');
+        if (!cancelled) setEntities(ents);
+      } catch {
+        /* ignore */
+      }
+    }
     async function load() {
       try {
         const [rows, ents, mods, user] = await Promise.all([
@@ -274,9 +285,12 @@ export function AppShell() {
       }
     }
     void load();
+    const onEntitiesChanged = () => void loadEntities();
+    window.addEventListener('aptora:entities-changed', onEntitiesChanged);
     const timer = window.setInterval(() => void load(), 20_000);
     return () => {
       cancelled = true;
+      window.removeEventListener('aptora:entities-changed', onEntitiesChanged);
       window.clearInterval(timer);
     };
   }, []);
@@ -400,6 +414,7 @@ export function AppShell() {
         </nav>
 
         <div className="shell__nav-foot">
+          <UserMenu collapsed={collapsed} me={me} />
           <button
             type="button"
             className="shell__link shell__link--muted shell__signout"
