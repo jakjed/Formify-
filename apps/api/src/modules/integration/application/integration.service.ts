@@ -6,6 +6,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import type { ModuleKey } from '@aptora/types';
+import { IntegrationJobType } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { TenancyService } from '../../tenancy/application/tenancy.service';
 
@@ -412,7 +413,7 @@ export class IntegrationService {
   private async finishExport(input: {
     tenantId: string;
     userId: string;
-    type: string;
+    type: IntegrationJobType;
     fileName: string;
     content: string;
     rowCount: number;
