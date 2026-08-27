@@ -22,3 +22,5 @@ Usable contract detail workspace after P2-E0 CRUD:
 ## Next
 
 P2-E2 PR→PO convert ✅ · P2-E3 receiving · P2-E4 invoice match
+
+**Gabi / Ledgerline parity:** approval stages, signature mock, AI stubs, and documents — see [GABI_PROCURE_PARITY.md](./GABI_PROCURE_PARITY.md).
