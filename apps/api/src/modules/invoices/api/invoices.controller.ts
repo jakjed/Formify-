@@ -7,6 +7,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InvoiceStatus } from '@prisma/client';
 import { InvoicesService } from '../application/invoices.service';
 import {
@@ -17,12 +18,15 @@ import type { RequestUser } from '../../identity/domain/identity.types';
 import { UpdateInvoiceDto, CreateInvoiceCommentDto } from './invoices.dto';
 import { RequireScopes } from '../../../common/scopes.decorator';
 
+@ApiTags('invoices')
+@ApiBearerAuth('bearer')
 @Controller('invoices')
 export class InvoicesController {
   constructor(private readonly invoices: InvoicesService) {}
 
   @Get()
   @RequireScopes('invoices:read')
+  @ApiOperation({ summary: 'List invoices with filters' })
   list(
     @CurrentTenantId() tenantId: string,
     @Query('status') status?: InvoiceStatus | InvoiceStatus[],
@@ -51,6 +55,7 @@ export class InvoicesController {
   /** Must stay above `:id` routes */
   @Get('exceptions')
   @RequireScopes('invoices:read')
+  @ApiOperation({ summary: 'Exception queue' })
   exceptions(
     @CurrentTenantId() tenantId: string,
     @Query('code') code?: string,
@@ -60,6 +65,7 @@ export class InvoicesController {
 
   @Get(':id/validation')
   @RequireScopes('invoices:read')
+  @ApiOperation({ summary: 'Validation result for an invoice' })
   validation(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,
@@ -69,6 +75,7 @@ export class InvoicesController {
 
   @Post(':id/validate')
   @RequireScopes('invoices:write')
+  @ApiOperation({ summary: 'Re-run validation' })
   revalidate(
     @CurrentTenantId() tenantId: string,
     @Param('id') id: string,
@@ -78,12 +85,14 @@ export class InvoicesController {
 
   @Get(':id/comments')
   @RequireScopes('invoices:read')
+  @ApiOperation({ summary: 'List invoice comments' })
   comments(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
     return this.invoices.listComments(tenantId, id);
   }
 
   @Post(':id/comments')
   @RequireScopes('invoices:write')
+  @ApiOperation({ summary: 'Add invoice comment' })
   addComment(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
@@ -95,18 +104,21 @@ export class InvoicesController {
 
   @Get(':id/activity')
   @RequireScopes('invoices:read')
+  @ApiOperation({ summary: 'Invoice activity timeline' })
   activity(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
     return this.invoices.getActivity(tenantId, id);
   }
 
   @Get(':id')
   @RequireScopes('invoices:read')
+  @ApiOperation({ summary: 'Get invoice workspace payload' })
   get(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
     return this.invoices.get(tenantId, id);
   }
 
   @Patch(':id')
   @RequireScopes('invoices:write')
+  @ApiOperation({ summary: 'Update invoice fields' })
   update(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
@@ -121,6 +133,7 @@ export class InvoicesController {
 
   @Post(':id/resolve-exceptions')
   @RequireScopes('invoices:write')
+  @ApiOperation({ summary: 'Resolve open exceptions' })
   resolve(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
@@ -131,6 +144,7 @@ export class InvoicesController {
 
   @Post(':id/submit')
   @RequireScopes('invoices:write')
+  @ApiOperation({ summary: 'Submit invoice for approval' })
   submit(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
@@ -141,12 +155,14 @@ export class InvoicesController {
 
   @Post(':id/approve')
   @RequireScopes('invoices:write')
+  @ApiOperation({ summary: 'Approve invoice (manager path)' })
   approve(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
     return this.invoices.approve(tenantId, id);
   }
 
   @Post(':id/void')
   @RequireScopes('invoices:write')
+  @ApiOperation({ summary: 'Void invoice' })
   void(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,

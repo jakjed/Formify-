@@ -9,6 +9,13 @@ import {
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
@@ -20,17 +27,21 @@ import {
 import type { RequestUser } from '../../identity/domain/identity.types';
 import { RequireScopes } from '../../../common/scopes.decorator';
 
+@ApiTags('integration')
+@ApiBearerAuth('bearer')
 @Controller('integration')
 export class IntegrationController {
   constructor(private readonly integration: IntegrationService) {}
 
   @Get('templates')
+  @ApiOperation({ summary: 'List Integration Center templates' })
   templates() {
     return this.integration.listTemplates();
   }
 
   @Get('templates/:key/download')
   @Header('Content-Type', 'text/csv; charset=utf-8')
+  @ApiOperation({ summary: 'Download a CSV template' })
   templateFile(
     @Param('key') key: string,
     @Res({ passthrough: true }) res: Response,
@@ -44,12 +55,14 @@ export class IntegrationController {
   }
 
   @Get('jobs')
+  @ApiOperation({ summary: 'List import/export jobs' })
   jobs(@CurrentTenantId() tenantId: string) {
     return this.integration.listJobs(tenantId);
   }
 
   @Post('exports/approved-invoices')
   @RequireScopes('exports:read')
+  @ApiOperation({ summary: 'Export approved invoices as CSV' })
   async exportApproved(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
@@ -71,6 +84,15 @@ export class IntegrationController {
 
   @Post('imports/vendors')
   @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Import vendors from CSV' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -88,6 +110,15 @@ export class IntegrationController {
 
   @Post('imports/gl-accounts')
   @RequireScopes('masterdata:write')
+  @ApiOperation({ summary: 'Import GL accounts from CSV' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
