@@ -1,3 +1,5 @@
+import { createReadStream } from 'node:fs';
+import { access } from 'node:fs/promises';
 import {
   BadRequestException,
   Injectable,
@@ -283,6 +285,29 @@ export class InvoicesService {
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
     return invoice;
+  }
+
+  async getFile(tenantId: string, id: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id, tenantId },
+      include: { fileAsset: true },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    if (!invoice.fileAsset) {
+      throw new NotFoundException('No scanned document attached');
+    }
+    const asset = invoice.fileAsset;
+    try {
+      await access(asset.storagePath);
+    } catch {
+      throw new NotFoundException('Scanned document file missing on disk');
+    }
+    return {
+      stream: createReadStream(asset.storagePath),
+      mimeType: asset.mimeType,
+      originalName: asset.originalName,
+      sizeBytes: asset.sizeBytes,
+    };
   }
 
   async update(
