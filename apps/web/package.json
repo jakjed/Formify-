@@ -1,0 +1,12 @@
+{
+  "name": "@aptora/web",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "echo \"Web scaffold — Vite app not bootstrapped yet\"",
+    "build": "echo \"noop\"",
+    "lint": "echo \"noop\"",
+    "test": "echo \"noop\"",
+    "typecheck": "echo \"noop\""
+  }
+}

@@ -1,0 +1,16 @@
+node_modules
+.turbo
+dist
+build
+coverage
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+apps/mobile/.expo
+apps/mobile/node_modules
+*.tsbuildinfo

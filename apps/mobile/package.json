@@ -1,0 +1,12 @@
+{
+  "name": "@aptora/mobile",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "echo \"Mobile deferred until after web GA\"",
+    "build": "echo \"noop\"",
+    "lint": "echo \"noop\"",
+    "test": "echo \"noop\"",
+    "typecheck": "echo \"noop\""
+  }
+}
