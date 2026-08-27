@@ -1,14 +1,22 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import type { ModuleKey } from '@aptora/types';
 import { IntegrationJobType } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { TenancyService } from '../../tenancy/application/tenancy.service';
+
+export const DEMO_ERP_PACK_KEY = 'demo-erp';
+
+function hashSecret(raw: string) {
+  return createHash('sha256').update(raw).digest('hex');
+}
 
 const APPROVED_EXPORT_HEADERS = [
   'invoice_id',
@@ -161,30 +169,205 @@ export class IntegrationService {
   listConnectorPacks() {
     return [
       {
+        key: DEMO_ERP_PACK_KEY,
+        name: 'Demo ERP',
+        status: 'available',
+        description:
+          'Sandbox connector (mock OAuth). Connect, then sync approved invoices as a stub push job.',
+      },
+      {
         key: 'netsuite',
         name: 'NetSuite',
         status: 'planned',
-        description: 'Vendor bills + PO sync via SuiteTalk (Phase 3 connector pack).',
+        description: 'Vendor bills + PO sync via SuiteTalk (later connector pack).',
       },
       {
         key: 'quickbooks',
         name: 'QuickBooks Online',
         status: 'planned',
-        description: 'Bills and vendors via Intuit OAuth (Phase 3 connector pack).',
+        description: 'Bills and vendors via Intuit OAuth (later connector pack).',
       },
       {
         key: 'xero',
         name: 'Xero',
         status: 'planned',
-        description: 'Accounts payable bills via Xero OAuth (Phase 3 connector pack).',
+        description: 'Accounts payable bills via Xero OAuth (later connector pack).',
       },
       {
         key: 'sap-b1',
         name: 'SAP Business One',
         status: 'planned',
-        description: 'Service Layer draft documents (Phase 3 connector pack).',
+        description: 'Service Layer draft documents (later connector pack).',
       },
     ];
+  }
+
+  async listConnections(tenantId: string) {
+    const rows = await this.prisma.connectorConnection.findMany({
+      where: { tenantId },
+      orderBy: { packKey: 'asc' },
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      packKey: row.packKey,
+      status: row.status,
+      settings: row.settings,
+      connectedAt: row.connectedAt,
+      disconnectedAt: row.disconnectedAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+      hasCredentials: Boolean(row.credentialsHash),
+    }));
+  }
+
+  async connectDemoErp(tenantId: string, userId: string) {
+    const accessToken = `demo_${randomBytes(24).toString('base64url')}`;
+    const now = new Date();
+    const row = await this.prisma.connectorConnection.upsert({
+      where: {
+        tenantId_packKey: { tenantId, packKey: DEMO_ERP_PACK_KEY },
+      },
+      create: {
+        tenantId,
+        packKey: DEMO_ERP_PACK_KEY,
+        status: 'connected',
+        credentialsHash: hashSecret(accessToken),
+        settings: { mode: 'mock', accountId: 'DEMO-001' },
+        connectedAt: now,
+        disconnectedAt: null,
+        createdById: userId,
+      },
+      update: {
+        status: 'connected',
+        credentialsHash: hashSecret(accessToken),
+        settings: { mode: 'mock', accountId: 'DEMO-001' },
+        connectedAt: now,
+        disconnectedAt: null,
+        createdById: userId,
+      },
+    });
+
+    return {
+      id: row.id,
+      packKey: row.packKey,
+      status: row.status,
+      settings: row.settings,
+      connectedAt: row.connectedAt,
+      /** Shown once — mock ERP access token */
+      accessToken,
+    };
+  }
+
+  async disconnectDemoErp(tenantId: string) {
+    const existing = await this.prisma.connectorConnection.findUnique({
+      where: {
+        tenantId_packKey: { tenantId, packKey: DEMO_ERP_PACK_KEY },
+      },
+    });
+    if (!existing) {
+      throw new NotFoundException('Demo ERP connection not found');
+    }
+    return this.prisma.connectorConnection.update({
+      where: { id: existing.id },
+      data: {
+        status: 'disconnected',
+        credentialsHash: null,
+        disconnectedAt: new Date(),
+      },
+      select: {
+        id: true,
+        packKey: true,
+        status: true,
+        disconnectedAt: true,
+      },
+    });
+  }
+
+  async syncDemoErp(tenantId: string, userId: string) {
+    const connection = await this.prisma.connectorConnection.findUnique({
+      where: {
+        tenantId_packKey: { tenantId, packKey: DEMO_ERP_PACK_KEY },
+      },
+    });
+    if (!connection || connection.status !== 'connected' || !connection.credentialsHash) {
+      throw new BadRequestException(
+        'Connect Demo ERP before running sync',
+      );
+    }
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: { tenantId, status: 'approved' },
+      orderBy: { approvedAt: 'asc' },
+    });
+
+    const lines = [
+      [
+        'invoice_id',
+        'invoice_number',
+        'total_minor',
+        'currency',
+        'approved_at',
+        'erp_external_id',
+      ].join(','),
+    ];
+    for (const inv of invoices) {
+      lines.push(
+        [
+          inv.id,
+          csv(inv.invoiceNumber),
+          String(inv.totalMinor ?? ''),
+          csv(inv.currency),
+          inv.approvedAt?.toISOString() ?? '',
+          `DEMO-${inv.id.slice(0, 8)}`,
+        ].join(','),
+      );
+    }
+    const content = `${lines.join('\n')}\n`;
+    const fileName = `demo-erp-sync-${Date.now()}.csv`;
+
+    try {
+      const result = await this.finishExport({
+        tenantId,
+        userId,
+        type: 'sync_demo_erp',
+        fileName,
+        content,
+        rowCount: invoices.length,
+        afterWrite: async () => {
+          await this.prisma.invoice.updateMany({
+            where: {
+              tenantId,
+              status: 'approved',
+              exportedAt: null,
+            },
+            data: { exportedAt: new Date() },
+          });
+        },
+      });
+      return {
+        job: result.job,
+        packKey: DEMO_ERP_PACK_KEY,
+        rowCount: result.rowCount,
+        fileName: result.fileName,
+        message: `Pushed ${result.rowCount} approved invoice(s) to Demo ERP (mock)`,
+      };
+    } catch (err) {
+      const job = await this.prisma.integrationJob.create({
+        data: {
+          tenantId,
+          type: 'sync_demo_erp',
+          status: 'failed',
+          rowCount: 0,
+          errorMessage: err instanceof Error ? err.message : 'Sync failed',
+          createdById: userId,
+          finishedAt: new Date(),
+        },
+      });
+      throw new BadRequestException({
+        message: 'Demo ERP sync failed',
+        jobId: job.id,
+      });
+    }
   }
 
   async exportApprovedInvoices(tenantId: string, userId: string) {

@@ -1,3 +1,3 @@
 # Integration
 
-Integration Center: template catalog, approved-invoices CSV export, **procure exports** (contracts / PR / PO), job history. ERP connectors later.
+Integration Center: template catalog, CSV import/export, **Demo ERP connector runtime** (mock connect + sync jobs), job history. Live ERP OAuth packs later.

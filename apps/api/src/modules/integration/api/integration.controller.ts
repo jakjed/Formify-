@@ -62,10 +62,45 @@ export class IntegrationController {
 
   @Get('connector-packs')
   @ApiOperation({
-    summary: 'List planned ERP connector packs (registry; not runtime connectors)',
+    summary: 'List ERP connector packs (registry + availability)',
   })
   connectorPacks() {
     return this.integration.listConnectorPacks();
+  }
+
+  @Get('connections')
+  @ApiOperation({ summary: 'List connector connections for this tenant' })
+  connections(@CurrentTenantId() tenantId: string) {
+    return this.integration.listConnections(tenantId);
+  }
+
+  @Post('connections/demo-erp/connect')
+  @ApiOperation({
+    summary: 'Mock-connect Demo ERP (returns access token once)',
+  })
+  connectDemoErp(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.integration.connectDemoErp(tenantId, user.id);
+  }
+
+  @Post('connections/demo-erp/disconnect')
+  @ApiOperation({ summary: 'Disconnect Demo ERP' })
+  disconnectDemoErp(@CurrentTenantId() tenantId: string) {
+    return this.integration.disconnectDemoErp(tenantId);
+  }
+
+  @Post('connections/demo-erp/sync')
+  @RequireScopes('exports:read')
+  @ApiOperation({
+    summary: 'Stub sync: push approved invoices to Demo ERP and record a job',
+  })
+  syncDemoErp(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.integration.syncDemoErp(tenantId, user.id);
   }
 
   @Post('exports/approved-invoices')
