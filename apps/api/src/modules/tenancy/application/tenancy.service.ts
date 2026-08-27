@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../../database/prisma.service';
 import type { EntityRecord, TenantRecord } from '../domain/tenancy.types';
 
@@ -13,6 +14,7 @@ export class TenancyService {
     region?: 'us' | 'eu';
   }): Promise<TenantRecord> {
     try {
+      const token = randomBytes(24).toString('hex');
       const tenant = await this.prisma.tenant.create({
         data: {
           name: input.name,
@@ -36,6 +38,12 @@ export class TenancyService {
               name: 'Default invoice policy',
               enabled: true,
               autoApproveUnderMinor: 10000, // €100.00
+            },
+          },
+          captureMailbox: {
+            create: {
+              address: `${input.slug}-invoices@inbound.aptora.local`,
+              token,
             },
           },
         },

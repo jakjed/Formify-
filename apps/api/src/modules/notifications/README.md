@@ -1,3 +1,3 @@
 # notifications
 
-In-app notification center and email delivery (approval assigned, export failed, etc.).
+In-app notifications per user (capture, approval assignment, approve/reject). Mark read / read-all.

@@ -58,6 +58,51 @@
   cursor: pointer;
 }
 
+.nav-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  min-width: 1.25rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: var(--aptora-teal);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 0.4rem 1rem;
+  margin: 1rem 0;
+}
+
+.kv dt {
+  color: var(--aptora-muted);
+  font-size: 0.85rem;
+}
+
+.kv dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.token-mask {
+  font-size: 0.8rem;
+}
+
+.task-list__unread {
+  background: rgb(15 118 110 / 6%);
+}
+
 .shell__main {
   padding: 2.5rem 2rem;
 }

@@ -49,6 +49,10 @@ model Tenant {
   approvalPolicies ApprovalPolicy[]
   approvalTasks  ApprovalTask[]
   integrationJobs IntegrationJob[]
+  captureMailbox CaptureMailbox?
+  emailIngests   EmailIngest[]
+  notifications  Notification[]
+  auditEvents    AuditEvent[]
 }
 
 model ModuleLicense {
@@ -383,5 +387,69 @@ model IntegrationJob {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, createdAt])
+}
+
+model CaptureMailbox {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @db.Uuid
+  address   String    @unique
+  token     String    @unique
+  enabled   Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  rotatedAt DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId])
+  @@index([tenantId])
+}
+
+model EmailIngest {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  messageId    String
+  fromAddress  String?
+  subject      String?
+  status       String   @default("completed")
+  errorMessage String?
+  invoiceId    String?  @db.Uuid
+  createdAt    DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, messageId])
+  @@index([tenantId])
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  userId    String   @db.Uuid
+  type      String
+  title     String
+  body      String?
+  href      String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId, readAt])
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  actorId    String?  @db.Uuid
+  action     String
+  entityType String
+  entityId   String?
+  meta       Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, entityType, entityId])
 }
 
