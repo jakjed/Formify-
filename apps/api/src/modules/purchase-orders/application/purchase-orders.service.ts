@@ -7,6 +7,13 @@ import { Prisma, PurchaseOrderStatus } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
 
+const poInclude = {
+  lines: { orderBy: { lineNo: 'asc' as const } },
+  purchaseRequest: {
+    select: { id: true, number: true, title: true, status: true },
+  },
+} satisfies Prisma.PurchaseOrderInclude;
+
 @Injectable()
 export class PurchaseOrdersService {
   constructor(
@@ -19,14 +26,14 @@ export class PurchaseOrdersService {
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
       take: 200,
-      include: { lines: { orderBy: { lineNo: 'asc' } } },
+      include: poInclude,
     });
   }
 
   async get(tenantId: string, id: string) {
     const row = await this.prisma.purchaseOrder.findFirst({
       where: { id, tenantId },
-      include: { lines: { orderBy: { lineNo: 'asc' } } },
+      include: poInclude,
     });
     if (!row) throw new NotFoundException('Purchase order not found');
     return row;
@@ -78,7 +85,7 @@ export class PurchaseOrdersService {
               }
             : undefined,
         },
-        include: { lines: { orderBy: { lineNo: 'asc' } } },
+        include: poInclude,
       });
       await this.audit.record({
         tenantId,
@@ -126,7 +133,7 @@ export class PurchaseOrdersService {
         status,
         ...(status === 'issued' ? { issuedAt: new Date() } : {}),
       },
-      include: { lines: { orderBy: { lineNo: 'asc' } } },
+      include: poInclude,
     });
     await this.audit.record({
       tenantId,

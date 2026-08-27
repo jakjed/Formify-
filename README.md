@@ -38,6 +38,7 @@ Formerly working name: Formify.
 - [docs/architecture/PHASE1_COMPLETE.md](docs/architecture/PHASE1_COMPLETE.md) — Phase 1 track complete
 - [docs/architecture/P2_E0_PROCURE_FOUNDATION.md](docs/architecture/P2_E0_PROCURE_FOUNDATION.md) — Phase 2 procure foundation
 - [docs/architecture/P2_E1_CONTRACTS_WORKSPACE.md](docs/architecture/P2_E1_CONTRACTS_WORKSPACE.md) — Contracts workspace (amend/renew/comments)
+- [docs/architecture/P2_E2_PR_TO_PO.md](docs/architecture/P2_E2_PR_TO_PO.md) — PR → PO convert
 
 ## Workspace
 

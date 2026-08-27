@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { apiFetch } from '../../shared/lib/api';
 
 type Po = {
@@ -7,6 +8,13 @@ type Po = {
   title: string;
   status: string;
   totalMinor: number | null;
+  purchaseRequest: {
+    id: string;
+    number: string;
+    title: string;
+    status: string;
+  } | null;
+  lines: { id: string; lineNo: number; description: string | null }[];
 };
 
 export function PurchaseOrdersPage() {
@@ -66,7 +74,11 @@ export function PurchaseOrdersPage() {
     <section className="page">
       <p className="eyebrow">Procure</p>
       <h1>Purchase orders</h1>
-      <p className="lede">Issue and receive orders — match into invoices later.</p>
+      <p className="lede">
+        Issue and receive orders — convert from{' '}
+        <Link to="/purchase-requests">approved requests</Link>, match into
+        invoices later.
+      </p>
       {error && <p className="error">{error}</p>}
       <ul className="task-list">
         {rows.map((row) => (
@@ -76,6 +88,18 @@ export function PurchaseOrdersPage() {
                 {row.number} · {row.title}
               </strong>
               <span className="muted"> · {row.status}</span>
+              {row.purchaseRequest && (
+                <span className="muted">
+                  {' '}
+                  · from{' '}
+                  <Link to="/purchase-requests">
+                    {row.purchaseRequest.number}
+                  </Link>
+                </span>
+              )}
+              {row.lines?.length > 0 && (
+                <span className="muted"> · {row.lines.length} line(s)</span>
+              )}
             </div>
             <div className="actions">
               {row.status === 'draft' && (

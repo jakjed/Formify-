@@ -24,4 +24,4 @@ Kick off Phase 2 (Contracts + PR + PO):
 
 ## Next
 
-P2-E1 Contracts workspace ✅ · P2-E2 PR→PO convert · P2-E3 receiving · P2-E4 invoice match
+P2-E1 Contracts workspace ✅ · P2-E2 PR→PO convert ✅ · P2-E3 receiving · P2-E4 invoice match
