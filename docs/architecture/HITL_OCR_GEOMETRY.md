@@ -32,7 +32,7 @@ Invoice capture stores a versioned `ocrPayload` JSON on `Invoice` for human-in-t
 ## Workspace UX
 
 - Image scans: overlays drawn on the preview; drag a box onto a form field
-- Text stubs: same overlays on a paper canvas behind the text
-- PDFs: iframe preview + geometry map (normalized page silhouette) for drag
+- Text stubs / PDFs: geometry map (normalized page silhouette) under the preview for drag
+- Chips always available as a secondary drag source
 
 Existing invoices without `ocrPayload` fall back to chips derived from saved invoice columns (no boxes).
