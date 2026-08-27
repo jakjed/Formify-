@@ -1,3 +1,3 @@
 # workflow
 
-Approval policies, tasks, delegation, escalation. Phase 1: invoice approvals. Later: PR/PO/contracts.
+Approval policies, My Work tasks, submit → auto-approve or route to approvers.

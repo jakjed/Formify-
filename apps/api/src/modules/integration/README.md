@@ -1,3 +1,3 @@
 # integration
 
-Integration Center: versioned templates, import/export jobs, job history. No ERP connectors in Phase 1.
+Integration Center: template catalog, approved-invoices CSV export, job history. ERP connectors later.

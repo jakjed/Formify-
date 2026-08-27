@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 
 export class RegisterUserDto {
   @IsUUID()
@@ -14,6 +14,10 @@ export class RegisterUserDto {
   @IsString()
   @MinLength(8)
   password!: string;
+
+  @IsOptional()
+  @IsIn(['admin', 'ap_manager', 'ap_clerk', 'approver'])
+  role?: 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
 }
 
 export class LoginDto {

@@ -276,6 +276,39 @@
   padding: 0;
 }
 
+.task-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.task-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--aptora-border);
+}
+
+.task-list .actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.task-list button {
+  border: 0;
+  border-radius: var(--aptora-radius);
+  padding: 0.45rem 0.75rem;
+  background: var(--aptora-teal);
+  color: white;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .status-chip {
   display: inline-block;
   padding: 0.15rem 0.5rem;

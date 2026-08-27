@@ -6,7 +6,7 @@ import { BootstrapPage } from '../modules/auth/BootstrapPage';
 import { RequireAuth } from '../modules/auth/RequireAuth';
 import { InvoicesPage } from '../modules/invoices/InvoicesPage';
 import { InvoiceWorkspacePage } from '../modules/invoices/InvoiceWorkspacePage';
-import { IntegrationPlaceholder } from '../modules/integration-center/IntegrationPlaceholder';
+import { IntegrationCenterPage } from '../modules/integration-center/IntegrationCenterPage';
 import { AdminPlaceholder } from '../modules/admin/AdminPlaceholder';
 import { DirectoryPage } from '../modules/directory/DirectoryPage';
 
@@ -21,7 +21,7 @@ export function App() {
           <Route path="/directory" element={<DirectoryPage />} />
           <Route path="/invoices" element={<InvoicesPage />} />
           <Route path="/invoices/:id" element={<InvoiceWorkspacePage />} />
-          <Route path="/integration" element={<IntegrationPlaceholder />} />
+          <Route path="/integration" element={<IntegrationCenterPage />} />
           <Route path="/admin" element={<AdminPlaceholder />} />
         </Route>
       </Route>

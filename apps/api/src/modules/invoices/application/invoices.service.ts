@@ -6,12 +6,14 @@ import {
 import { InvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { UsageService } from '../../usage/application/usage.service';
+import { WorkflowService } from '../../workflow/application/workflow.service';
 
 @Injectable()
 export class InvoicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly usage: UsageService,
+    private readonly workflow: WorkflowService,
   ) {}
 
   list(tenantId: string, status?: InvoiceStatus) {
@@ -85,6 +87,10 @@ export class InvoicesService {
       data: { resolved: true },
     });
     return this.get(tenantId, id);
+  }
+
+  async submit(tenantId: string, id: string, actorUserId: string) {
+    return this.workflow.submitInvoice(tenantId, id, actorUserId);
   }
 
   async approve(tenantId: string, id: string) {
