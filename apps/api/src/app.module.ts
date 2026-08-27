@@ -14,6 +14,7 @@ import { UsageModule } from './modules/usage/usage.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ApiKeysModule } from './modules/apikeys/apikeys.module';
+import { OpsModule } from './modules/ops/ops.module';
 import { AuthGuard } from './common/auth.guard';
 
 @Module({
@@ -35,6 +36,7 @@ import { AuthGuard } from './common/auth.guard';
     AuditModule,
     NotificationsModule,
     ApiKeysModule,
+    OpsModule,
   ],
   providers: [
     {
