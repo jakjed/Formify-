@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PRODUCT_NAME, PHASE1_MODULES } from '@aptora/types';
+import { PRODUCT_NAME } from '@aptora/types';
 import { apiFetch } from '../../shared/lib/api';
 
 type Health = {
@@ -39,7 +39,19 @@ type Policy = {
 
 function money(minor: number | null, currency: string) {
   if (minor == null) return '—';
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(minor / 100);
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency,
+  }).format(minor / 100);
+}
+
+function ageLabel(iso: string) {
+  const ms = Date.now() - new Date(iso).getTime();
+  const hours = Math.max(0, Math.floor(ms / 3_600_000));
+  if (hours < 1) return 'Just now';
+  if (hours < 24) return `${hours}h waiting`;
+  const days = Math.floor(hours / 24);
+  return `${days}d waiting`;
 }
 
 export function HomePage() {
@@ -83,91 +95,131 @@ export function HomePage() {
   }
 
   return (
-    <section className="page">
-      <p className="eyebrow">Phase 1</p>
-      <h1>My Work</h1>
-      <p className="lede">
-        {PRODUCT_NAME} approvals inbox. Modules: {PHASE1_MODULES.join(', ')}.
-      </p>
+    <section className="page page--cockpit">
+      <header className="cockpit-hero">
+        <div>
+          <p className="eyebrow">Today at {PRODUCT_NAME}</p>
+          <h1>My Work</h1>
+          <p className="lede">
+            Approvals waiting on you — clear the queue, keep cash moving.
+          </p>
+        </div>
+        <div className="cockpit-hero__actions">
+          <Link className="btn btn--primary" to="/invoices">
+            Open invoices
+          </Link>
+          <Link className="btn btn--ghost" to="/exceptions">
+            Exceptions
+          </Link>
+        </div>
+      </header>
 
       {error && <p className="error">{error}</p>}
       {message && <p className="ok">{message}</p>}
 
-      <div className="panel">
-        <h2>Pending approvals</h2>
-        {tasks.length === 0 && <p className="muted">No open tasks.</p>}
-        <ul className="task-list">
-          {tasks.map((task) => (
-            <li key={task.id}>
-              <div>
-                <Link to={`/invoices/${task.invoiceId}`}>
-                  {task.invoice?.invoiceNumber ?? 'Invoice'}
-                </Link>
-                <span className="muted">
-                  {' '}
-                  · {task.invoice?.vendorNameRaw ?? '—'} ·{' '}
-                  {money(task.invoice?.totalMinor ?? null, task.invoice?.currency ?? 'EUR')}
-                </span>
-              </div>
-              <div className="actions">
-                <button type="button" onClick={() => void decide(task.id, 'approve')}>
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  className="secondary-btn"
-                  onClick={() => void decide(task.id, 'reject')}
-                >
-                  Reject
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="panel">
-        <h2>Usage</h2>
-        {usage && (
-          <dl className="kv">
-            <div>
-              <dt>Approved (billable)</dt>
-              <dd>{usage.approvedInvoices}</dd>
-            </div>
-            <div>
-              <dt>OCR pages ({usage.yearMonth})</dt>
-              <dd>{usage.ocrPagesThisMonth}</dd>
-            </div>
-          </dl>
-        )}
-      </div>
-
-      <div className="panel">
-        <h2>Approval policy</h2>
-        {policy && (
-          <p className="muted">
-            {policy.name}: auto-approve under{' '}
-            {policy.autoApproveUnderMinor == null
-              ? 'never'
-              : money(policy.autoApproveUnderMinor, 'EUR')}
-            {policy.enabled ? '' : ' (disabled)'}
+      <div className="cockpit-stats">
+        <article className="stat-orb stat-orb--teal">
+          <p className="stat-orb__label">Pending</p>
+          <p className="stat-orb__value">{tasks.length}</p>
+          <p className="stat-orb__hint">approvals in queue</p>
+        </article>
+        <article className="stat-orb stat-orb--amber">
+          <p className="stat-orb__label">Billable</p>
+          <p className="stat-orb__value">{usage?.approvedInvoices ?? '—'}</p>
+          <p className="stat-orb__hint">approved invoices</p>
+        </article>
+        <article className="stat-orb stat-orb--sky">
+          <p className="stat-orb__label">OCR</p>
+          <p className="stat-orb__value">{usage?.ocrPagesThisMonth ?? '—'}</p>
+          <p className="stat-orb__hint">pages · {usage?.yearMonth ?? '—'}</p>
+        </article>
+        <article className="stat-orb stat-orb--forest">
+          <p className="stat-orb__label">System</p>
+          <p className="stat-orb__value stat-orb__value--sm">
+            {health?.status ?? '…'}
           </p>
-        )}
+          <p className="stat-orb__hint">
+            DB {health?.database ?? '…'}
+            {policy?.enabled ? ' · policy on' : ''}
+          </p>
+        </article>
       </div>
 
-      <div className="panel">
-        <h2>API health</h2>
-        {health && (
-          <dl className="kv">
-            <div>
-              <dt>Status</dt>
-              <dd>{health.status}</dd>
+      <div className="cockpit-queue panel panel--wide panel--lift">
+        <div className="panel__head">
+          <div>
+            <h2>Pending approvals</h2>
+            <p className="muted">Tap through or open the invoice workspace.</p>
+          </div>
+          {policy && (
+            <span className="status-chip status-chip--amber">
+              Auto under{' '}
+              {policy.autoApproveUnderMinor == null
+                ? 'off'
+                : money(policy.autoApproveUnderMinor, 'EUR')}
+            </span>
+          )}
+        </div>
+
+        {tasks.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state__orb" aria-hidden />
+            <h3>Queue clear</h3>
+            <p className="muted">
+              Nothing waiting on you. Capture a new invoice or review exceptions.
+            </p>
+            <div className="empty-state__actions">
+              <Link className="btn btn--primary" to="/invoices">
+                Go to invoices
+              </Link>
             </div>
-            <div>
-              <dt>Database</dt>
-              <dd>{health.database ?? 'unknown'}</dd>
-            </div>
-          </dl>
+          </div>
+        ) : (
+          <ul className="approval-rail">
+            {tasks.map((task, i) => (
+              <li
+                key={task.id}
+                className="approval-card"
+                style={{ animationDelay: `${i * 40}ms` }}
+              >
+                <div className="approval-card__main">
+                  <Link
+                    className="approval-card__title"
+                    to={`/invoices/${task.invoiceId}`}
+                  >
+                    {task.invoice?.invoiceNumber ?? 'Draft invoice'}
+                  </Link>
+                  <p className="approval-card__meta">
+                    {task.invoice?.vendorNameRaw ?? 'Unknown vendor'}
+                    <span className="approval-card__dot" />
+                    {ageLabel(task.createdAt)}
+                  </p>
+                </div>
+                <p className="approval-card__amount">
+                  {money(
+                    task.invoice?.totalMinor ?? null,
+                    task.invoice?.currency ?? 'EUR',
+                  )}
+                </p>
+                <div className="approval-card__actions">
+                  <button
+                    type="button"
+                    className="btn btn--primary"
+                    onClick={() => void decide(task.id, 'approve')}
+                  >
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--danger-ghost"
+                    onClick={() => void decide(task.id, 'reject')}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </section>
