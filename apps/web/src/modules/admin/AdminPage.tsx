@@ -10,6 +10,7 @@ type Tab =
   | 'usage'
   | 'mailbox'
   | 'webhooks'
+  | 'sso'
   | 'notifications'
   | 'audit';
 
@@ -109,6 +110,20 @@ type WebhookDelivery = {
   createdAt: string;
 };
 
+type OidcAdmin = {
+  type: string;
+  enabled: boolean;
+  clientSecretSet: boolean;
+  settings: {
+    issuer?: string;
+    clientId?: string;
+    scopes?: string;
+    displayName?: string;
+    mode?: string;
+    mockEmail?: string;
+  };
+};
+
 const TABS: { id: Tab; label: string }[] = [
   { id: 'users', label: 'Users' },
   { id: 'entities', label: 'Entities' },
@@ -117,6 +132,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'usage', label: 'Usage' },
   { id: 'mailbox', label: 'Mailbox' },
   { id: 'webhooks', label: 'Webhooks' },
+  { id: 'sso', label: 'SSO' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'audit', label: 'Audit' },
 ];
@@ -143,6 +159,7 @@ export function AdminPage() {
     [],
   );
   const [newWebhookSecret, setNewWebhookSecret] = useState<string | null>(null);
+  const [oidc, setOidc] = useState<OidcAdmin | null>(null);
   const [newKeyToken, setNewKeyToken] = useState<string | null>(null);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -150,7 +167,7 @@ export function AdminPage() {
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
-    const [m, i, a, n, u, e, k, s, usageRow, mods, wh, whe, whd] =
+    const [m, i, a, n, u, e, k, s, usageRow, mods, wh, whe, whd, providers] =
       await Promise.all([
         apiFetch<Mailbox>('/api/capture/mailbox'),
         apiFetch<EmailIngest[]>('/api/capture/email-ingests'),
@@ -169,6 +186,9 @@ export function AdminPage() {
         apiFetch<WebhookDelivery[]>('/api/webhooks/deliveries').catch(
           () => [] as WebhookDelivery[],
         ),
+        apiFetch<OidcAdmin[]>('/api/auth/providers/admin').catch(
+          () => [] as OidcAdmin[],
+        ),
       ]);
     setMailbox(m);
     setIngests(i);
@@ -183,6 +203,7 @@ export function AdminPage() {
     setWebhookEndpoints(wh);
     setWebhookEvents(whe);
     setWebhookDeliveries(whd);
+    setOidc(providers.find((p) => p.type === 'oidc') ?? null);
   }
 
   useEffect(() => {
@@ -903,6 +924,129 @@ export function AdminPage() {
               <li className="muted">No deliveries yet.</li>
             )}
           </ul>
+        </div>
+      )}
+
+      {tab === 'sso' && (
+        <div className="panel">
+          <h2>SSO (OIDC)</h2>
+          <p className="lede">
+            Enable OpenID Connect for this tenant. Use mock mode for local
+            tests; live mode needs issuer + client id (Google / Entra).
+          </p>
+          <p className="muted">
+            Redirect URI:{' '}
+            <code>http://127.0.0.1:3001/api/auth/oidc/callback</code>
+          </p>
+          <form
+            className="workspace-form"
+            onSubmit={(e) =>
+              void (async (ev: FormEvent<HTMLFormElement>) => {
+                ev.preventDefault();
+                const form = ev.currentTarget;
+                const data = new FormData(form);
+                setBusy(true);
+                setError(null);
+                setMessage(null);
+                try {
+                  const secret = String(data.get('clientSecret') || '').trim();
+                  const updated = await apiFetch<OidcAdmin>(
+                    '/api/auth/providers/oidc',
+                    {
+                      method: 'PATCH',
+                      body: JSON.stringify({
+                        enabled: data.get('enabled') === 'on',
+                        settings: {
+                          mode: data.get('mode') || 'mock',
+                          displayName: data.get('displayName') || 'SSO',
+                          issuer: data.get('issuer') || undefined,
+                          clientId: data.get('clientId') || undefined,
+                          scopes: data.get('scopes') || undefined,
+                          mockEmail: data.get('mockEmail') || undefined,
+                          ...(secret ? { clientSecret: secret } : {}),
+                        },
+                      }),
+                    },
+                  );
+                  setOidc(updated);
+                  setMessage('OIDC settings saved');
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Save failed');
+                } finally {
+                  setBusy(false);
+                }
+              })(e)
+            }
+          >
+            <label>
+              <input
+                type="checkbox"
+                name="enabled"
+                defaultChecked={oidc?.enabled ?? false}
+              />{' '}
+              Enable OIDC
+            </label>
+            <label>
+              Mode
+              <select name="mode" defaultValue={oidc?.settings.mode ?? 'mock'}>
+                <option value="mock">mock (dev)</option>
+                <option value="live">live</option>
+              </select>
+            </label>
+            <label>
+              Button label
+              <input
+                name="displayName"
+                defaultValue={oidc?.settings.displayName ?? 'SSO'}
+              />
+            </label>
+            <label>
+              Mock email
+              <input
+                name="mockEmail"
+                type="email"
+                defaultValue={oidc?.settings.mockEmail ?? ''}
+                placeholder="admin@tenant.test"
+              />
+            </label>
+            <label>
+              Issuer URL
+              <input
+                name="issuer"
+                defaultValue={oidc?.settings.issuer ?? ''}
+                placeholder="https://accounts.google.com"
+              />
+            </label>
+            <label>
+              Client ID
+              <input
+                name="clientId"
+                defaultValue={oidc?.settings.clientId ?? ''}
+              />
+            </label>
+            <label>
+              Client secret
+              <input
+                name="clientSecret"
+                type="password"
+                placeholder={
+                  oidc?.clientSecretSet ? '(unchanged)' : 'optional'
+                }
+              />
+            </label>
+            <label>
+              Scopes
+              <input
+                name="scopes"
+                defaultValue={oidc?.settings.scopes ?? 'openid email profile'}
+              />
+            </label>
+            <div className="span-2 actions">
+              <button type="submit" disabled={busy}>
+                Save OIDC
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

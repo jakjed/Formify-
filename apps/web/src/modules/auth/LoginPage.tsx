@@ -1,5 +1,5 @@
-import { FormEvent, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { FormEvent, useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PRODUCT_NAME } from '@aptora/types';
 import { apiFetch, setSession } from '../../shared/lib/api';
 
@@ -8,13 +8,42 @@ type LoginResponse = {
   user: { tenantId: string; email: string; displayName: string };
 };
 
+type Provider = {
+  type: string;
+  enabled: boolean;
+  settings: { displayName?: string; mode?: string };
+};
+
 export function LoginPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const [tenantId, setTenantId] = useState('');
   const [email, setEmail] = useState('admin@acme.test');
   const [password, setPassword] = useState('password1');
-  const [message, setMessage] = useState<string | null>(null);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [message, setMessage] = useState<string | null>(
+    params.get('ssoError'),
+  );
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!tenantId || tenantId.length < 32) {
+      setProviders([]);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      void apiFetch<Provider[]>(
+        `/api/auth/providers?tenantId=${encodeURIComponent(tenantId)}`,
+      )
+        .then(setProviders)
+        .catch(() => setProviders([]));
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [tenantId]);
+
+  const oidc = providers.find((p) => p.type === 'oidc' && p.enabled);
+  const localOn =
+    providers.find((p) => p.type === 'local')?.enabled !== false;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -34,38 +63,72 @@ export function LoginPage() {
     }
   }
 
+  function startOidc() {
+    if (!tenantId) {
+      setMessage('Enter tenant ID first');
+      return;
+    }
+    const q = new URLSearchParams({ tenantId });
+    if (oidc?.settings?.mode === 'mock' && email) {
+      q.set('email', email);
+    }
+    window.location.assign(`/api/auth/oidc/start?${q}`);
+  }
+
   return (
     <div className="auth">
       <form className="auth__card" onSubmit={onSubmit}>
         <h1>{PRODUCT_NAME}</h1>
-        <p className="lede">Sign in with username / password (local auth).</p>
+        <p className="lede">Sign in with local password or SSO.</p>
         <label>
           Tenant ID
-          <input value={tenantId} onChange={(e) => setTenantId(e.target.value)} required />
-        </label>
-        <label>
-          Email
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={tenantId}
+            onChange={(e) => setTenantId(e.target.value)}
             required
           />
         </label>
-        <label>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-          />
-        </label>
+        {localOn && (
+          <>
+            <label>
+              Email
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </label>
+            <label>
+              Password
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+              />
+            </label>
+          </>
+        )}
         {message && <p className="error">{message}</p>}
-        <button type="submit" disabled={busy}>
-          {busy ? 'Signing in…' : 'Sign in'}
-        </button>
+        {localOn && (
+          <button type="submit" disabled={busy}>
+            {busy ? 'Signing in…' : 'Sign in'}
+          </button>
+        )}
+        {oidc && (
+          <button
+            type="button"
+            className="secondary-btn"
+            disabled={busy || !tenantId}
+            onClick={startOidc}
+          >
+            Continue with{' '}
+            {oidc.settings.displayName ??
+              (oidc.settings.mode === 'mock' ? 'SSO (mock)' : 'SSO')}
+          </button>
+        )}
         <p className="muted">
           Need a tenant? <Link to="/bootstrap">Bootstrap workspace</Link>
           {' · '}

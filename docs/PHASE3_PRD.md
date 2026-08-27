@@ -18,8 +18,8 @@ After AP Invoices (Phase 1) and Procure (Phase 2), open Aptora to **partners and
 
 | Epic | Outcome |
 |---|---|
-| P3-E0 Foundation | Webhooks + connector pack registry + PRD (this slice) |
-| P3-E1 SSO OIDC | First IdP (Google or Entra) via `AuthProviderConfig` |
+| P3-E0 Foundation | Webhooks + connector pack registry + PRD ✅ |
+| P3-E1 SSO OIDC | First IdP (Google or Entra) via `AuthProviderConfig` (this slice) |
 | P3-E2 Partner OAuth apps | OAuth2 client apps + scoped API access |
 | P3-E3 SCIM | User provisioning |
 | P3-E4 Connector runtime | First ERP pack (OAuth + sync jobs) |
@@ -37,3 +37,11 @@ After AP Invoices (Phase 1) and Procure (Phase 2), open Aptora to **partners and
 - [x] Dispatch `invoice.approved` (HMAC)  
 - [x] Connector pack registry API + Integration Center UI  
 - [x] Docs: this PRD + architecture note  
+
+## 6. Exit (P3-E1)
+
+- [x] Tenant-aware `/api/auth/providers`  
+- [x] Admin OIDC configure (mock + live)  
+- [x] OIDC start/callback + session mint  
+- [x] Login SSO button + `/auth/callback`  
+- [x] Docs: `P3_E1_SSO_OIDC.md`  

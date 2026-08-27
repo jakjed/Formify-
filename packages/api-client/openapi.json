@@ -319,7 +319,16 @@
     "/api/auth/providers": {
       "get": {
         "operationId": "providers",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -335,7 +344,128 @@
             }
           }
         },
-        "summary": "List auth providers (local + SSO hooks)",
+        "summary": "List auth providers for a tenant (secrets redacted)",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/providers/admin": {
+      "get": {
+        "operationId": "providersAdmin",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Admin view of auth provider configs",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/providers/oidc": {
+      "patch": {
+        "operationId": "updateOidc",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOidcProviderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Enable/configure OIDC SSO for the tenant",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/oidc/start": {
+      "get": {
+        "operationId": "oidcStart",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "email",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Begin OIDC Authorization Code + PKCE flow",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/oidc/callback": {
+      "get": {
+        "operationId": "oidcCallback",
+        "parameters": [
+          {
+            "name": "error",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          },
+          {
+            "name": "state",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          },
+          {
+            "name": "code",
+            "required": false,
+            "in": "query",
+            "schema": {}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "OIDC callback — exchanges code and redirects to web",
         "tags": [
           "auth"
         ]
@@ -3629,6 +3759,49 @@
       "UpdateModuleDto": {
         "type": "object",
         "properties": {}
+      },
+      "OidcSettingsDto": {
+        "type": "object",
+        "properties": {
+          "issuer": {
+            "type": "string"
+          },
+          "clientId": {
+            "type": "string"
+          },
+          "clientSecret": {
+            "type": "string",
+            "nullable": true
+          },
+          "scopes": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "live",
+              "mock"
+            ]
+          },
+          "mockEmail": {
+            "type": "string",
+            "format": "email"
+          }
+        }
+      },
+      "UpdateOidcProviderDto": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/OidcSettingsDto"
+          }
+        }
       },
       "RegisterUserDto": {
         "type": "object",

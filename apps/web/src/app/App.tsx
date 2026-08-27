@@ -6,6 +6,7 @@ import { BootstrapPage } from '../modules/auth/BootstrapPage';
 import { InviteAcceptPage } from '../modules/auth/InviteAcceptPage';
 import { PasswordResetRequestPage } from '../modules/auth/PasswordResetRequestPage';
 import { PasswordResetConfirmPage } from '../modules/auth/PasswordResetConfirmPage';
+import { OidcCallbackPage } from '../modules/auth/OidcCallbackPage';
 import { RequireAuth } from '../modules/auth/RequireAuth';
 import { InvoicesPage } from '../modules/invoices/InvoicesPage';
 import { InvoiceWorkspacePage } from '../modules/invoices/InvoiceWorkspacePage';
@@ -31,6 +32,7 @@ export function App() {
       <Route path="/invite/:token" element={<InviteAcceptPage />} />
       <Route path="/reset" element={<PasswordResetRequestPage />} />
       <Route path="/reset/:token" element={<PasswordResetConfirmPage />} />
+      <Route path="/auth/callback" element={<OidcCallbackPage />} />
       <Route path="/403" element={<ForbiddenPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>

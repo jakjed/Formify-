@@ -45,6 +45,7 @@ Formerly working name: Formify.
 - [docs/architecture/P2_E5_INTEGRATION.md](docs/architecture/P2_E5_INTEGRATION.md) — Procure Integration templates/exports
 - [docs/architecture/PHASE2_COMPLETE.md](docs/architecture/PHASE2_COMPLETE.md) — Phase 2 Procure track complete
 - [docs/architecture/P3_E0_ECOSYSTEM_FOUNDATION.md](docs/architecture/P3_E0_ECOSYSTEM_FOUNDATION.md) — Phase 3 webhooks + connector registry
+- [docs/architecture/P3_E1_SSO_OIDC.md](docs/architecture/P3_E1_SSO_OIDC.md) — SSO OIDC (mock + live)
 - [docs/architecture/PHASE3_MODULES.md](docs/architecture/PHASE3_MODULES.md) — Phase 3 ecosystem surfaces
 
 ## Workspace

@@ -6,9 +6,13 @@ import {
   Param,
   Patch,
   Post,
+  Query,
+  Res,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { IdentityService } from '../application/identity.service';
+import { OidcService } from '../application/oidc.service';
 import {
   AcceptInviteDto,
   CreateTenantUserDto,
@@ -17,6 +21,7 @@ import {
   PasswordResetConfirmDto,
   PasswordResetRequestDto,
   RegisterUserDto,
+  UpdateOidcProviderDto,
   UpdateTenantUserDto,
 } from './identity.dto';
 import { Public } from '../../../common/public.decorator';
@@ -38,14 +43,93 @@ function assertAdmin(user: RequestUser) {
 export class IdentityController {
   constructor(
     private readonly identity: IdentityService,
+    private readonly oidc: OidcService,
     private readonly audit: AuditService,
   ) {}
 
   @Public()
   @Get('auth/providers')
-  @ApiOperation({ summary: 'List auth providers (local + SSO hooks)' })
-  providers() {
-    return this.identity.getAuthProviders();
+  @ApiOperation({ summary: 'List auth providers for a tenant (secrets redacted)' })
+  providers(@Query('tenantId') tenantId?: string) {
+    return this.identity.getAuthProviders(tenantId);
+  }
+
+  @ApiBearerAuth('bearer')
+  @Get('auth/providers/admin')
+  @ApiOperation({ summary: 'Admin view of auth provider configs' })
+  providersAdmin(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    assertAdmin(user);
+    return this.identity.listProvidersAdmin(tenantId);
+  }
+
+  @ApiBearerAuth('bearer')
+  @Patch('auth/providers/oidc')
+  @ApiOperation({ summary: 'Enable/configure OIDC SSO for the tenant' })
+  async updateOidc(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: UpdateOidcProviderDto,
+  ) {
+    assertAdmin(user);
+    const updated = await this.identity.updateOidcProvider(tenantId, dto);
+    await this.audit.record({
+      tenantId,
+      actorId: user.id,
+      action: 'auth.oidc_updated',
+      entityType: 'AuthProviderConfig',
+      meta: { enabled: updated.enabled, mode: updated.settings.mode },
+    });
+    return updated;
+  }
+
+  @Public()
+  @Get('auth/oidc/start')
+  @ApiOperation({ summary: 'Begin OIDC Authorization Code + PKCE flow' })
+  async oidcStart(
+    @Query('tenantId') tenantId: string,
+    @Query('email') email: string | undefined,
+    @Res() res: Response,
+  ) {
+    if (!tenantId) {
+      return res.status(400).json({ message: 'tenantId is required' });
+    }
+    const { redirectUrl } = await this.oidc.start(tenantId, { email });
+    return res.redirect(redirectUrl);
+  }
+
+  @Public()
+  @Get('auth/oidc/callback')
+  @ApiOperation({ summary: 'OIDC callback — exchanges code and redirects to web' })
+  async oidcCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Query('error') error: string | undefined,
+    @Res() res: Response,
+  ) {
+    try {
+      const result = await this.oidc.callback({ code, state, error });
+      await this.audit.record({
+        tenantId: result.session.user.tenantId,
+        actorId: result.session.user.id,
+        action: 'auth.oidc_login',
+        entityType: 'User',
+        entityId: result.session.user.id,
+        meta: { email: result.session.user.email },
+      });
+      return res.redirect(result.redirectUrl);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'OIDC login failed';
+      const web =
+        process.env.WEB_ORIGIN?.split(',')[0]?.trim() ??
+        'http://127.0.0.1:5173';
+      const dest = new URL(`${web.replace(/\/$/, '')}/login`);
+      dest.searchParams.set('ssoError', message);
+      return res.redirect(dest.toString());
+    }
   }
 
   @Public()

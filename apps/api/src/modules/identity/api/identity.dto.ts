@@ -1,11 +1,14 @@
 import {
+  IsBoolean,
   IsEmail,
   IsIn,
   IsOptional,
   IsString,
   IsUUID,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class RegisterUserDto {
   @IsUUID()
@@ -109,4 +112,45 @@ export class UpdateTenantUserDto {
   @IsString()
   @MinLength(8)
   password?: string;
+}
+
+export class OidcSettingsDto {
+  @IsOptional()
+  @IsString()
+  issuer?: string;
+
+  @IsOptional()
+  @IsString()
+  clientId?: string;
+
+  @IsOptional()
+  @IsString()
+  clientSecret?: string | null;
+
+  @IsOptional()
+  @IsString()
+  scopes?: string;
+
+  @IsOptional()
+  @IsString()
+  displayName?: string;
+
+  @IsOptional()
+  @IsIn(['live', 'mock'])
+  mode?: 'live' | 'mock';
+
+  @IsOptional()
+  @IsEmail()
+  mockEmail?: string;
+}
+
+export class UpdateOidcProviderDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OidcSettingsDto)
+  settings?: OidcSettingsDto;
 }
