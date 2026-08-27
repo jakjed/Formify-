@@ -50,3 +50,22 @@ export async function apiFetch<T>(
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
+
+/** Authenticated binary fetch for document preview (PDF / images). */
+export async function apiFetchBlob(path: string): Promise<Blob> {
+  const headers = new Headers();
+  const token = getToken();
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const res = await fetch(path, { headers });
+  if (res.status === 401) {
+    clearSession();
+    if (!window.location.pathname.startsWith('/login')) {
+      window.location.assign('/login');
+    }
+    throw new Error('Unauthorized');
+  }
+  if (!res.ok) {
+    throw new Error(`Document unavailable (${res.status})`);
+  }
+  return res.blob();
+}

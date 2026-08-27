@@ -1,6 +1,13 @@
-import { FormEvent, useEffect, useState } from 'react';
+import {
+  DragEvent,
+  FormEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { apiFetch } from '../../shared/lib/api';
+import { apiFetch, apiFetchBlob } from '../../shared/lib/api';
 
 type Invoice = {
   id: string;
@@ -29,6 +36,8 @@ type Invoice = {
     id: string;
     lineNo: number;
     description: string | null;
+    quantity: number | null;
+    unitPriceMinor: number | null;
     amountMinor: number | null;
   }[];
   exceptions: { id: string; code: string; message: string; resolved: boolean }[];
@@ -66,6 +75,25 @@ type Comment = {
   createdAt: string;
 };
 
+type OcrChip = {
+  id: string;
+  label: string;
+  value: string;
+};
+
+type FieldKey =
+  | 'invoiceNumber'
+  | 'vendorNameRaw'
+  | 'currency'
+  | 'invoiceDate'
+  | 'dueDate'
+  | 'subtotal'
+  | 'tax'
+  | 'total'
+  | 'notes';
+
+const OCR_MIME = 'application/x-aptora-ocr';
+
 function formatAction(action: string) {
   const labels: Record<string, string> = {
     'invoice.updated': 'Updated invoice fields',
@@ -95,6 +123,189 @@ function toMajor(minor: number | null): string {
   return (minor / 100).toFixed(2);
 }
 
+function buildOcrChips(invoice: Invoice): OcrChip[] {
+  const chips: OcrChip[] = [];
+  const push = (id: string, label: string, value: string | null | undefined) => {
+    const v = value?.trim();
+    if (!v) return;
+    chips.push({ id, label, value: v });
+  };
+
+  push('vendor', 'Vendor', invoice.vendorNameRaw);
+  push('number', 'Invoice #', invoice.invoiceNumber);
+  push('date', 'Invoice date', toDateInput(invoice.invoiceDate));
+  push('due', 'Due date', toDateInput(invoice.dueDate));
+  push('currency', 'Currency', invoice.currency);
+  push('subtotal', 'Subtotal', toMajor(invoice.subtotalMinor));
+  push('tax', 'Tax', toMajor(invoice.taxMinor));
+  push('total', 'Total', toMajor(invoice.totalMinor));
+
+  for (const line of invoice.lines) {
+    push(`line-${line.id}-desc`, `Line ${line.lineNo}`, line.description);
+    if (line.quantity != null) {
+      push(`line-${line.id}-qty`, `Qty ${line.lineNo}`, String(line.quantity));
+    }
+    push(
+      `line-${line.id}-amt`,
+      `Amount ${line.lineNo}`,
+      toMajor(line.amountMinor),
+    );
+  }
+
+  return chips;
+}
+
+function DocumentViewer({
+  invoiceId,
+  fileAsset,
+}: {
+  invoiceId: string;
+  fileAsset: { originalName: string; mimeType: string } | null;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [textPreview, setTextPreview] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!fileAsset) {
+      setUrl(null);
+      setTextPreview(null);
+      return;
+    }
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    void (async () => {
+      try {
+        const blob = await apiFetchBlob(`/api/invoices/${invoiceId}/file`);
+        if (cancelled) return;
+        const mime = fileAsset.mimeType || blob.type;
+        if (
+          mime.startsWith('text/') ||
+          fileAsset.originalName.toLowerCase().endsWith('.txt')
+        ) {
+          const text = await blob.text();
+          if (!cancelled) setTextPreview(text);
+        } else {
+          objectUrl = URL.createObjectURL(blob);
+          if (!cancelled) setUrl(objectUrl);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Preview failed');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [invoiceId, fileAsset]);
+
+  if (!fileAsset) {
+    return (
+      <div className="hitl-doc__empty">
+        <p>No scanned document attached to this invoice.</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="hitl-doc__empty">
+        <p>Loading scan…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="hitl-doc__empty">
+        <p className="error">{error}</p>
+      </div>
+    );
+  }
+
+  const mime = fileAsset.mimeType;
+  const isImage = mime.startsWith('image/');
+  const isPdf = mime === 'application/pdf' || fileAsset.originalName.toLowerCase().endsWith('.pdf');
+
+  return (
+    <div className="hitl-doc__canvas">
+      {textPreview != null && (
+        <pre className="hitl-doc__text" aria-label="Scanned document text">
+          {textPreview}
+        </pre>
+      )}
+      {url && isImage && (
+        <img
+          className="hitl-doc__image"
+          src={url}
+          alt={`Scan of ${fileAsset.originalName}`}
+          draggable={false}
+        />
+      )}
+      {url && isPdf && (
+        <iframe
+          className="hitl-doc__frame"
+          title={fileAsset.originalName}
+          src={url}
+        />
+      )}
+      {url && !isImage && !isPdf && (
+        <div className="hitl-doc__empty">
+          <p>Preview not available for this file type.</p>
+          <a href={url} download={fileAsset.originalName}>
+            Download {fileAsset.originalName}
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DropField({
+  label,
+  fieldKey,
+  children,
+  dropActive,
+  onDropValue,
+}: {
+  label: string;
+  fieldKey: FieldKey;
+  children: ReactNode;
+  dropActive: boolean;
+  onDropValue: (field: FieldKey, value: string) => void;
+}) {
+  function onDragOver(e: DragEvent) {
+    if (![...e.dataTransfer.types].includes(OCR_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
+
+  function onDrop(e: DragEvent) {
+    e.preventDefault();
+    const value = e.dataTransfer.getData(OCR_MIME) || e.dataTransfer.getData('text/plain');
+    if (value) onDropValue(fieldKey, value);
+  }
+
+  return (
+    <label
+      className={`hitl-field${dropActive ? ' hitl-field--drop' : ''}`}
+      data-field={fieldKey}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      <span className="hitl-field__label">{label}</span>
+      {children}
+    </label>
+  );
+}
+
 export function InvoiceWorkspacePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -111,6 +322,8 @@ export function InvoiceWorkspacePage() {
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentBody, setCommentBody] = useState('');
+  const [dragging, setDragging] = useState(false);
+  const [armedChip, setArmedChip] = useState<OcrChip | null>(null);
 
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [vendorNameRaw, setVendorNameRaw] = useState('');
@@ -123,6 +336,11 @@ export function InvoiceWorkspacePage() {
   const [total, setTotal] = useState('');
   const [notes, setNotes] = useState('');
   const [purchaseOrderId, setPurchaseOrderId] = useState('');
+
+  const chips = useMemo(
+    () => (invoice ? buildOcrChips(invoice) : []),
+    [invoice],
+  );
 
   async function loadSidePanels(invoiceId: string) {
     const [validation, activityRows, commentRows] = await Promise.all([
@@ -182,6 +400,62 @@ export function InvoiceWorkspacePage() {
       }
     })();
   }, [id]);
+
+  function applyChipValue(field: FieldKey, value: string) {
+    switch (field) {
+      case 'invoiceNumber':
+        setInvoiceNumber(value);
+        break;
+      case 'vendorNameRaw':
+        setVendorNameRaw(value);
+        break;
+      case 'currency':
+        setCurrency(value.slice(0, 3).toUpperCase());
+        break;
+      case 'invoiceDate':
+        setInvoiceDate(value.slice(0, 10));
+        break;
+      case 'dueDate':
+        setDueDate(value.slice(0, 10));
+        break;
+      case 'subtotal':
+        setSubtotal(value);
+        break;
+      case 'tax':
+        setTax(value);
+        break;
+      case 'total':
+        setTotal(value);
+        break;
+      case 'notes':
+        setNotes((prev) => (prev ? `${prev}\n${value}` : value));
+        break;
+      default:
+        break;
+    }
+    setArmedChip(null);
+    setMessage(`Applied “${value}” to ${field}`);
+  }
+
+  function onChipDragStart(e: DragEvent, chip: OcrChip) {
+    e.dataTransfer.setData(OCR_MIME, chip.value);
+    e.dataTransfer.setData('text/plain', chip.value);
+    e.dataTransfer.effectAllowed = 'copy';
+    setDragging(true);
+    setArmedChip(chip);
+  }
+
+  function onChipDragEnd() {
+    setDragging(false);
+  }
+
+  function onChipClick(chip: OcrChip) {
+    setArmedChip((prev) => (prev?.id === chip.id ? null : chip));
+  }
+
+  function onFieldFocus(field: FieldKey) {
+    if (armedChip) applyChipValue(field, armedChip.value);
+  }
 
   async function onSave(e: FormEvent) {
     e.preventDefault();
@@ -276,10 +550,16 @@ export function InvoiceWorkspacePage() {
     }
   }
 
-  if (!invoice && !error) return <section className="page"><p>Loading…</p></section>;
+  if (!invoice && !error) {
+    return (
+      <section className="page page--hitl">
+        <p>Loading workspace…</p>
+      </section>
+    );
+  }
   if (!invoice) {
     return (
-      <section className="page">
+      <section className="page page--hitl">
         <p className="error">{error}</p>
         <Link to="/invoices">Back</Link>
       </section>
@@ -287,198 +567,349 @@ export function InvoiceWorkspacePage() {
   }
 
   return (
-    <section className="page">
-      <p className="eyebrow">Invoice workspace</p>
-      <h1>{invoice.invoiceNumber ?? 'Draft invoice'}</h1>
-      <p className="lede">
-        Status: <strong>{invoice.status}</strong>
-        {invoice.ocrConfidence != null && (
-          <> · OCR confidence {(invoice.ocrConfidence * 100).toFixed(0)}%</>
-        )}
-        {invoice.fileAsset && <> · {invoice.fileAsset.originalName}</>}
-      </p>
-
-      {invoice.exceptions.some((x) => !x.resolved) && (
-        <div className="panel">
-          <h2>Exceptions</h2>
-          <ul>
-            {invoice.exceptions
-              .filter((x) => !x.resolved)
-              .map((x) => (
-                <li key={x.id}>
-                  <strong>{x.code}</strong> — {x.message}
-                </li>
-              ))}
-          </ul>
-          {duplicateOfId && (
-            <p className="error">
-              Duplicate of{' '}
-              <Link to={`/invoices/${duplicateOfId}`}>open original</Link>
-            </p>
-          )}
-          <button type="button" className="secondary-btn" onClick={() => void onResolve()}>
-            Mark exceptions resolved
+    <section className="page page--hitl">
+      <header className="hitl-header">
+        <div>
+          <p className="eyebrow">Document review</p>
+          <h1>{invoice.invoiceNumber ?? 'Draft invoice'}</h1>
+          <p className="lede hitl-header__meta">
+            <span className={`hitl-status hitl-status--${invoice.status}`}>
+              {invoice.status}
+            </span>
+            {invoice.ocrConfidence != null && (
+              <span>
+                OCR {(invoice.ocrConfidence * 100).toFixed(0)}%
+              </span>
+            )}
+            {invoice.fileAsset && <span>{invoice.fileAsset.originalName}</span>}
+          </p>
+        </div>
+        <div className="hitl-header__actions">
+          <button type="button" className="secondary-btn" onClick={() => navigate('/invoices')}>
+            Back
+          </button>
+          <button type="button" onClick={() => void onSubmit()}>
+            Submit
+          </button>
+          <button
+            type="button"
+            onClick={() => void onApprove()}
+            disabled={invoice.status === 'approved' || invoice.status === 'exported'}
+          >
+            Force approve
           </button>
         </div>
-      )}
+      </header>
 
-      {validationIssues.length > 0 &&
-        !invoice.exceptions.some((x) => !x.resolved) && (
-          <div className="panel">
-            <h2>Validation</h2>
-            <ul>
-              {validationIssues.map((x) => (
-                <li key={`${x.code}-${x.message}`}>
-                  <strong>{x.code}</strong> — {x.message}
+      <div className={`hitl-split${dragging ? ' hitl-split--dragging' : ''}`}>
+        <aside className="hitl-doc" aria-label="Original scanned document">
+          <div className="hitl-doc__toolbar">
+            <h2>Original scan</h2>
+            <p>
+              Drag a recognized value onto a form field
+              {armedChip ? (
+                <>
+                  {' '}
+                  · armed: <strong>{armedChip.label}</strong>
+                </>
+              ) : (
+                <> · or click a chip, then click a field</>
+              )}
+            </p>
+          </div>
+
+          <DocumentViewer invoiceId={invoice.id} fileAsset={invoice.fileAsset} />
+
+          <div className="hitl-chips" aria-label="Recognized OCR values">
+            <h3>Recognized values</h3>
+            {chips.length === 0 ? (
+              <p className="muted">No extracted values yet — type or wait for OCR.</p>
+            ) : (
+              <ul>
+                {chips.map((chip) => (
+                  <li key={chip.id}>
+                    <button
+                      type="button"
+                      className={`hitl-chip${armedChip?.id === chip.id ? ' hitl-chip--armed' : ''}`}
+                      draggable
+                      onDragStart={(e) => onChipDragStart(e, chip)}
+                      onDragEnd={onChipDragEnd}
+                      onClick={() => onChipClick(chip)}
+                      title="Drag onto a field, or click then click a field"
+                    >
+                      <span className="hitl-chip__label">{chip.label}</span>
+                      <span className="hitl-chip__value">{chip.value}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </aside>
+
+        <div className="hitl-editor">
+          {invoice.exceptions.some((x) => !x.resolved) && (
+            <div className="hitl-alert">
+              <h2>Exceptions</h2>
+              <ul>
+                {invoice.exceptions
+                  .filter((x) => !x.resolved)
+                  .map((x) => (
+                    <li key={x.id}>
+                      <strong>{x.code}</strong> — {x.message}
+                    </li>
+                  ))}
+              </ul>
+              {duplicateOfId && (
+                <p className="error">
+                  Duplicate of{' '}
+                  <Link to={`/invoices/${duplicateOfId}`}>open original</Link>
+                </p>
+              )}
+              <button type="button" className="secondary-btn" onClick={() => void onResolve()}>
+                Mark exceptions resolved
+              </button>
+            </div>
+          )}
+
+          {validationIssues.length > 0 &&
+            !invoice.exceptions.some((x) => !x.resolved) && (
+              <div className="hitl-alert hitl-alert--soft">
+                <h2>Validation</h2>
+                <ul>
+                  {validationIssues.map((x) => (
+                    <li key={`${x.code}-${x.message}`}>
+                      <strong>{x.code}</strong> — {x.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+          <form className="workspace-form hitl-form" onSubmit={onSave}>
+            <DropField
+              label="Invoice number"
+              fieldKey="invoiceNumber"
+              dropActive={dragging || !!armedChip}
+              onDropValue={applyChipValue}
+            >
+              <input
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                onFocus={() => onFieldFocus('invoiceNumber')}
+              />
+            </DropField>
+            <DropField
+              label="Vendor (raw)"
+              fieldKey="vendorNameRaw"
+              dropActive={dragging || !!armedChip}
+              onDropValue={applyChipValue}
+            >
+              <input
+                value={vendorNameRaw}
+                onChange={(e) => setVendorNameRaw(e.target.value)}
+                onFocus={() => onFieldFocus('vendorNameRaw')}
+              />
+            </DropField>
+            <label className="hitl-field">
+              <span className="hitl-field__label">Vendor master</span>
+              <select value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
+                <option value="">— none —</option>
+                {vendors.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.code} — {v.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {poLicensed && (
+              <label className="hitl-field">
+                <span className="hitl-field__label">Purchase order</span>
+                <select
+                  value={purchaseOrderId}
+                  onChange={(e) => setPurchaseOrderId(e.target.value)}
+                >
+                  <option value="">— none —</option>
+                  {purchaseOrders.map((po) => (
+                    <option key={po.id} value={po.id}>
+                      {po.number} — {po.title} ({po.status})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <DropField
+              label="Currency"
+              fieldKey="currency"
+              dropActive={dragging || !!armedChip}
+              onDropValue={applyChipValue}
+            >
+              <input
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                maxLength={3}
+                onFocus={() => onFieldFocus('currency')}
+              />
+            </DropField>
+            <DropField
+              label="Invoice date"
+              fieldKey="invoiceDate"
+              dropActive={dragging || !!armedChip}
+              onDropValue={applyChipValue}
+            >
+              <input
+                type="date"
+                value={invoiceDate}
+                onChange={(e) => setInvoiceDate(e.target.value)}
+                onFocus={() => onFieldFocus('invoiceDate')}
+              />
+            </DropField>
+            <DropField
+              label="Due date"
+              fieldKey="dueDate"
+              dropActive={dragging || !!armedChip}
+              onDropValue={applyChipValue}
+            >
+              <input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                onFocus={() => onFieldFocus('dueDate')}
+              />
+            </DropField>
+            <DropField
+              label="Subtotal"
+              fieldKey="subtotal"
+              dropActive={dragging || !!armedChip}
+              onDropValue={applyChipValue}
+            >
+              <input
+                value={subtotal}
+                onChange={(e) => setSubtotal(e.target.value)}
+                inputMode="decimal"
+                onFocus={() => onFieldFocus('subtotal')}
+              />
+            </DropField>
+            <DropField
+              label="Tax"
+              fieldKey="tax"
+              dropActive={dragging || !!armedChip}
+              onDropValue={applyChipValue}
+            >
+              <input
+                value={tax}
+                onChange={(e) => setTax(e.target.value)}
+                inputMode="decimal"
+                onFocus={() => onFieldFocus('tax')}
+              />
+            </DropField>
+            <DropField
+              label="Total"
+              fieldKey="total"
+              dropActive={dragging || !!armedChip}
+              onDropValue={applyChipValue}
+            >
+              <input
+                value={total}
+                onChange={(e) => setTotal(e.target.value)}
+                inputMode="decimal"
+                required
+                onFocus={() => onFieldFocus('total')}
+              />
+            </DropField>
+            <DropField
+              label="Notes"
+              fieldKey="notes"
+              dropActive={dragging || !!armedChip}
+              onDropValue={applyChipValue}
+            >
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={3}
+                onFocus={() => onFieldFocus('notes')}
+              />
+            </DropField>
+
+            {error && <p className="error span-2">{error}</p>}
+            {message && <p className="ok span-2">{message}</p>}
+
+            <div className="span-2 actions">
+              <button type="submit">Save fields</button>
+            </div>
+          </form>
+
+          <div className="hitl-sidepanel">
+            <h2>Lines</h2>
+            <ul className="hitl-lines">
+              {invoice.lines.map((line) => (
+                <li key={line.id}>
+                  <span>#{line.lineNo}</span>
+                  <span>{line.description ?? '—'}</span>
+                  <span>
+                    {line.amountMinor != null
+                      ? (line.amountMinor / 100).toFixed(2)
+                      : '—'}
+                  </span>
+                </li>
+              ))}
+              {invoice.lines.length === 0 && (
+                <li className="muted">No line items extracted.</li>
+              )}
+            </ul>
+          </div>
+
+          <div className="hitl-sidepanel">
+            <h2>Activity</h2>
+            {activity.length === 0 && <p className="muted">No activity yet.</p>}
+            <ul className="activity-feed">
+              {activity.map((item) => (
+                <li key={`${item.kind}-${item.id}`}>
+                  <span className="activity-feed__time">
+                    {new Date(item.at).toLocaleString()}
+                  </span>
+                  <span className="activity-feed__actor">
+                    {item.actorName ?? 'System'}
+                  </span>
+                  {item.kind === 'comment' ? (
+                    <p className="activity-feed__body">{item.body}</p>
+                  ) : (
+                    <p className="activity-feed__body">{formatAction(item.action)}</p>
+                  )}
                 </li>
               ))}
             </ul>
           </div>
-        )}
 
-      <form className="workspace-form" onSubmit={onSave}>
-        <label>
-          Invoice number
-          <input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
-        </label>
-        <label>
-          Vendor (raw)
-          <input value={vendorNameRaw} onChange={(e) => setVendorNameRaw(e.target.value)} />
-        </label>
-        <label>
-          Vendor master
-          <select value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
-            <option value="">— none —</option>
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.code} — {v.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {poLicensed && (
-          <label>
-            Purchase order
-            <select
-              value={purchaseOrderId}
-              onChange={(e) => setPurchaseOrderId(e.target.value)}
-            >
-              <option value="">— none —</option>
-              {purchaseOrders.map((po) => (
-                <option key={po.id} value={po.id}>
-                  {po.number} — {po.title} ({po.status})
-                </option>
+          <div className="hitl-sidepanel">
+            <h2>Comments</h2>
+            {comments.length === 0 && <p className="muted">No comments yet.</p>}
+            <ul className="task-list">
+              {comments.map((c) => (
+                <li key={c.id}>
+                  <div>
+                    <strong>{c.authorName}</strong>
+                    <span className="muted">
+                      {' '}
+                      · {new Date(c.createdAt).toLocaleString()}
+                    </span>
+                    <p>{c.body}</p>
+                  </div>
+                </li>
               ))}
-            </select>
-          </label>
-        )}
-        <label>
-          Currency
-          <input value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={3} />
-        </label>
-        <label>
-          Invoice date
-          <input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
-        </label>
-        <label>
-          Due date
-          <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-        </label>
-        <label>
-          Subtotal
-          <input value={subtotal} onChange={(e) => setSubtotal(e.target.value)} inputMode="decimal" />
-        </label>
-        <label>
-          Tax
-          <input value={tax} onChange={(e) => setTax(e.target.value)} inputMode="decimal" />
-        </label>
-        <label>
-          Total
-          <input value={total} onChange={(e) => setTotal(e.target.value)} inputMode="decimal" required />
-        </label>
-        <label className="span-2">
-          Notes
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-        </label>
-
-        {error && <p className="error span-2">{error}</p>}
-        {message && <p className="ok span-2">{message}</p>}
-
-        <div className="span-2 actions">
-          <button type="submit">Save</button>
-          <button type="button" onClick={() => void onSubmit()}>
-            Submit for approval
-          </button>
-          <button type="button" onClick={() => void onApprove()} disabled={invoice.status === 'approved' || invoice.status === 'exported'}>
-            Force approve
-          </button>
-          <button type="button" className="secondary-btn" onClick={() => navigate('/invoices')}>
-            Back to list
-          </button>
+            </ul>
+            <form className="inline-form" onSubmit={(e) => void onAddComment(e)}>
+              <input
+                value={commentBody}
+                onChange={(e) => setCommentBody(e.target.value)}
+                placeholder="Add a comment…"
+                required
+                style={{ flex: 1, minWidth: '12rem' }}
+              />
+              <button type="submit">Post</button>
+            </form>
+          </div>
         </div>
-      </form>
-
-      <div className="panel" style={{ marginTop: '1.5rem' }}>
-        <h2>Lines</h2>
-        <ul>
-          {invoice.lines.map((line) => (
-            <li key={line.id}>
-              #{line.lineNo} {line.description ?? '—'}{' '}
-              {line.amountMinor != null ? `(${(line.amountMinor / 100).toFixed(2)})` : ''}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="panel" style={{ marginTop: '1.5rem' }}>
-        <h2>Activity</h2>
-        {activity.length === 0 && <p className="muted">No activity yet.</p>}
-        <ul className="activity-feed">
-          {activity.map((item) => (
-            <li key={`${item.kind}-${item.id}`}>
-              <span className="activity-feed__time">
-                {new Date(item.at).toLocaleString()}
-              </span>
-              <span className="activity-feed__actor">
-                {item.actorName ?? 'System'}
-              </span>
-              {item.kind === 'comment' ? (
-                <p className="activity-feed__body">{item.body}</p>
-              ) : (
-                <p className="activity-feed__body">{formatAction(item.action)}</p>
-              )}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="panel" style={{ marginTop: '1.5rem' }}>
-        <h2>Comments</h2>
-        {comments.length === 0 && <p className="muted">No comments yet.</p>}
-        <ul className="task-list">
-          {comments.map((c) => (
-            <li key={c.id}>
-              <div>
-                <strong>{c.authorName}</strong>
-                <span className="muted">
-                  {' '}
-                  · {new Date(c.createdAt).toLocaleString()}
-                </span>
-                <p>{c.body}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-        <form className="inline-form" onSubmit={(e) => void onAddComment(e)}>
-          <input
-            value={commentBody}
-            onChange={(e) => setCommentBody(e.target.value)}
-            placeholder="Add a comment…"
-            required
-            style={{ flex: 1, minWidth: '12rem' }}
-          />
-          <button type="submit">Post</button>
-        </form>
       </div>
     </section>
   );

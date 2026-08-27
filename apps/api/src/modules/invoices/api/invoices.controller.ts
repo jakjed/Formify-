@@ -8,6 +8,7 @@ import {
   Post,
   Query,
   Res,
+  StreamableFile,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { InvoiceStatus } from '@prisma/client';
@@ -145,6 +146,26 @@ export class InvoicesController {
   @ApiOperation({ summary: 'Invoice activity timeline' })
   activity(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
     return this.invoices.getActivity(tenantId, id);
+  }
+
+  @Get(':id/file')
+  @RequireScopes('invoices:read')
+  @ApiOperation({ summary: 'Stream original scanned invoice document' })
+  async file(
+    @CurrentTenantId() tenantId: string,
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const file = await this.invoices.getFile(tenantId, id);
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="${file.originalName.replace(/"/g, '')}"`,
+    );
+    if (file.sizeBytes > 0) {
+      res.setHeader('Content-Length', String(file.sizeBytes));
+    }
+    return new StreamableFile(file.stream);
   }
 
   @Get(':id')
