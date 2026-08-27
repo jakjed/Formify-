@@ -75,8 +75,14 @@ export class ContractsService {
   }
 
   async get(tenantId: string, id: string) {
+    const uuidLike =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        id,
+      );
     const row = await this.prisma.contract.findFirst({
-      where: { id, tenantId },
+      where: uuidLike
+        ? { id, tenantId }
+        : { tenantId, number: id },
       include: contractInclude,
     });
     if (!row) throw new NotFoundException('Contract not found');

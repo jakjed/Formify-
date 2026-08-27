@@ -438,10 +438,17 @@ export function PurchaseOrdersPage() {
                     )}
                   </div>
                 </div>
-                {(a.status === 'in_approval' || a.approvalStage > 0) && (
+                {(a.status === 'in_approval' ||
+                  a.status === 'approved' ||
+                  a.status === 'posted' ||
+                  a.approvalStage > 0) && (
                   <ProcureStepper
                     chain={ACCRUAL_APPROVAL_CHAIN}
-                    stage={a.approvalStage || 1}
+                    stage={
+                      a.status === 'posted' || a.status === 'approved'
+                        ? ACCRUAL_APPROVAL_CHAIN.length + 1
+                        : a.approvalStage || 1
+                    }
                   />
                 )}
               </div>

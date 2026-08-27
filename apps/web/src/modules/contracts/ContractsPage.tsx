@@ -66,7 +66,7 @@ export function ContractsPage() {
   async function refresh() {
     const params = new URLSearchParams();
     if (q.trim()) params.set('q', q.trim());
-    if (tab === 'setup' && statusFilter !== 'All') params.set('status', statusFilter);
+    // Always load the full pipeline so KPIs / other tabs stay accurate.
     const qs = params.toString();
     const [contracts, vendorRows] = await Promise.all([
       apiFetch<Contract[]>(`/api/contracts${qs ? `?${qs}` : ''}`),
@@ -81,7 +81,7 @@ export function ContractsPage() {
   useEffect(() => {
     void refresh().catch((err: Error) => setError(err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, statusFilter]);
+  }, [tab]);
 
   const kpis = useMemo(() => {
     const all = rows;
@@ -98,6 +98,11 @@ export function ContractsPage() {
       { label: 'Active', value: all.filter((c) => c.status === 'active').length },
     ];
   }, [rows]);
+
+  const setupRows = useMemo(() => {
+    if (statusFilter === 'All') return rows;
+    return rows.filter((c) => c.status === statusFilter);
+  }, [rows, statusFilter]);
 
   const drafts = rows.filter((c) => c.status === 'draft');
   const inApproval = rows.filter((c) => c.status === 'in_approval');
@@ -369,7 +374,7 @@ export function ContractsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((c) => (
+                  {setupRows.map((c) => (
                     <tr
                       key={c.id}
                       className="is-clickable"
@@ -418,7 +423,7 @@ export function ContractsPage() {
                       </td>
                     </tr>
                   ))}
-                  {rows.length === 0 && (
+                  {setupRows.length === 0 && (
                     <tr>
                       <td colSpan={7}>
                         <div className="procure__empty">
