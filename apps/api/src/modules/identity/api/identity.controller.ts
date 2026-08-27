@@ -208,9 +208,10 @@ export class IdentityController {
   listUsers(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
+    @Query('q') q?: string,
   ) {
     assertAdmin(user);
-    return this.identity.listUsers(tenantId);
+    return this.identity.listUsers(tenantId, q);
   }
 
   @ApiBearerAuth('bearer')
@@ -228,6 +229,8 @@ export class IdentityController {
       displayName: dto.displayName,
       password: dto.password,
       role: dto.role,
+      entityIds: dto.entityIds,
+      defaultEntityId: dto.defaultEntityId,
     });
     await this.audit.record({
       tenantId,
@@ -255,6 +258,8 @@ export class IdentityController {
       displayName: dto.displayName,
       role: dto.role,
       invitedById: user.id,
+      entityIds: dto.entityIds,
+      defaultEntityId: dto.defaultEntityId,
     });
     await this.audit.record({
       tenantId,

@@ -43,6 +43,7 @@ model Tenant {
 
   entities       Entity[]
   users          User[]
+  userEntityMemberships UserEntityMembership[]
   moduleLicenses ModuleLicense[]
   authProviders  AuthProviderConfig[]
   sessions       Session[]
@@ -103,6 +104,7 @@ model Entity {
   tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   contracts         Contract[]
   expenseCategories ExpenseCategory[]
+  userMemberships   UserEntityMembership[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -124,9 +126,27 @@ model User {
   sessions       Session[]
   invites        UserInvite[]
   passwordResets PasswordResetToken[]
+  entityMemberships UserEntityMembership[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
+}
+
+model UserEntityMembership {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  userId    String   @db.Uuid
+  entityId  String   @db.Uuid
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, entityId])
+  @@index([tenantId, userId])
+  @@index([tenantId, entityId])
 }
 
 model UserInvite {
@@ -466,21 +486,26 @@ enum ApprovalTaskStatus {
 model ApprovalPolicy {
   id                   String   @id @default(uuid()) @db.Uuid
   tenantId             String   @db.Uuid
-  name                 String   @default("Default invoice policy")
+  /** invoices | contracts | purchase_requests | purchase_orders | accruals */
+  moduleKey            String   @default("invoices")
+  name                 String   @default("Default policy")
   enabled              Boolean  @default(true)
-  autoApproveUnderMinor Int?    // null = never auto-approve; used when no band rule matches
+  autoApproveUnderMinor Int?
+  /** Ordered stage labels for staged modules (contracts/accruals). */
+  chainJson            Json?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@unique([tenantId])
+  @@unique([tenantId, moduleKey])
 }
 
 /// Amount/entity band rules evaluated before the default ApprovalPolicy threshold.
 model ApprovalRule {
   id           String    @id @default(uuid()) @db.Uuid
   tenantId     String    @db.Uuid
+  moduleKey    String    @default("invoices")
   name         String
   entityId     String?   @db.Uuid
   minMinor     Int?
@@ -495,7 +520,7 @@ model ApprovalRule {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  @@index([tenantId, enabled, priority])
+  @@index([tenantId, moduleKey, enabled, priority])
 }
 
 enum SodRuleKey {

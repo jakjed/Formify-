@@ -6,8 +6,10 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -29,6 +31,10 @@ import type { RequestUser } from '../../identity/domain/identity.types';
 class UpdatePolicyDto {
   @IsOptional()
   @IsString()
+  moduleKey?: string;
+
+  @IsOptional()
+  @IsString()
   name?: string;
 
   @IsOptional()
@@ -40,12 +46,22 @@ class UpdatePolicyDto {
   @IsInt()
   @Min(0)
   autoApproveUnderMinor?: number | null;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== null)
+  @IsArray()
+  @IsString({ each: true })
+  chainJson?: string[] | null;
 }
 
 class CreateApprovalRuleDto {
   @IsString()
   @MinLength(1)
   name!: string;
+
+  @IsOptional()
+  @IsString()
+  moduleKey?: string;
 
   @IsOptional()
   @ValidateIf((_, v) => v !== null)
@@ -87,6 +103,10 @@ class UpdateApprovalRuleDto {
   @IsString()
   @MinLength(1)
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  moduleKey?: string;
 
   @IsOptional()
   @ValidateIf((_, v) => v !== null)
@@ -152,29 +172,43 @@ export class WorkflowController {
   constructor(private readonly workflow: WorkflowService) {}
 
   @Get('workflow/policy')
-  getPolicy(@CurrentTenantId() tenantId: string) {
-    return this.workflow.getPolicy(tenantId);
+  getPolicy(
+    @CurrentTenantId() tenantId: string,
+    @Query('moduleKey') moduleKey?: string,
+  ) {
+    return this.workflow.getPolicy(tenantId, moduleKey ?? 'invoices');
   }
 
   @Patch('workflow/policy')
   updatePolicy(
     @CurrentTenantId() tenantId: string,
     @Body() dto: UpdatePolicyDto,
+    @Query('moduleKey') moduleKey?: string,
   ) {
-    return this.workflow.updatePolicy(tenantId, dto);
+    return this.workflow.updatePolicy(tenantId, {
+      ...dto,
+      moduleKey: dto.moduleKey ?? moduleKey ?? 'invoices',
+    });
   }
 
   @Get('workflow/rules')
-  listRules(@CurrentTenantId() tenantId: string) {
-    return this.workflow.listRules(tenantId);
+  listRules(
+    @CurrentTenantId() tenantId: string,
+    @Query('moduleKey') moduleKey?: string,
+  ) {
+    return this.workflow.listRules(tenantId, moduleKey);
   }
 
   @Post('workflow/rules')
   createRule(
     @CurrentTenantId() tenantId: string,
     @Body() dto: CreateApprovalRuleDto,
+    @Query('moduleKey') moduleKey?: string,
   ) {
-    return this.workflow.createRule(tenantId, dto);
+    return this.workflow.createRule(tenantId, {
+      ...dto,
+      moduleKey: dto.moduleKey ?? moduleKey ?? 'invoices',
+    });
   }
 
   @Patch('workflow/rules/:id')

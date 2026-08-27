@@ -10,12 +10,24 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import * as argon2 from 'argon2';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
-import type { AuthProviderConfig, UserRecord } from '../domain/identity.types';
+import type {
+  AuthProviderConfig,
+  EntityMembershipSummary,
+  UserRecord,
+} from '../domain/identity.types';
 
 const MAX_FAILED_LOGINS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const RESET_TTL_MS = 60 * 60 * 1000;
+
+const userMembershipInclude = {
+  entityMemberships: {
+    include: {
+      entity: { select: { id: true, code: true, name: true } },
+    },
+  },
+} as const;
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -179,6 +191,7 @@ export class IdentityService {
           ? { displayName: input.displayName }
           : {}),
       },
+      include: userMembershipInclude,
     });
 
     const token = randomUUID();
@@ -299,6 +312,7 @@ export class IdentityService {
         lockedUntil: null,
         status: 'active',
       },
+      include: userMembershipInclude,
     });
 
     const token = randomUUID();
@@ -328,14 +342,29 @@ export class IdentityService {
   }
 
   async getUserById(id: string): Promise<Omit<UserRecord, 'passwordHash'> | null> {
-    const user = await this.prisma.user.findUnique({ where: { id } });
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: userMembershipInclude,
+    });
     return user ? this.toSafeUser(user) : null;
   }
 
-  listUsers(tenantId: string) {
+  listUsers(tenantId: string, q?: string) {
+    const query = q?.trim();
     return this.prisma.user
       .findMany({
-        where: { tenantId },
+        where: {
+          tenantId,
+          ...(query
+            ? {
+                OR: [
+                  { email: { contains: query, mode: 'insensitive' } },
+                  { displayName: { contains: query, mode: 'insensitive' } },
+                ],
+              }
+            : {}),
+        },
+        include: userMembershipInclude,
         orderBy: { createdAt: 'asc' },
       })
       .then((rows) => rows.map((u) => this.toSafeUser(u)));
@@ -347,8 +376,51 @@ export class IdentityService {
     displayName: string;
     password: string;
     role: UserRecord['role'];
+    entityIds?: string[];
+    defaultEntityId?: string;
   }) {
-    return this.register(input);
+    const tenant = await this.prisma.tenant.findUnique({
+      where: { id: input.tenantId },
+    });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    const email = input.email.toLowerCase();
+    try {
+      const user = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.user.create({
+          data: {
+            tenantId: input.tenantId,
+            email,
+            displayName: input.displayName,
+            passwordHash: await argon2.hash(input.password),
+            role: input.role,
+            status: 'active',
+          },
+        });
+        if (input.entityIds) {
+          await this.replaceEntityMemberships(
+            tx,
+            input.tenantId,
+            created.id,
+            input.entityIds,
+            input.defaultEntityId,
+          );
+        }
+        return tx.user.findUniqueOrThrow({
+          where: { id: created.id },
+          include: userMembershipInclude,
+        });
+      });
+      return this.toSafeUser(user);
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        throw new ConflictException('User already exists');
+      }
+      throw err;
+    }
   }
 
   async inviteUser(input: {
@@ -357,6 +429,8 @@ export class IdentityService {
     displayName: string;
     role: UserRecord['role'];
     invitedById?: string;
+    entityIds?: string[];
+    defaultEntityId?: string;
   }) {
     const email = input.email.toLowerCase();
     const existing = await this.prisma.user.findUnique({
@@ -366,30 +440,43 @@ export class IdentityService {
       throw new ConflictException('User already exists');
     }
 
-    const user =
-      existing ??
-      (await this.prisma.user.create({
-        data: {
-          tenantId: input.tenantId,
-          email,
-          displayName: input.displayName,
-          role: input.role,
-          status: 'invited',
-          passwordHash: null,
-        },
-      }));
+    const user = await this.prisma.$transaction(async (tx) => {
+      let row =
+        existing ??
+        (await tx.user.create({
+          data: {
+            tenantId: input.tenantId,
+            email,
+            displayName: input.displayName,
+            role: input.role,
+            status: 'invited',
+            passwordHash: null,
+          },
+        }));
 
-    if (existing) {
-      await this.prisma.user.update({
-        where: { id: existing.id },
-        data: {
-          displayName: input.displayName,
-          role: input.role,
-          status: 'invited',
-          passwordHash: null,
-        },
-      });
-    }
+      if (existing) {
+        row = await tx.user.update({
+          where: { id: existing.id },
+          data: {
+            displayName: input.displayName,
+            role: input.role,
+            status: 'invited',
+            passwordHash: null,
+          },
+        });
+      }
+
+      if (input.entityIds) {
+        await this.replaceEntityMemberships(
+          tx,
+          input.tenantId,
+          row.id,
+          input.entityIds,
+          input.defaultEntityId,
+        );
+      }
+      return row;
+    });
 
     await this.prisma.userInvite.updateMany({
       where: { userId: user.id, acceptedAt: null },
@@ -562,7 +649,10 @@ export class IdentityService {
     patch: {
       displayName?: string;
       role?: UserRecord['role'];
+      status?: UserRecord['status'];
       password?: string;
+      entityIds?: string[];
+      defaultEntityId?: string;
     },
   ) {
     const existing = await this.prisma.user.findFirst({
@@ -570,22 +660,118 @@ export class IdentityService {
     });
     if (!existing) throw new NotFoundException('User not found');
 
-    const user = await this.prisma.user.update({
-      where: { id },
-      data: {
-        displayName: patch.displayName,
-        role: patch.role,
-        ...(patch.password
-          ? {
-              passwordHash: await argon2.hash(patch.password),
-              status: 'active' as const,
-              failedLoginCount: 0,
-              lockedUntil: null,
-            }
-          : {}),
-      },
+    const passwordHash = patch.password
+      ? await argon2.hash(patch.password)
+      : undefined;
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id },
+        data: {
+          displayName: patch.displayName,
+          role: patch.role,
+          ...(patch.status !== undefined ? { status: patch.status } : {}),
+          ...(passwordHash
+            ? {
+                passwordHash,
+                status: (patch.status ?? 'active') as UserRecord['status'],
+                failedLoginCount: 0,
+                lockedUntil: null,
+              }
+            : {}),
+        },
+      });
+
+      if (patch.entityIds !== undefined) {
+        await this.replaceEntityMemberships(
+          tx,
+          tenantId,
+          id,
+          patch.entityIds,
+          patch.defaultEntityId,
+        );
+      } else if (patch.defaultEntityId !== undefined) {
+        await this.setDefaultEntity(tx, tenantId, id, patch.defaultEntityId);
+      }
+
+      return tx.user.findUniqueOrThrow({
+        where: { id },
+        include: userMembershipInclude,
+      });
     });
     return this.toSafeUser(user);
+  }
+
+  private async replaceEntityMemberships(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    userId: string,
+    entityIds: string[],
+    defaultEntityId?: string,
+  ) {
+    const uniqueIds = [...new Set(entityIds)];
+    if (uniqueIds.length > 0) {
+      const entities = await tx.entity.findMany({
+        where: { tenantId, id: { in: uniqueIds } },
+        select: { id: true },
+      });
+      if (entities.length !== uniqueIds.length) {
+        throw new BadRequestException(
+          'One or more entities do not belong to this tenant',
+        );
+      }
+    }
+
+    if (
+      defaultEntityId &&
+      uniqueIds.length > 0 &&
+      !uniqueIds.includes(defaultEntityId)
+    ) {
+      throw new BadRequestException(
+        'defaultEntityId must be included in entityIds',
+      );
+    }
+
+    await tx.userEntityMembership.deleteMany({ where: { userId, tenantId } });
+    if (uniqueIds.length === 0) return;
+
+    const defaultId =
+      defaultEntityId && uniqueIds.includes(defaultEntityId)
+        ? defaultEntityId
+        : uniqueIds[0];
+
+    await tx.userEntityMembership.createMany({
+      data: uniqueIds.map((entityId) => ({
+        tenantId,
+        userId,
+        entityId,
+        isDefault: entityId === defaultId,
+      })),
+    });
+  }
+
+  private async setDefaultEntity(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    userId: string,
+    defaultEntityId: string,
+  ) {
+    const membership = await tx.userEntityMembership.findFirst({
+      where: { tenantId, userId, entityId: defaultEntityId },
+    });
+    if (!membership) {
+      throw new BadRequestException(
+        'defaultEntityId is not in the user entity memberships',
+      );
+    }
+    await tx.userEntityMembership.updateMany({
+      where: { tenantId, userId },
+      data: { isDefault: false },
+    });
+    await tx.userEntityMembership.update({
+      where: { id: membership.id },
+      data: { isDefault: true },
+    });
   }
 
   private toSafeUser(user: {
@@ -598,7 +784,24 @@ export class IdentityService {
     failedLoginCount: number;
     lockedUntil: Date | null;
     createdAt: Date;
+    entityMemberships?: {
+      id: string;
+      entityId: string;
+      isDefault: boolean;
+      entity: { id: string; code: string; name: string };
+    }[];
   }): Omit<UserRecord, 'passwordHash'> {
+    const memberships: EntityMembershipSummary[] | undefined =
+      user.entityMemberships?.map((m) => ({
+        id: m.id,
+        entityId: m.entityId,
+        isDefault: m.isDefault,
+        entity: m.entity,
+      }));
+    const defaultEntityId =
+      memberships?.find((m) => m.isDefault)?.entityId ??
+      memberships?.[0]?.entityId ??
+      null;
     return {
       id: user.id,
       tenantId: user.tenantId,
@@ -609,6 +812,8 @@ export class IdentityService {
       failedLoginCount: user.failedLoginCount,
       lockedUntil: user.lockedUntil ? user.lockedUntil.toISOString() : null,
       createdAt: user.createdAt.toISOString(),
+      defaultEntityId,
+      ...(memberships ? { entityMemberships: memberships } : {}),
     };
   }
 }

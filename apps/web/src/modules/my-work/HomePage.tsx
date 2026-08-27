@@ -1,21 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PRODUCT_NAME } from '@aptora/types';
 import { apiFetch } from '../../shared/lib/api';
-
-type Health = {
-  status: string;
-  product: string;
-  phase1Modules: string[];
-  database?: string;
-  timestamp: string;
-};
-
-type Usage = {
-  approvedInvoices: number;
-  ocrPagesThisMonth: number;
-  yearMonth: string;
-};
+import { formatMoney } from '../procure/shared';
 
 type ApprovalTask = {
   id: string;
@@ -31,19 +17,41 @@ type ApprovalTask = {
   } | null;
 };
 
-type Policy = {
-  name: string;
-  enabled: boolean;
-  autoApproveUnderMinor: number | null;
+type CommandCenter = {
+  invoices: {
+    needsReview: number;
+    exceptions: number;
+    inApproval: number;
+    exportBacklog: number;
+  };
+  contracts: {
+    draft: number;
+    inApproval: number;
+    pendingSignature: number;
+    active: number;
+  };
+  purchaseRequests: {
+    draft: number;
+    inApproval: number;
+    approved: number;
+  };
+  purchaseOrders: {
+    draft: number;
+    issued: number;
+    remainingMinorSum: number;
+  };
+  accruals: {
+    draft: number;
+    inApproval: number;
+    approved: number;
+  };
+  myApprovals: {
+    invoiceTasks: number;
+    contractsInApproval: number;
+    prsInApproval: number;
+    accrualsInApproval: number;
+  };
 };
-
-function money(minor: number | null, currency: string) {
-  if (minor == null) return '—';
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-  }).format(minor / 100);
-}
 
 function ageLabel(iso: string) {
   const ms = Date.now() - new Date(iso).getTime();
@@ -55,24 +63,18 @@ function ageLabel(iso: string) {
 }
 
 export function HomePage() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [usage, setUsage] = useState<Usage | null>(null);
+  const [cc, setCc] = useState<CommandCenter | null>(null);
   const [tasks, setTasks] = useState<ApprovalTask[]>([]);
-  const [policy, setPolicy] = useState<Policy | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   async function refresh() {
-    const [h, u, t, p] = await Promise.all([
-      fetch('/api/health').then((r) => r.json() as Promise<Health>),
-      apiFetch<Usage>('/api/usage/summary'),
+    const [center, t] = await Promise.all([
+      apiFetch<CommandCenter>('/api/ops/command-center'),
       apiFetch<ApprovalTask[]>('/api/approvals/my-work'),
-      apiFetch<Policy>('/api/workflow/policy'),
     ]);
-    setHealth(h);
-    setUsage(u);
+    setCc(center);
     setTasks(t);
-    setPolicy(p);
   }
 
   useEffect(() => {
@@ -94,22 +96,29 @@ export function HomePage() {
     }
   }
 
+  const attentionCount =
+    (cc?.myApprovals.invoiceTasks ?? tasks.length) +
+    (cc?.myApprovals.contractsInApproval ?? 0) +
+    (cc?.myApprovals.prsInApproval ?? 0) +
+    (cc?.myApprovals.accrualsInApproval ?? 0);
+
   return (
     <section className="page page--cockpit">
       <header className="cockpit-hero">
         <div>
-          <p className="eyebrow">Today at {PRODUCT_NAME}</p>
-          <h1>My Work</h1>
+          <p className="eyebrow">Cross-module</p>
+          <h1>Command Center</h1>
           <p className="lede">
-            Approvals waiting on you — clear the queue, keep cash moving.
+            What needs your attention across AP and Procure — clear the queue,
+            keep work moving.
           </p>
         </div>
         <div className="cockpit-hero__actions">
           <Link className="btn btn--primary" to="/invoices">
             Open invoices
           </Link>
-          <Link className="btn btn--ghost" to="/exceptions">
-            Exceptions
+          <Link className="btn btn--ghost" to="/ops">
+            Operations
           </Link>
         </div>
       </header>
@@ -117,72 +126,95 @@ export function HomePage() {
       {error && <p className="error">{error}</p>}
       {message && <p className="ok">{message}</p>}
 
-      <div className="cockpit-stats">
-        <article className="stat-orb stat-orb--teal">
-          <p className="stat-orb__label">Pending</p>
-          <p className="stat-orb__value">{tasks.length}</p>
-          <p className="stat-orb__hint">
-            {tasks.length === 0 ? 'queue clear' : 'needs your decision'}
-          </p>
-        </article>
-        <article className="stat-orb stat-orb--amber">
-          <p className="stat-orb__label">Billable</p>
-          <p className="stat-orb__value">{usage?.approvedInvoices ?? '—'}</p>
-          <p className="stat-orb__hint">approved invoices</p>
-        </article>
-        <article className="stat-orb stat-orb--sky">
-          <p className="stat-orb__label">OCR</p>
-          <p className="stat-orb__value">{usage?.ocrPagesThisMonth ?? '—'}</p>
-          <p className="stat-orb__hint">pages · {usage?.yearMonth ?? '—'}</p>
-        </article>
-        <article className="stat-orb stat-orb--forest">
-          <p className="stat-orb__label">System</p>
-          <p className="stat-orb__value stat-orb__value--sm">
-            <span
-              className={`status-badge status-badge--${
-                health?.status === 'ok' ? 'success' : 'warning'
-              }`}
-            >
-              <span className="status-badge__dot" aria-hidden />
-              {health?.status ?? '…'}
-            </span>
-          </p>
-          <p className="stat-orb__hint">
-            DB {health?.database ?? '…'}
-            {policy?.enabled ? ' · policy on' : ''}
-          </p>
-        </article>
+      <div className="stat-grid">
+        <Link className="stat-tile" to="/contracts">
+          <span className="stat-tile__label">Contracts</span>
+          <span className="stat-tile__value">
+            {cc ? cc.contracts.inApproval + cc.contracts.draft : '—'}
+          </span>
+        </Link>
+        <Link className="stat-tile" to="/purchase-requests">
+          <span className="stat-tile__label">Requests</span>
+          <span className="stat-tile__value">
+            {cc
+              ? cc.purchaseRequests.inApproval + cc.purchaseRequests.draft
+              : '—'}
+          </span>
+        </Link>
+        <Link className="stat-tile" to="/purchase-orders">
+          <span className="stat-tile__label">Orders</span>
+          <span className="stat-tile__value">
+            {cc ? cc.purchaseOrders.issued + cc.purchaseOrders.draft : '—'}
+          </span>
+        </Link>
+        <Link
+          className="stat-tile"
+          to="/invoices?view=review&status=needs_review"
+        >
+          <span className="stat-tile__label">Invoices</span>
+          <span className="stat-tile__value">
+            {cc ? cc.invoices.needsReview + cc.invoices.inApproval : '—'}
+          </span>
+        </Link>
+        <Link className="stat-tile" to="/exceptions">
+          <span className="stat-tile__label">Exceptions</span>
+          <span className="stat-tile__value">{cc?.invoices.exceptions ?? '—'}</span>
+        </Link>
+        <Link className="stat-tile" to="/purchase-orders">
+          <span className="stat-tile__label">Accruals</span>
+          <span className="stat-tile__value">
+            {cc ? cc.accruals.draft + cc.accruals.inApproval : '—'}
+          </span>
+        </Link>
       </div>
 
-      <div className="cockpit-queue panel panel--wide panel--lift">
+      <div className="panel panel--wide panel--lift">
         <div className="panel__head">
           <div>
-            <h2>Pending approvals</h2>
-            <p className="muted">Tap through or open the invoice workspace.</p>
+            <h2>Needs your attention</h2>
+            <p className="muted">
+              {attentionCount === 0
+                ? 'Nothing waiting on you right now.'
+                : `${attentionCount} item${attentionCount === 1 ? '' : 's'} across modules.`}
+            </p>
           </div>
-          {policy && (
-            <span className="status-badge status-badge--warning">
-              <span className="status-badge__dot" aria-hidden />
-              Auto under{' '}
-              {policy.autoApproveUnderMinor == null
-                ? 'off'
-                : money(policy.autoApproveUnderMinor, 'EUR')}
-            </span>
-          )}
         </div>
+
+        {cc && (
+          <div className="procure__kpis" style={{ marginBottom: '1rem' }}>
+            <Link className="procure__kpi" to="/contracts">
+              <div className="procure__kpi-label">Contracts in approval</div>
+              <div className="procure__kpi-value">
+                {cc.myApprovals.contractsInApproval}
+              </div>
+            </Link>
+            <Link className="procure__kpi" to="/purchase-requests">
+              <div className="procure__kpi-label">Requests in approval</div>
+              <div className="procure__kpi-value">
+                {cc.myApprovals.prsInApproval}
+              </div>
+            </Link>
+            <Link className="procure__kpi" to="/purchase-orders">
+              <div className="procure__kpi-label">Accruals in approval</div>
+              <div className="procure__kpi-value">
+                {cc.myApprovals.accrualsInApproval}
+              </div>
+            </Link>
+            <div className="procure__kpi">
+              <div className="procure__kpi-label">Invoice tasks</div>
+              <div className="procure__kpi-value">{tasks.length}</div>
+            </div>
+          </div>
+        )}
 
         {tasks.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state__orb" aria-hidden />
-            <h3>Queue clear</h3>
+            <h3>Invoice queue clear</h3>
             <p className="muted">
-              Nothing waiting on you. Capture a new invoice or review exceptions.
+              No invoice approvals assigned to you. Check contracts and requests
+              above if counts are open.
             </p>
-            <div className="empty-state__actions">
-              <Link className="btn btn--primary" to="/invoices">
-                Go to invoices
-              </Link>
-            </div>
           </div>
         ) : (
           <ul className="approval-rail">
@@ -206,7 +238,7 @@ export function HomePage() {
                   </p>
                 </div>
                 <p className="approval-card__amount">
-                  {money(
+                  {formatMoney(
                     task.invoice?.totalMinor ?? null,
                     task.invoice?.currency ?? 'EUR',
                   )}
@@ -232,6 +264,85 @@ export function HomePage() {
           </ul>
         )}
       </div>
+
+      {cc && (
+        <div className="stat-grid" style={{ marginTop: '1.25rem' }}>
+          <div className="panel">
+            <h3>Invoices</h3>
+            <dl className="kv">
+              <dt>Needs review</dt>
+              <dd>
+                <Link to="/invoices?view=review&status=needs_review">
+                  {cc.invoices.needsReview}
+                </Link>
+              </dd>
+              <dt>In approval</dt>
+              <dd>
+                <Link to="/invoices?view=approval&status=in_approval">
+                  {cc.invoices.inApproval}
+                </Link>
+              </dd>
+              <dt>Exceptions</dt>
+              <dd>
+                <Link to="/exceptions">{cc.invoices.exceptions}</Link>
+              </dd>
+              <dt>Export backlog</dt>
+              <dd>{cc.invoices.exportBacklog}</dd>
+            </dl>
+          </div>
+          <div className="panel">
+            <h3>Contracts</h3>
+            <dl className="kv">
+              <dt>Draft</dt>
+              <dd>
+                <Link to="/contracts">{cc.contracts.draft}</Link>
+              </dd>
+              <dt>In approval</dt>
+              <dd>
+                <Link to="/contracts">{cc.contracts.inApproval}</Link>
+              </dd>
+              <dt>Pending signature</dt>
+              <dd>{cc.contracts.pendingSignature}</dd>
+              <dt>Active</dt>
+              <dd>{cc.contracts.active}</dd>
+            </dl>
+          </div>
+          <div className="panel">
+            <h3>Requests &amp; orders</h3>
+            <dl className="kv">
+              <dt>PR in approval</dt>
+              <dd>
+                <Link to="/purchase-requests">
+                  {cc.purchaseRequests.inApproval}
+                </Link>
+              </dd>
+              <dt>PR approved</dt>
+              <dd>{cc.purchaseRequests.approved}</dd>
+              <dt>PO issued</dt>
+              <dd>
+                <Link to="/purchase-orders">{cc.purchaseOrders.issued}</Link>
+              </dd>
+              <dt>Unbilled (open POs)</dt>
+              <dd>{formatMoney(cc.purchaseOrders.remainingMinorSum)}</dd>
+            </dl>
+          </div>
+          <div className="panel">
+            <h3>Accruals</h3>
+            <dl className="kv">
+              <dt>Draft</dt>
+              <dd>
+                <Link to="/purchase-orders">{cc.accruals.draft}</Link>
+              </dd>
+              <dt>In approval</dt>
+              <dd>
+                <Link to="/purchase-orders">{cc.accruals.inApproval}</Link>
+              </dd>
+              <dt>Approved</dt>
+              <dd>{cc.accruals.approved}</dd>
+            </dl>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

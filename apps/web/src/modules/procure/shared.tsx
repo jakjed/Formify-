@@ -10,6 +10,12 @@ export const CONTRACT_APPROVAL_CHAIN = [
   'Finance',
 ] as const;
 
+export const PR_APPROVAL_CHAIN = [
+  'Budget Owner',
+  'Finance',
+  'CFO',
+] as const;
+
 export const ACCRUAL_APPROVAL_CHAIN = ['AP Manager', 'Controller'] as const;
 
 export const CLM_TOOLS = [
@@ -161,6 +167,33 @@ export function ProcureStepper({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** Full approval progress card matching the design: thick bar + stage stepper. */
+export function ApprovalProgress({
+  chain,
+  stage,
+  title = 'Approval progress',
+  subtitle = 'Internal sign-off only — not an official signature.',
+}: {
+  chain: readonly string[];
+  stage: number;
+  title?: string;
+  subtitle?: string;
+}) {
+  const total = Math.max(chain.length, 1);
+  const completed = Math.max(0, Math.min(stage - 1, total));
+  const pct = Math.round((completed / total) * 100);
+  return (
+    <div className="procure__card approval-progress">
+      <div className="procure__section-title">{title}</div>
+      <p className="procure__section-desc">{subtitle}</p>
+      <div className="approval-progress__track" aria-hidden>
+        <span style={{ width: `${pct}%` }} />
+      </div>
+      <ProcureStepper chain={chain} stage={stage} />
     </div>
   );
 }

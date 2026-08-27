@@ -11,6 +11,13 @@ export type UserRole = 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
 
 export type UserStatus = 'invited' | 'active' | 'locked';
 
+export type EntityMembershipSummary = {
+  id: string;
+  entityId: string;
+  isDefault: boolean;
+  entity: { id: string; code: string; name: string };
+};
+
 export type UserRecord = {
   id: string;
   tenantId: string;
@@ -22,6 +29,8 @@ export type UserRecord = {
   failedLoginCount: number;
   lockedUntil: string | null;
   createdAt: string;
+  defaultEntityId?: string | null;
+  entityMemberships?: EntityMembershipSummary[];
 };
 
 export type RequestUser = Omit<UserRecord, 'passwordHash'> & {

@@ -4,7 +4,9 @@ import { apiFetch } from '../../shared/lib/api';
 import {
   DEPARTMENTS,
   EXPENSE_CATEGORIES,
+  PR_APPROVAL_CHAIN,
   PrStatusBadge,
+  ApprovalProgress,
   ProcureKpis,
   ProcureTabs,
   formatMoney,
@@ -27,6 +29,7 @@ type Pr = {
   department: string | null;
   category: string | null;
   vendorId?: string | null;
+  approvalStage?: number;
   purchaseOrders: LinkedPo[];
 };
 
@@ -53,6 +56,7 @@ export function PurchaseRequestsPage() {
   const [poLicensed, setPoLicensed] = useState(false);
   const [filter, setFilter] = useState<Filter>('All');
   const [showNew, setShowNew] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -145,6 +149,28 @@ export function PurchaseRequestsPage() {
       form.reset();
       setShowNew(false);
     }, 'Purchase request created');
+  }
+
+  async function onUpdate(e: FormEvent<HTMLFormElement>, id: string) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const totalRaw = String(data.get('totalMinor') ?? '').trim();
+    await run(async () => {
+      await apiFetch(`/api/purchase-requests/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: data.get('title'),
+          vendorId: data.get('vendorId') || null,
+          department: data.get('department') || undefined,
+          category: data.get('category') || undefined,
+          ...(totalRaw === ''
+            ? {}
+            : { totalMinor: Number(totalRaw) || 0 }),
+        }),
+      });
+      setEditingId(null);
+    }, 'Purchase request updated');
   }
 
   return (
@@ -325,6 +351,82 @@ export function PurchaseRequestsPage() {
             </div>
           )}
 
+          {editingId && (() => {
+            const p = rows.find((r) => r.id === editingId);
+            if (!p) return null;
+            return (
+              <div className="procure__composer">
+                <h3>Edit {p.number}</h3>
+                <form
+                  className="workspace-form"
+                  onSubmit={(e) => void onUpdate(e, p.id)}
+                >
+                  <label>
+                    Title
+                    <input name="title" required defaultValue={p.title} />
+                  </label>
+                  <label>
+                    Vendor
+                    <select name="vendorId" defaultValue={p.vendorId ?? ''}>
+                      <option value="">—</option>
+                      {vendors.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Department
+                    <select
+                      name="department"
+                      defaultValue={p.department ?? DEPARTMENTS[0]}
+                    >
+                      {DEPARTMENTS.map((d) => (
+                        <option key={d}>{d}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Category
+                    <select
+                      name="category"
+                      defaultValue={p.category ?? EXPENSE_CATEGORIES[0]}
+                    >
+                      {EXPENSE_CATEGORIES.map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Amount (minor)
+                    <input
+                      name="totalMinor"
+                      type="number"
+                      defaultValue={p.totalMinor ?? ''}
+                    />
+                  </label>
+                  <div className="span-2 actions">
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => setEditingId(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn--primary"
+                      disabled={busy}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </form>
+              </div>
+            );
+          })()}
+
           <div className="procure__table-card">
             <div className="procure__table-wrap">
               <table className="procure__table">
@@ -343,10 +445,22 @@ export function PurchaseRequestsPage() {
                 <tbody>
                   {filtered.map((p) => {
                     const po = p.purchaseOrders?.[0];
+                    const canEdit =
+                      p.status === 'draft' || p.status === 'in_approval';
                     return (
                       <tr key={p.id}>
                         <td className="procure__mono">{p.number}</td>
-                        <td>{p.title}</td>
+                        <td>
+                          {p.title}
+                          {p.status === 'in_approval' && (
+                            <div style={{ marginTop: '0.65rem' }}>
+                              <ApprovalProgress
+                                chain={PR_APPROVAL_CHAIN}
+                                stage={p.approvalStage || 1}
+                              />
+                            </div>
+                          )}
+                        </td>
                         <td>{p.department ?? '—'}</td>
                         <td>{p.category ?? '—'}</td>
                         <td className="procure__mono">
@@ -364,6 +478,19 @@ export function PurchaseRequestsPage() {
                         </td>
                         <td>
                           <div className="procure__actions">
+                            {canEdit && (
+                              <button
+                                type="button"
+                                className="btn btn--ghost"
+                                disabled={busy}
+                                onClick={() => {
+                                  setShowNew(false);
+                                  setEditingId(p.id);
+                                }}
+                              >
+                                Edit
+                              </button>
+                            )}
                             {p.status === 'draft' && (
                               <button
                                 type="button"

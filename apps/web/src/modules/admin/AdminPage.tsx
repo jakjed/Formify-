@@ -16,16 +16,26 @@ type Tab =
   | 'audit'
   | 'workflow';
 
+type ApprovalModuleKey =
+  | 'invoices'
+  | 'contracts'
+  | 'purchase_requests'
+  | 'purchase_orders'
+  | 'accruals';
+
 type ApprovalPolicy = {
   id: string;
   name: string;
   enabled: boolean;
   autoApproveUnderMinor: number | null;
+  moduleKey?: string;
+  chainJson?: string[] | null;
 };
 
 type ApprovalRule = {
   id: string;
   name: string;
+  moduleKey?: string;
   entityId: string | null;
   minMinor: number | null;
   maxMinor: number | null;
@@ -83,6 +93,13 @@ type Notification = {
   createdAt: string;
 };
 
+type EntityMembership = {
+  id: string;
+  entityId: string;
+  isDefault: boolean;
+  entity: { id: string; code: string; name: string };
+};
+
 type UserRow = {
   id: string;
   email: string;
@@ -91,6 +108,8 @@ type UserRow = {
   status: string;
   lockedUntil: string | null;
   createdAt: string;
+  defaultEntityId?: string | null;
+  entityMemberships?: EntityMembership[];
 };
 
 type EntityRow = { id: string; name: string; code: string };
@@ -179,6 +198,25 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 const ROLES = ['admin', 'ap_manager', 'ap_clerk', 'approver'] as const;
+const USER_STATUSES = ['invited', 'active', 'locked'] as const;
+
+const APPROVAL_MODULES: { id: ApprovalModuleKey; label: string }[] = [
+  { id: 'invoices', label: 'Invoices' },
+  { id: 'contracts', label: 'Contracts' },
+  { id: 'purchase_requests', label: 'Purchase requests' },
+  { id: 'purchase_orders', label: 'Purchase orders' },
+  { id: 'accruals', label: 'Accruals' },
+];
+
+function entityIdsFromForm(data: FormData, prefix = 'entity-'): string[] {
+  const ids: string[] = [];
+  for (const [key, value] of data.entries()) {
+    if (key.startsWith(prefix) && value === 'on') {
+      ids.push(key.slice(prefix.length));
+    }
+  }
+  return ids;
+}
 
 export function AdminPage() {
   const [tab, setTab] = useState<Tab>('users');
@@ -215,6 +253,10 @@ export function AdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [userQuery, setUserQuery] = useState('');
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [approvalModule, setApprovalModule] =
+    useState<ApprovalModuleKey>('invoices');
 
   async function refresh() {
     const [
@@ -262,12 +304,12 @@ export function AdminPage() {
       apiFetch<OidcAdmin[]>('/api/auth/providers/admin').catch(
         () => [] as OidcAdmin[],
       ),
-      apiFetch<ApprovalPolicy>('/api/workflow/policy').catch(
-        () => null as ApprovalPolicy | null,
-      ),
-      apiFetch<ApprovalRule[]>('/api/workflow/rules').catch(
-        () => [] as ApprovalRule[],
-      ),
+      apiFetch<ApprovalPolicy>(
+        `/api/workflow/policy?moduleKey=${approvalModule}`,
+      ).catch(() => null as ApprovalPolicy | null),
+      apiFetch<ApprovalRule[]>(
+        `/api/workflow/rules?moduleKey=${approvalModule}`,
+      ).catch(() => [] as ApprovalRule[]),
       apiFetch<SodPolicy[]>('/api/workflow/sod').catch(() => [] as SodPolicy[]),
     ]);
     setMailbox(m);
@@ -291,13 +333,24 @@ export function AdminPage() {
     setSodPolicies(sod);
   }
 
-  async function loadWorkflowTab() {
+  async function loadUsers(q?: string) {
+    const query = (q ?? userQuery).trim();
+    const path = query
+      ? `/api/users?q=${encodeURIComponent(query)}`
+      : '/api/users';
+    const u = await apiFetch<UserRow[]>(path);
+    setUsers(u);
+  }
+
+  async function loadWorkflowTab(moduleKey: ApprovalModuleKey = approvalModule) {
     const [e, rules, pol, sod] = await Promise.all([
       apiFetch<EntityRow[]>('/api/entities'),
-      apiFetch<ApprovalRule[]>('/api/workflow/rules'),
-      apiFetch<ApprovalPolicy>('/api/workflow/policy').catch(
-        () => null as ApprovalPolicy | null,
+      apiFetch<ApprovalRule[]>(
+        `/api/workflow/rules?moduleKey=${moduleKey}`,
       ),
+      apiFetch<ApprovalPolicy>(
+        `/api/workflow/policy?moduleKey=${moduleKey}`,
+      ).catch(() => null as ApprovalPolicy | null),
       apiFetch<SodPolicy[]>('/api/workflow/sod').catch(() => [] as SodPolicy[]),
     ]);
     setEntities(e);
@@ -308,12 +361,16 @@ export function AdminPage() {
 
   useEffect(() => {
     void refresh().catch((err: Error) => setError(err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (tab !== 'workflow') return;
-    void loadWorkflowTab().catch((err: Error) => setError(err.message));
-  }, [tab]);
+    void loadWorkflowTab(approvalModule).catch((err: Error) =>
+      setError(err.message),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, approvalModule]);
 
   async function rotateToken() {
     setBusy(true);
@@ -355,6 +412,8 @@ export function AdminPage() {
     e.preventDefault();
     const form = e.currentTarget;
     const data = new FormData(form);
+    const entityIds = entityIdsFromForm(data);
+    const defaultEntityId = String(data.get('defaultEntityId') ?? '').trim();
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -366,6 +425,12 @@ export function AdminPage() {
           displayName: data.get('displayName'),
           password: data.get('password'),
           role: data.get('role'),
+          ...(entityIds.length
+            ? {
+                entityIds,
+                defaultEntityId: defaultEntityId || entityIds[0],
+              }
+            : {}),
         }),
       });
       form.reset();
@@ -382,6 +447,8 @@ export function AdminPage() {
     e.preventDefault();
     const form = e.currentTarget;
     const data = new FormData(form);
+    const entityIds = entityIdsFromForm(data);
+    const defaultEntityId = String(data.get('defaultEntityId') ?? '').trim();
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -393,6 +460,12 @@ export function AdminPage() {
           email: data.get('email'),
           displayName: data.get('displayName'),
           role: data.get('role'),
+          ...(entityIds.length
+            ? {
+                entityIds,
+                defaultEntityId: defaultEntityId || entityIds[0],
+              }
+            : {}),
         }),
       });
       form.reset();
@@ -401,6 +474,41 @@ export function AdminPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invite failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onUpdateUser(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editingUser) return;
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const entityIds = entityIdsFromForm(data);
+    const defaultEntityId = String(data.get('defaultEntityId') ?? '').trim();
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      await apiFetch(`/api/users/${editingUser.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          displayName: data.get('displayName'),
+          role: data.get('role'),
+          status: data.get('status'),
+          entityIds,
+          ...(defaultEntityId
+            ? { defaultEntityId }
+            : entityIds.length
+              ? { defaultEntityId: entityIds[0] }
+              : {}),
+        }),
+      });
+      setEditingUser(null);
+      setMessage('User updated');
+      await loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Update user failed');
     } finally {
       setBusy(false);
     }
@@ -555,22 +663,37 @@ export function AdminPage() {
     const form = e.currentTarget;
     const data = new FormData(form);
     const majorRaw = String(data.get('autoApproveUnderMajor') ?? '').trim();
+    const chainRaw = String(data.get('chainStages') ?? '').trim();
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
-      const updated = await apiFetch<ApprovalPolicy>('/api/workflow/policy', {
-        method: 'PATCH',
-        body: JSON.stringify({
-          name: data.get('name'),
-          enabled: data.get('enabled') === 'on',
-          autoApproveUnderMinor:
-            majorRaw === '' ? null : Math.round(Number(majorRaw) * 100),
-        }),
-      });
+      const body: Record<string, unknown> = {
+        moduleKey: approvalModule,
+        name: data.get('name'),
+        enabled: data.get('enabled') === 'on',
+      };
+      if (approvalModule === 'invoices') {
+        body.autoApproveUnderMinor =
+          majorRaw === '' ? null : Math.round(Number(majorRaw) * 100);
+      } else {
+        body.chainJson = chainRaw
+          ? chainRaw
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
+      }
+      const updated = await apiFetch<ApprovalPolicy>(
+        `/api/workflow/policy?moduleKey=${approvalModule}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify(body),
+        },
+      );
       setPolicy(updated);
       setMessage('Approval policy updated');
-      await refresh();
+      await loadWorkflowTab(approvalModule);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Policy update failed');
     } finally {
@@ -602,22 +725,26 @@ export function AdminPage() {
     setError(null);
     setMessage(null);
     try {
-      await apiFetch<ApprovalRule>('/api/workflow/rules', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: data.get('name'),
-          entityId: entityRaw === '' ? null : entityRaw,
-          minMinor: minRaw === '' ? null : Math.round(Number(minRaw) * 100),
-          maxMinor: maxRaw === '' ? null : Math.round(Number(maxRaw) * 100),
-          autoApprove: data.get('autoApprove') === 'on',
-          assigneeRole: roleRaw === '' ? null : roleRaw,
-          priority: priorityRaw === '' ? 100 : Number(priorityRaw),
-          enabled: data.get('enabled') === 'on',
-        }),
-      });
+      await apiFetch<ApprovalRule>(
+        `/api/workflow/rules?moduleKey=${approvalModule}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            moduleKey: approvalModule,
+            name: data.get('name'),
+            entityId: entityRaw === '' ? null : entityRaw,
+            minMinor: minRaw === '' ? null : Math.round(Number(minRaw) * 100),
+            maxMinor: maxRaw === '' ? null : Math.round(Number(maxRaw) * 100),
+            autoApprove: data.get('autoApprove') === 'on',
+            assigneeRole: roleRaw === '' ? null : roleRaw,
+            priority: priorityRaw === '' ? 100 : Number(priorityRaw),
+            enabled: data.get('enabled') === 'on',
+          }),
+        },
+      );
       form.reset();
       setMessage('Approval rule created');
-      await refresh();
+      await loadWorkflowTab(approvalModule);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Create rule failed');
     } finally {
@@ -635,7 +762,7 @@ export function AdminPage() {
         body: JSON.stringify({ enabled: !rule.enabled }),
       });
       setMessage(rule.enabled ? 'Rule disabled' : 'Rule enabled');
-      await refresh();
+      await loadWorkflowTab(approvalModule);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Update rule failed');
     } finally {
@@ -650,7 +777,7 @@ export function AdminPage() {
     try {
       await apiFetch(`/api/workflow/rules/${id}`, { method: 'DELETE' });
       setMessage('Rule deleted');
-      await refresh();
+      await loadWorkflowTab(approvalModule);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delete rule failed');
     } finally {
@@ -751,20 +878,188 @@ export function AdminPage() {
               Invite link (copy once): <code>{inviteLink}</code>
             </p>
           )}
-          <ul className="task-list">
-            {users.map((u) => (
-              <li key={u.id}>
-                <div>
-                  <strong>{u.displayName}</strong>
-                  <span className="muted">
-                    {' '}
-                    · {u.email} · {u.role} · {u.status}
-                    {u.lockedUntil ? ` · locked until ${u.lockedUntil}` : ''}
-                  </span>
+          <div className="procure__toolbar" style={{ marginBottom: '0.75rem' }}>
+            <label style={{ flex: 1, margin: 0 }}>
+              Search
+              <input
+                value={userQuery}
+                onChange={(ev) => setUserQuery(ev.target.value)}
+                onKeyDown={(ev) => {
+                  if (ev.key === 'Enter') {
+                    ev.preventDefault();
+                    void loadUsers(userQuery).catch((err: Error) =>
+                      setError(err.message),
+                    );
+                  }
+                }}
+                placeholder="Name or email"
+              />
+            </label>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              disabled={busy}
+              onClick={() =>
+                void loadUsers(userQuery).catch((err: Error) =>
+                  setError(err.message),
+                )
+              }
+            >
+              Search
+            </button>
+          </div>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                  <th>Entities</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="muted">
+                      No users found.
+                    </td>
+                  </tr>
+                )}
+                {users.map((u) => {
+                  const memberships = u.entityMemberships ?? [];
+                  const entityLabel =
+                    memberships.length === 0
+                      ? '—'
+                      : memberships
+                          .map((m) =>
+                            m.isDefault
+                              ? `${m.entity.code}★`
+                              : m.entity.code,
+                          )
+                          .join(', ');
+                  return (
+                    <tr key={u.id}>
+                      <td>{u.displayName}</td>
+                      <td>{u.email}</td>
+                      <td>{u.role}</td>
+                      <td>
+                        {u.status}
+                        {u.lockedUntil
+                          ? ` · locked until ${new Date(u.lockedUntil).toLocaleString()}`
+                          : ''}
+                      </td>
+                      <td>{entityLabel}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="secondary-btn"
+                          onClick={() => setEditingUser(u)}
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {editingUser && (
+            <div className="procure__composer" style={{ marginTop: '1rem' }}>
+              <h3>Edit {editingUser.displayName}</h3>
+              <form
+                className="workspace-form"
+                onSubmit={(e) => void onUpdateUser(e)}
+              >
+                <label>
+                  Display name
+                  <input
+                    name="displayName"
+                    required
+                    minLength={2}
+                    defaultValue={editingUser.displayName}
+                  />
+                </label>
+                <label>
+                  Role
+                  <select name="role" defaultValue={editingUser.role}>
+                    {ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Status
+                  <select name="status" defaultValue={editingUser.status}>
+                    {USER_STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <fieldset className="span-2">
+                  <legend>Entities</legend>
+                  {entities.length === 0 && (
+                    <p className="muted">No entities yet.</p>
+                  )}
+                  {entities.map((ent) => {
+                    const checked = (editingUser.entityMemberships ?? []).some(
+                      (m) => m.entityId === ent.id,
+                    );
+                    return (
+                      <label key={ent.id} style={{ display: 'block' }}>
+                        <input
+                          type="checkbox"
+                          name={`entity-${ent.id}`}
+                          defaultChecked={checked}
+                        />{' '}
+                        {ent.code} / {ent.name}
+                      </label>
+                    );
+                  })}
+                </fieldset>
+                <label>
+                  Default entity
+                  <select
+                    name="defaultEntityId"
+                    defaultValue={
+                      editingUser.defaultEntityId ??
+                      editingUser.entityMemberships?.find((m) => m.isDefault)
+                        ?.entityId ??
+                      ''
+                    }
+                  >
+                    <option value="">—</option>
+                    {entities.map((ent) => (
+                      <option key={ent.id} value={ent.id}>
+                        {ent.code} / {ent.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="span-2 actions">
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    onClick={() => setEditingUser(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={busy}>
+                    Save user
+                  </button>
                 </div>
-              </li>
-            ))}
-          </ul>
+              </form>
+            </div>
+          )}
+
           <h3>Invite user</h3>
           <form className="workspace-form" onSubmit={(e) => void onInviteUser(e)}>
             <label>
@@ -781,6 +1076,26 @@ export function AdminPage() {
                 {ROLES.map((r) => (
                   <option key={r} value={r}>
                     {r}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <fieldset className="span-2">
+              <legend>Entities</legend>
+              {entities.map((ent) => (
+                <label key={ent.id} style={{ display: 'block' }}>
+                  <input type="checkbox" name={`entity-${ent.id}`} />{' '}
+                  {ent.code} / {ent.name}
+                </label>
+              ))}
+            </fieldset>
+            <label>
+              Default entity
+              <select name="defaultEntityId" defaultValue="">
+                <option value="">First selected</option>
+                {entities.map((ent) => (
+                  <option key={ent.id} value={ent.id}>
+                    {ent.code} / {ent.name}
                   </option>
                 ))}
               </select>
@@ -811,6 +1126,26 @@ export function AdminPage() {
                 {ROLES.map((r) => (
                   <option key={r} value={r}>
                     {r}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <fieldset className="span-2">
+              <legend>Entities</legend>
+              {entities.map((ent) => (
+                <label key={ent.id} style={{ display: 'block' }}>
+                  <input type="checkbox" name={`entity-${ent.id}`} />{' '}
+                  {ent.code} / {ent.name}
+                </label>
+              ))}
+            </fieldset>
+            <label>
+              Default entity
+              <select name="defaultEntityId" defaultValue="">
+                <option value="">First selected</option>
+                {entities.map((ent) => (
+                  <option key={ent.id} value={ent.id}>
+                    {ent.code} / {ent.name}
                   </option>
                 ))}
               </select>
@@ -1521,13 +1856,32 @@ export function AdminPage() {
         <div className="panel">
           <h2>Approvals</h2>
           <p className="lede">
-            Invoices at or under this amount auto-approve on submit; above creates
-            approval tasks for admin/approver/ap_manager roles.
+            Configure approval policies and amount-band rules for all modules
+            from one place — invoices, contracts, purchase requests, purchase
+            orders, and accruals.
           </p>
+
+          <div className="tabs" style={{ marginBottom: '1rem' }}>
+            {APPROVAL_MODULES.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className={
+                  approvalModule === m.id
+                    ? 'tabs__btn tabs__btn--active'
+                    : 'tabs__btn'
+                }
+                onClick={() => setApprovalModule(m.id)}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
           {!policy && <p className="muted">Loading policy…</p>}
           {policy && (
             <form
-              key={policy.id}
+              key={`${approvalModule}-${policy.id}`}
               className="workspace-form"
               onSubmit={(e) => void onSavePolicy(e)}
             >
@@ -1535,21 +1889,35 @@ export function AdminPage() {
                 Policy name
                 <input name="name" defaultValue={policy.name} required />
               </label>
-              <label>
-                Auto-approve under (major currency)
-                <input
-                  name="autoApproveUnderMajor"
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  defaultValue={
-                    policy.autoApproveUnderMinor != null
-                      ? (policy.autoApproveUnderMinor / 100).toFixed(2)
-                      : ''
-                  }
-                  placeholder="e.g. 100.00"
-                />
-              </label>
+              {approvalModule === 'invoices' ? (
+                <label>
+                  Auto-approve under (major currency)
+                  <input
+                    name="autoApproveUnderMajor"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    defaultValue={
+                      policy.autoApproveUnderMinor != null
+                        ? (policy.autoApproveUnderMinor / 100).toFixed(2)
+                        : ''
+                    }
+                    placeholder="e.g. 100.00"
+                  />
+                </label>
+              ) : (
+                <label className="span-2">
+                  Approval stages (comma-separated)
+                  <input
+                    name="chainStages"
+                    defaultValue={(Array.isArray(policy.chainJson)
+                      ? policy.chainJson
+                      : []
+                    ).join(', ')}
+                    placeholder="Budget Owner, Finance, CFO"
+                  />
+                </label>
+              )}
               <label>
                 <input
                   type="checkbox"
@@ -1568,8 +1936,9 @@ export function AdminPage() {
 
           <h3>Amount / entity band rules</h3>
           <p className="muted">
-            Rules are evaluated by priority (highest first). First match wins. If
-            none match, the default policy threshold applies.
+            Rules are evaluated by priority (highest first) for{' '}
+            <strong>{approvalModule}</strong>. First match wins. If none match,
+            the default policy applies.
           </p>
           <div className="table-wrap">
             <table className="data-table">
@@ -1690,76 +2059,80 @@ export function AdminPage() {
             </div>
           </form>
 
-          <h3>Segregation of duties</h3>
-          <p className="muted">
-            Block self-approval and optional role-pair conflicts on invoice
-            submit/approve. Policy auto-approve thresholds still apply.
-          </p>
-          <ul className="task-list">
-            {sodPolicies.map((row) => (
-              <li key={row.id}>
-                <div>
-                  <strong>{row.ruleKey}</strong>
-                  <span className="muted">
-                    {row.ruleKey === 'role_pair_conflict'
-                      ? ` · ${row.submitterRole} → blocked approver ${row.approverRole}`
-                      : ' · submitter cannot approve own invoice'}
-                    {row.enabled ? '' : ' · disabled'}
-                  </span>
-                </div>
-                <div className="actions">
-                  <button
-                    type="button"
-                    className="secondary-btn"
-                    disabled={busy}
-                    onClick={() => void toggleSod(row)}
-                  >
-                    {row.enabled ? 'Disable' : 'Enable'}
+          {approvalModule === 'invoices' && (
+            <>
+              <h3>Segregation of duties</h3>
+              <p className="muted">
+                Block self-approval and optional role-pair conflicts on invoice
+                submit/approve. Policy auto-approve thresholds still apply.
+              </p>
+              <ul className="task-list">
+                {sodPolicies.map((row) => (
+                  <li key={row.id}>
+                    <div>
+                      <strong>{row.ruleKey}</strong>
+                      <span className="muted">
+                        {row.ruleKey === 'role_pair_conflict'
+                          ? ` · ${row.submitterRole} → blocked approver ${row.approverRole}`
+                          : ' · submitter cannot approve own invoice'}
+                        {row.enabled ? '' : ' · disabled'}
+                      </span>
+                    </div>
+                    <div className="actions">
+                      <button
+                        type="button"
+                        className="secondary-btn"
+                        disabled={busy}
+                        onClick={() => void toggleSod(row)}
+                      >
+                        {row.enabled ? 'Disable' : 'Enable'}
+                      </button>
+                      {row.ruleKey === 'role_pair_conflict' && (
+                        <button
+                          type="button"
+                          className="secondary-btn"
+                          disabled={busy}
+                          onClick={() => void deleteSod(row.id)}
+                        >
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              <form
+                className="workspace-form"
+                onSubmit={(e) => void onCreateRolePair(e)}
+              >
+                <label>
+                  Submitter role
+                  <select name="submitterRole" defaultValue="ap_clerk" required>
+                    {ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Cannot be approved by
+                  <select name="approverRole" defaultValue="ap_clerk" required>
+                    {ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="span-2 actions">
+                  <button type="submit" disabled={busy}>
+                    Add role-pair rule
                   </button>
-                  {row.ruleKey === 'role_pair_conflict' && (
-                    <button
-                      type="button"
-                      className="secondary-btn"
-                      disabled={busy}
-                      onClick={() => void deleteSod(row.id)}
-                    >
-                      Delete
-                    </button>
-                  )}
                 </div>
-              </li>
-            ))}
-          </ul>
-          <form
-            className="workspace-form"
-            onSubmit={(e) => void onCreateRolePair(e)}
-          >
-            <label>
-              Submitter role
-              <select name="submitterRole" defaultValue="ap_clerk" required>
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Cannot be approved by
-              <select name="approverRole" defaultValue="ap_clerk" required>
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="span-2 actions">
-              <button type="submit" disabled={busy}>
-                Add role-pair rule
-              </button>
-            </div>
-          </form>
+              </form>
+            </>
+          )}
         </div>
       )}
     </section>

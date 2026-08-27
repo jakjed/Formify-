@@ -56,6 +56,62 @@ export class PurchaseOrdersService {
     return withInvoiceTotals(row);
   }
 
+  async update(
+    tenantId: string,
+    id: string,
+    actorId: string,
+    input: {
+      title?: string;
+      notes?: string;
+      vendorId?: string | null;
+      entityId?: string | null;
+      totalMinor?: number;
+    },
+  ) {
+    const existing = await this.get(tenantId, id);
+    if (existing.status !== 'draft') {
+      throw new BadRequestException(
+        `Cannot update PO in status ${existing.status}`,
+      );
+    }
+    if (input.vendorId) {
+      const vendor = await this.prisma.vendor.findFirst({
+        where: { id: input.vendorId, tenantId },
+        select: { id: true },
+      });
+      if (!vendor) throw new BadRequestException('Vendor not found');
+    }
+    if (input.entityId) {
+      const entity = await this.prisma.entity.findFirst({
+        where: { id: input.entityId, tenantId },
+        select: { id: true },
+      });
+      if (!entity) throw new BadRequestException('Entity not found');
+    }
+
+    const row = await this.prisma.purchaseOrder.update({
+      where: { id },
+      data: {
+        title: input.title?.trim(),
+        notes: input.notes,
+        ...(input.vendorId !== undefined ? { vendorId: input.vendorId } : {}),
+        ...(input.entityId !== undefined ? { entityId: input.entityId } : {}),
+        ...(input.totalMinor !== undefined
+          ? { totalMinor: input.totalMinor }
+          : {}),
+      },
+      include: poInclude,
+    });
+    await this.audit.record({
+      tenantId,
+      actorId,
+      action: 'po.updated',
+      entityType: 'PurchaseOrder',
+      entityId: id,
+    });
+    return withInvoiceTotals(row);
+  }
+
   async create(
     tenantId: string,
     actorId: string,

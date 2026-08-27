@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../../shared/lib/api';
+import { formatMoney } from '../procure/shared';
 
 type Dashboard = {
   byStatus: Record<string, number>;
@@ -27,22 +28,60 @@ type Dashboard = {
   };
 };
 
+type CommandCenter = {
+  invoices: {
+    needsReview: number;
+    exceptions: number;
+    inApproval: number;
+    exportBacklog: number;
+  };
+  contracts: {
+    draft: number;
+    inApproval: number;
+    pendingSignature: number;
+    active: number;
+  };
+  purchaseRequests: {
+    draft: number;
+    inApproval: number;
+    approved: number;
+  };
+  purchaseOrders: {
+    draft: number;
+    issued: number;
+    remainingMinorSum: number;
+  };
+  accruals: {
+    draft: number;
+    inApproval: number;
+    approved: number;
+  };
+};
+
 export function OpsDashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
+  const [cc, setCc] = useState<CommandCenter | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    void apiFetch<Dashboard>('/api/ops/dashboard')
-      .then(setData)
+    void Promise.all([
+      apiFetch<Dashboard>('/api/ops/dashboard'),
+      apiFetch<CommandCenter>('/api/ops/command-center'),
+    ])
+      .then(([dash, center]) => {
+        setData(dash);
+        setCc(center);
+      })
       .catch((err: Error) => setError(err.message));
   }, []);
 
   return (
     <section className="page">
-      <p className="eyebrow">Operations</p>
-      <h1>Dashboard</h1>
+      <p className="eyebrow">Command view</p>
+      <h1>Operations</h1>
       <p className="lede">
-        Status mix, exception aging, export backlog, and billable usage.
+        Cross-module view across AP and Procure — status mix, exception aging,
+        and procure KPIs.
       </p>
 
       {error && <p className="error">{error}</p>}
@@ -50,8 +89,12 @@ export function OpsDashboardPage() {
 
       {data && (
         <>
+          <h2>Accounts payable</h2>
           <div className="stat-grid">
-            <Link className="stat-tile" to="/invoices?view=review&status=needs_review">
+            <Link
+              className="stat-tile"
+              to="/invoices?view=review&status=needs_review"
+            >
               <span className="stat-tile__label">Needs review</span>
               <span className="stat-tile__value">{data.openWork.needsReview}</span>
             </Link>
@@ -134,6 +177,54 @@ export function OpsDashboardPage() {
                 <li className="muted">No invoices yet.</li>
               )}
             </ul>
+          </div>
+        </>
+      )}
+
+      {cc && (
+        <>
+          <h2 style={{ marginTop: '1.75rem' }}>Procure</h2>
+          <div className="stat-grid">
+            <Link className="stat-tile" to="/contracts">
+              <span className="stat-tile__label">Contracts in approval</span>
+              <span className="stat-tile__value">{cc.contracts.inApproval}</span>
+            </Link>
+            <Link className="stat-tile" to="/contracts">
+              <span className="stat-tile__label">Pending signature</span>
+              <span className="stat-tile__value">
+                {cc.contracts.pendingSignature}
+              </span>
+            </Link>
+            <Link className="stat-tile" to="/purchase-requests">
+              <span className="stat-tile__label">PR in approval</span>
+              <span className="stat-tile__value">
+                {cc.purchaseRequests.inApproval}
+              </span>
+            </Link>
+            <Link className="stat-tile" to="/purchase-requests">
+              <span className="stat-tile__label">PR approved</span>
+              <span className="stat-tile__value">
+                {cc.purchaseRequests.approved}
+              </span>
+            </Link>
+            <Link className="stat-tile" to="/purchase-orders">
+              <span className="stat-tile__label">PO issued</span>
+              <span className="stat-tile__value">{cc.purchaseOrders.issued}</span>
+            </Link>
+            <Link className="stat-tile" to="/purchase-orders">
+              <span className="stat-tile__label">Unbilled open POs</span>
+              <span className="stat-tile__value">
+                {formatMoney(cc.purchaseOrders.remainingMinorSum)}
+              </span>
+            </Link>
+            <Link className="stat-tile" to="/purchase-orders">
+              <span className="stat-tile__label">Accruals in approval</span>
+              <span className="stat-tile__value">{cc.accruals.inApproval}</span>
+            </Link>
+            <Link className="stat-tile" to="/purchase-orders">
+              <span className="stat-tile__label">Accrual drafts</span>
+              <span className="stat-tile__value">{cc.accruals.draft}</span>
+            </Link>
           </div>
         </>
       )}

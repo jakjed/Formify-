@@ -4,11 +4,52 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
 import { InvoiceValidationService } from '../../invoice-rules/application/invoice-validation.service';
 import { NotificationsService } from '../../notifications/application/notifications.service';
 import { UsageService } from '../../usage/application/usage.service';
+import {
+  ACCRUAL_APPROVAL_CHAIN,
+  CONTRACT_APPROVAL_CHAIN,
+} from '../../contracts/application/procure-constants';
+
+const DEFAULT_MODULE_POLICIES: Record<
+  string,
+  {
+    name: string;
+    enabled: boolean;
+    autoApproveUnderMinor?: number | null;
+    chainJson?: string[];
+  }
+> = {
+  invoices: {
+    name: 'Default invoice policy',
+    enabled: true,
+    autoApproveUnderMinor: 10000,
+  },
+  contracts: {
+    name: 'Default contracts policy',
+    enabled: true,
+    chainJson: [...CONTRACT_APPROVAL_CHAIN],
+  },
+  purchase_requests: {
+    name: 'Default purchase request policy',
+    enabled: true,
+    chainJson: ['Budget Owner', 'Finance', 'CFO'],
+  },
+  purchase_orders: {
+    name: 'Default purchase order policy',
+    enabled: true,
+    chainJson: ['AP Manager'],
+  },
+  accruals: {
+    name: 'Default accruals policy',
+    enabled: true,
+    chainJson: [...ACCRUAL_APPROVAL_CHAIN],
+  },
+};
 
 @Injectable()
 export class WorkflowService {
@@ -20,34 +61,72 @@ export class WorkflowService {
     private readonly validation: InvoiceValidationService,
   ) {}
 
-  async getPolicy(tenantId: string) {
+  async getPolicy(tenantId: string, moduleKey = 'invoices') {
+    const key = moduleKey.trim() || 'invoices';
     let policy = await this.prisma.approvalPolicy.findUnique({
-      where: { tenantId },
+      where: { tenantId_moduleKey: { tenantId, moduleKey: key } },
     });
     if (!policy) {
+      const defaults: {
+        name: string;
+        enabled: boolean;
+        autoApproveUnderMinor?: number | null;
+        chainJson?: string[];
+      } = DEFAULT_MODULE_POLICIES[key] ?? {
+        name: `Default ${key} policy`,
+        enabled: true,
+      };
       policy = await this.prisma.approvalPolicy.create({
         data: {
           tenantId,
-          name: 'Default invoice policy',
-          enabled: true,
-          autoApproveUnderMinor: 10000,
+          moduleKey: key,
+          name: defaults.name,
+          enabled: defaults.enabled,
+          autoApproveUnderMinor: defaults.autoApproveUnderMinor ?? null,
+          chainJson: defaults.chainJson
+            ? (defaults.chainJson as Prisma.InputJsonValue)
+            : undefined,
         },
       });
     }
     return policy;
   }
 
+  /** Ensure default policies exist for known modules (idempotent). */
+  async seedModulePolicies(tenantId: string) {
+    const results = [];
+    for (const moduleKey of Object.keys(DEFAULT_MODULE_POLICIES)) {
+      results.push(await this.getPolicy(tenantId, moduleKey));
+    }
+    return results;
+  }
+
   async updatePolicy(
     tenantId: string,
-    data: { name?: string; enabled?: boolean; autoApproveUnderMinor?: number | null },
+    data: {
+      moduleKey?: string;
+      name?: string;
+      enabled?: boolean;
+      autoApproveUnderMinor?: number | null;
+      chainJson?: string[] | null;
+    },
   ) {
-    await this.getPolicy(tenantId);
+    const moduleKey = data.moduleKey?.trim() || 'invoices';
+    await this.getPolicy(tenantId, moduleKey);
     return this.prisma.approvalPolicy.update({
-      where: { tenantId },
+      where: { tenantId_moduleKey: { tenantId, moduleKey } },
       data: {
         name: data.name,
         enabled: data.enabled,
         autoApproveUnderMinor: data.autoApproveUnderMinor,
+        ...(data.chainJson !== undefined
+          ? {
+              chainJson:
+                data.chainJson === null
+                  ? Prisma.JsonNull
+                  : (data.chainJson as Prisma.InputJsonValue),
+            }
+          : {}),
       },
     });
   }
@@ -75,11 +154,12 @@ export class WorkflowService {
       throw new BadRequestException('Total amount is required before submit');
     }
 
-    const policy = await this.getPolicy(tenantId);
+    const policy = await this.getPolicy(tenantId, 'invoices');
     const matchedRule = await this.findMatchingRule(
       tenantId,
       ready.entityId,
       ready.totalMinor,
+      'invoices',
     );
 
     if (matchedRule?.autoApprove) {
@@ -201,9 +281,10 @@ export class WorkflowService {
     tenantId: string,
     entityId: string | null,
     totalMinor: number,
+    moduleKey = 'invoices',
   ) {
     const rules = await this.prisma.approvalRule.findMany({
-      where: { tenantId, enabled: true },
+      where: { tenantId, moduleKey, enabled: true },
       orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
     });
     return (
@@ -216,9 +297,12 @@ export class WorkflowService {
     );
   }
 
-  listRules(tenantId: string) {
+  listRules(tenantId: string, moduleKey?: string) {
     return this.prisma.approvalRule.findMany({
-      where: { tenantId },
+      where: {
+        tenantId,
+        ...(moduleKey ? { moduleKey } : {}),
+      },
       orderBy: [{ priority: 'desc' }, { name: 'asc' }],
     });
   }
@@ -227,6 +311,7 @@ export class WorkflowService {
     tenantId: string,
     data: {
       name: string;
+      moduleKey?: string;
       entityId?: string | null;
       minMinor?: number | null;
       maxMinor?: number | null;
@@ -249,9 +334,11 @@ export class WorkflowService {
       });
       if (!entity) throw new BadRequestException('Entity not found');
     }
+    const moduleKey = data.moduleKey?.trim() || 'invoices';
     return this.prisma.approvalRule.create({
       data: {
         tenantId,
+        moduleKey,
         name: data.name.trim(),
         entityId: data.entityId ?? null,
         minMinor: data.minMinor ?? null,
@@ -269,6 +356,7 @@ export class WorkflowService {
     id: string,
     data: {
       name?: string;
+      moduleKey?: string;
       entityId?: string | null;
       minMinor?: number | null;
       maxMinor?: number | null;
@@ -299,6 +387,7 @@ export class WorkflowService {
       where: { id },
       data: {
         name: data.name?.trim(),
+        moduleKey: data.moduleKey?.trim(),
         entityId: data.entityId,
         minMinor: data.minMinor,
         maxMinor: data.maxMinor,

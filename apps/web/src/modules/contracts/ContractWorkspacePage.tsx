@@ -7,8 +7,7 @@ import {
   ContractStatusBadge,
   DOC_CATEGORIES,
   Kv,
-  ProcureStepper,
-  ProgressBar,
+  ApprovalProgress,
   formatMoney,
 } from '../procure/shared';
 
@@ -223,9 +222,6 @@ export function ContractWorkspacePage() {
   const sig = asSig(contract.signatureJson);
   const allSigned = !!sig?.signers?.length && sig.signers.every((s) => s.status === 'Signed');
   const showApproval = contract.approvalStage > 0 || contract.status === 'in_approval';
-  const approvalPct = Math.round(
-    (Math.max(0, contract.approvalStage - 1) / CONTRACT_APPROVAL_CHAIN.length) * 100,
-  );
   const st = contract.status;
 
   return (
@@ -333,16 +329,10 @@ export function ContractWorkspacePage() {
         )}
 
         {showApproval && (
-          <div className="procure__card">
-            <div className="procure__card-head">
-              <div>
-                <h2 className="procure__card-title">Approval progress</h2>
-                <p className="procure__card-sub">Internal sign-off only — not an official signature.</p>
-              </div>
-            </div>
-            <ProgressBar value={approvalPct} />
-            <ProcureStepper chain={CONTRACT_APPROVAL_CHAIN} stage={contract.approvalStage} />
-          </div>
+          <ApprovalProgress
+            chain={CONTRACT_APPROVAL_CHAIN}
+            stage={contract.approvalStage || 1}
+          />
         )}
 
         {sig && (

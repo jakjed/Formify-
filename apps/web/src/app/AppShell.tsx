@@ -9,18 +9,46 @@ type EntityRow = { id: string; name: string; code: string };
 
 const ENTITY_KEY = 'aptora_entity_id';
 
-const BASE_LINKS = [
-  { to: '/', label: 'My Work', module: null as string | null },
-  { to: '/invoices', label: 'Invoices', module: 'invoices' },
-  { to: '/exceptions', label: 'Exceptions', module: 'invoices' },
-  { to: '/ops', label: 'Dashboard', module: 'invoices' },
-  { to: '/contracts', label: 'Contracts', module: 'contracts' },
-  { to: '/purchase-requests', label: 'Requests', module: 'purchase_requests' },
-  { to: '/purchase-orders', label: 'Orders', module: 'purchase_orders' },
-  { to: '/directory', label: 'Directory', module: null },
-  { to: '/integration', label: 'Integration Center', module: null },
-  { to: '/admin', label: 'Admin', module: null },
+type NavItem = {
+  to: string;
+  label: string;
+  module: string | null;
+  group?: 'command' | 'work' | 'platform';
+};
+
+const BASE_LINKS: NavItem[] = [
+  { to: '/', label: 'Command Center', module: null, group: 'command' },
+  { to: '/ops', label: 'Operations', module: null, group: 'command' },
+  { to: '/invoices', label: 'Invoices', module: 'invoices', group: 'work' },
+  { to: '/exceptions', label: 'Exceptions', module: 'invoices', group: 'work' },
+  { to: '/contracts', label: 'Contracts', module: 'contracts', group: 'work' },
+  {
+    to: '/purchase-requests',
+    label: 'Requests',
+    module: 'purchase_requests',
+    group: 'work',
+  },
+  {
+    to: '/purchase-orders',
+    label: 'Orders',
+    module: 'purchase_orders',
+    group: 'work',
+  },
+  { to: '/directory', label: 'Directory', module: null, group: 'platform' },
+  {
+    to: '/integration',
+    label: 'Integration Center',
+    module: null,
+    group: 'platform',
+  },
+  { to: '/admin', label: 'Admin', module: null, group: 'platform' },
 ];
+
+const GROUP_LABEL: Record<string, string> = {
+  command: 'Command',
+  work: 'Workspaces',
+  platform: 'Platform',
+};
 
 export function AppShell() {
   const navigate = useNavigate();
@@ -34,7 +62,6 @@ export function AppShell() {
 
   const enabled = useMemo(() => {
     const map = new Map(modules.map((m) => [m.moduleKey, m.enabled]));
-    // Default invoices on if license row missing (legacy tenants)
     if (!map.has('invoices')) map.set('invoices', true);
     return map;
   }, [modules]);
@@ -42,6 +69,16 @@ export function AppShell() {
   const links = BASE_LINKS.filter(
     (link) => !link.module || enabled.get(link.module) === true,
   );
+
+  const grouped = useMemo(() => {
+    const order: Array<NavItem['group']> = ['command', 'work', 'platform'];
+    return order
+      .map((group) => ({
+        group: group!,
+        items: links.filter((l) => l.group === group),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [links]);
 
   useEffect(() => {
     if (!getToken()) return;
@@ -98,62 +135,73 @@ export function AppShell() {
   return (
     <div className="shell">
       <aside className="shell__nav">
-        <div className="shell__brand">
-          <img
-            className="shell__brand-mark"
-            src="/brand/aptora-mark-64.png"
-            width={36}
-            height={36}
-            alt=""
-          />
-          <span>{PRODUCT_NAME}</span>
+        <div className="shell__nav-top">
+          <div className="shell__brand">
+            <img
+              className="shell__brand-mark"
+              src="/brand/aptora-mark-64.png"
+              width={36}
+              height={36}
+              alt=""
+            />
+            <span>{PRODUCT_NAME}</span>
+          </div>
+          {entities.length > 0 && (
+            <label className="shell__entity">
+              Entity
+              <select
+                value={entityId}
+                onChange={(e) => onEntityChange(e.target.value)}
+              >
+                {entities.map((ent) => (
+                  <option key={ent.id} value={ent.id}>
+                    {ent.code} — {ent.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <button
+            type="button"
+            className="shell__link shell__link--muted"
+            onClick={() => setPaletteOpen(true)}
+          >
+            Search (⌘K)
+          </button>
         </div>
-        {entities.length > 0 && (
-          <label className="shell__entity">
-            Entity
-            <select
-              value={entityId}
-              onChange={(e) => onEntityChange(e.target.value)}
-            >
-              {entities.map((ent) => (
-                <option key={ent.id} value={ent.id}>
-                  {ent.code} — {ent.name}
-                </option>
+
+        <nav className="shell__nav-scroll" aria-label="Primary">
+          {grouped.map((section) => (
+            <div key={section.group}>
+              <div className="shell__nav-group">{GROUP_LABEL[section.group]}</div>
+              {section.items.map((link) => (
+                <NavLink
+                  key={link.to}
+                  to={link.to}
+                  end={link.to === '/'}
+                  className={({ isActive }) =>
+                    isActive ? 'shell__link shell__link--active' : 'shell__link'
+                  }
+                >
+                  {link.label}
+                  {link.to === '/admin' && unread > 0 ? (
+                    <span className="nav-badge">{unread}</span>
+                  ) : null}
+                </NavLink>
               ))}
-            </select>
-          </label>
-        )}
-        <button
-          type="button"
-          className="shell__link shell__link--muted"
-          onClick={() => setPaletteOpen(true)}
-        >
-          Search (⌘K)
-        </button>
-        <nav>
-          {links.map((link) => (
-            <NavLink
-              key={link.to}
-              to={link.to}
-              end={link.to === '/'}
-              className={({ isActive }) =>
-                isActive ? 'shell__link shell__link--active' : 'shell__link'
-              }
-            >
-              {link.label}
-              {link.to === '/admin' && unread > 0 ? (
-                <span className="nav-badge">{unread}</span>
-              ) : null}
-            </NavLink>
+            </div>
           ))}
         </nav>
-        <button
-          type="button"
-          className="shell__link shell__link--muted shell__signout"
-          onClick={signOut}
-        >
-          Sign out
-        </button>
+
+        <div className="shell__nav-foot">
+          <button
+            type="button"
+            className="shell__link shell__link--muted shell__signout"
+            onClick={signOut}
+          >
+            Sign out
+          </button>
+        </div>
       </aside>
       <main className="shell__main">
         <Outlet />

@@ -198,8 +198,8 @@ Cross-cutting: delegation, escalation, audit, comments, attachments, versioning 
 
 ### IA (module-aware)
 
-- **My work** → **Invoices** (Phase 1) → Directory → Analytics → **Integration Center** → Admin  
-- Phase 2 adds Contracts, Requests, Orders when licensed  
+- **Command Center** → **Operations** → **Invoices** (Phase 1) → Contracts / Requests / Orders (when licensed) → Directory → **Integration Center** → Admin  
+- Admin Approvals configure policies per `moduleKey` (invoices + procure modules); users carry entity memberships  
 - Search: `Cmd/Ctrl+K`
 
 ### Patterns
@@ -215,7 +215,7 @@ Sortable/filterable worklists, saved views, bulk actions, keyboard, side-by-side
 
 ### Magical screens (Phase 1 priority)
 
-1. My Work  
+1. Command Center  
 2. Invoice workspace  
 3. Exception queue  
 4. Saved views  

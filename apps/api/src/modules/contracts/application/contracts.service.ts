@@ -89,6 +89,12 @@ export class ContractsService {
     return row;
   }
 
+  /** Resolve route param (uuid or number) to canonical contract id. */
+  private async resolveId(tenantId: string, idOrNumber: string) {
+    const row = await this.get(tenantId, idOrNumber);
+    return row.id;
+  }
+
   async create(
     tenantId: string,
     actorId: string,
@@ -169,6 +175,7 @@ export class ContractsService {
     data: ContractFieldInput,
   ) {
     const existing = await this.get(tenantId, id);
+    id = existing.id;
     if (existing.status === 'expired' || existing.status === 'cancelled') {
       throw new BadRequestException(
         `Cannot update contract in status ${existing.status}`,
@@ -213,6 +220,7 @@ export class ContractsService {
     },
   ) {
     const existing = await this.get(tenantId, id);
+    id = existing.id;
     if (existing.status !== 'active') {
       throw new BadRequestException('Only active contracts can be amended');
     }
@@ -271,6 +279,7 @@ export class ContractsService {
     endDate: string,
   ) {
     const existing = await this.get(tenantId, id);
+    id = existing.id;
     if (existing.status !== 'active') {
       throw new BadRequestException('Only active contracts can be renewed');
     }
@@ -303,6 +312,7 @@ export class ContractsService {
     status: ContractStatus,
   ) {
     const existing = await this.get(tenantId, id);
+    id = existing.id;
     const allowed: Record<ContractStatus, ContractStatus[]> = {
       draft: ['in_approval', 'cancelled'],
       in_approval: ['pending_signature', 'active', 'draft', 'cancelled'],
@@ -333,6 +343,7 @@ export class ContractsService {
 
   async sendForApproval(tenantId: string, id: string, actorId: string) {
     const existing = await this.get(tenantId, id);
+    id = existing.id;
     if (existing.status !== 'draft') {
       throw new BadRequestException(
         'Only draft contracts can be sent for approval',
@@ -355,6 +366,7 @@ export class ContractsService {
 
   async advanceApproval(tenantId: string, id: string, actorId: string) {
     const existing = await this.get(tenantId, id);
+    id = existing.id;
     if (existing.status !== 'in_approval') {
       throw new BadRequestException(
         'Only contracts in approval can be advanced',
@@ -404,6 +416,7 @@ export class ContractsService {
 
   async sendForSignature(tenantId: string, id: string, actorId: string) {
     const existing = await this.get(tenantId, id);
+    id = existing.id;
     if (existing.status !== 'pending_signature') {
       throw new BadRequestException(
         'Only contracts pending signature can be sent for signature',
@@ -445,6 +458,7 @@ export class ContractsService {
 
   async checkSignatureStatus(tenantId: string, id: string, actorId: string) {
     const existing = await this.get(tenantId, id);
+    id = existing.id;
     if (existing.status !== 'pending_signature') {
       throw new BadRequestException(
         'Signature status can only be checked for contracts pending signature',
@@ -490,6 +504,7 @@ export class ContractsService {
     opts?: { fileName?: string },
   ) {
     const existing = await this.get(tenantId, id);
+    id = existing.id;
     if (existing.status !== 'pending_signature') {
       throw new BadRequestException(
         'Only contracts pending signature can be completed',
@@ -546,7 +561,7 @@ export class ContractsService {
     actorId: string,
     input: { category: string; fileName: string },
   ) {
-    await this.get(tenantId, contractId);
+    const id = await this.resolveId(tenantId, contractId);
     const category = input.category.trim();
     if (
       !(CONTRACT_DOC_CATEGORIES as readonly string[]).includes(category)
@@ -562,7 +577,7 @@ export class ContractsService {
     const doc = await this.prisma.contractDocument.create({
       data: {
         tenantId,
-        contractId,
+        contractId: id,
         category,
         fileName,
       },
@@ -572,10 +587,10 @@ export class ContractsService {
       actorId,
       action: 'contract.document_added',
       entityType: 'Contract',
-      entityId: contractId,
+      entityId: id,
       meta: { documentId: doc.id, category, fileName },
     });
-    return this.get(tenantId, contractId);
+    return this.get(tenantId, id);
   }
 
   async removeDocument(
@@ -584,9 +599,9 @@ export class ContractsService {
     docId: string,
     actorId: string,
   ) {
-    await this.get(tenantId, contractId);
+    const id = await this.resolveId(tenantId, contractId);
     const doc = await this.prisma.contractDocument.findFirst({
-      where: { id: docId, tenantId, contractId },
+      where: { id: docId, tenantId, contractId: id },
     });
     if (!doc) throw new NotFoundException('Document not found');
     await this.prisma.contractDocument.delete({ where: { id: docId } });
@@ -595,14 +610,15 @@ export class ContractsService {
       actorId,
       action: 'contract.document_removed',
       entityType: 'Contract',
-      entityId: contractId,
+      entityId: id,
       meta: { documentId: docId, fileName: doc.fileName },
     });
-    return this.get(tenantId, contractId);
+    return this.get(tenantId, id);
   }
 
   async aiSummarize(tenantId: string, id: string) {
     const row = await this.get(tenantId, id);
+    id = row.id;
     const vendor = row.vendor?.name ?? 'the counterparty';
     const value =
       row.valueMinor != null
@@ -621,7 +637,8 @@ export class ContractsService {
   }
 
   async scanRedFlags(tenantId: string, id: string, actorId: string) {
-    await this.get(tenantId, id);
+    const existing = await this.get(tenantId, id);
+    id = existing.id;
     const flags: RedFlag[] = [
       {
         severity: 'High',
@@ -727,9 +744,9 @@ export class ContractsService {
   }
 
   async listComments(tenantId: string, contractId: string) {
-    await this.get(tenantId, contractId);
+    const id = await this.resolveId(tenantId, contractId);
     const rows = await this.prisma.contractComment.findMany({
-      where: { tenantId, contractId },
+      where: { tenantId, contractId: id },
       orderBy: { createdAt: 'asc' },
     });
     const authors = await this.loadAuthorMap(
@@ -751,7 +768,7 @@ export class ContractsService {
     authorId: string,
     body: string,
   ) {
-    await this.get(tenantId, contractId);
+    const id = await this.resolveId(tenantId, contractId);
     const trimmed = body.trim();
     if (!trimmed) {
       throw new BadRequestException('Comment body is required');
@@ -759,7 +776,7 @@ export class ContractsService {
     const comment = await this.prisma.contractComment.create({
       data: {
         tenantId,
-        contractId,
+        contractId: id,
         authorId,
         body: trimmed,
       },
@@ -769,7 +786,7 @@ export class ContractsService {
       actorId: authorId,
       action: 'contract.comment_added',
       entityType: 'Contract',
-      entityId: contractId,
+      entityId: id,
       meta: { commentId: comment.id },
     });
     const authors = await this.loadAuthorMap(tenantId, [authorId]);
@@ -783,11 +800,11 @@ export class ContractsService {
   }
 
   async getActivity(tenantId: string, contractId: string) {
-    await this.get(tenantId, contractId);
+    const id = await this.resolveId(tenantId, contractId);
     const [auditRows, comments] = await Promise.all([
-      this.audit.listForEntity(tenantId, 'Contract', contractId, 50),
+      this.audit.listForEntity(tenantId, 'Contract', id, 50),
       this.prisma.contractComment.findMany({
-        where: { tenantId, contractId },
+        where: { tenantId, contractId: id },
         orderBy: { createdAt: 'desc' },
         take: 50,
       }),
