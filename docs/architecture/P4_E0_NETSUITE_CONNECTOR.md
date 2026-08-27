@@ -25,4 +25,4 @@ Integration Center → Connect NetSuite form + Run sync / Disconnect when connec
 
 ## Next
 
-P4-E1 SuiteTalk runtime · P4-E2 QuickBooks Online
+P4-E1 SuiteTalk runtime ✅ · P4-E2 QuickBooks Online

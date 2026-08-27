@@ -181,7 +181,7 @@ export class IntegrationService {
         name: 'NetSuite',
         status: 'available',
         description:
-          'Push approved invoices as vendor-bill stubs. Mock connect for local/dev; live mode stores TBA/OAuth client settings (SuiteTalk call deferred).',
+          'Push approved invoices as vendor bills via SuiteTalk REST + TBA (mock or live).',
       },
       {
         key: 'quickbooks',
@@ -213,13 +213,27 @@ export class IntegrationService {
       id: row.id,
       packKey: row.packKey,
       status: row.status,
-      settings: row.settings,
+      settings: this.publicConnectorSettings(row.settings),
       connectedAt: row.connectedAt,
       disconnectedAt: row.disconnectedAt,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       hasCredentials: Boolean(row.credentialsHash),
     }));
+  }
+
+  private publicConnectorSettings(settings: unknown) {
+    const raw = (settings ?? {}) as Record<string, unknown>;
+    return {
+      mode: raw.mode ?? null,
+      accountId: raw.accountId ?? null,
+      baseUrl: raw.baseUrl ?? null,
+      clientIdSet: Boolean(raw.clientId || raw.clientIdSet),
+      tokenIdSet: Boolean(raw.tokenId || raw.tokenIdSet),
+      secretsSet: Boolean(
+        raw.secretsSet || (raw.clientSecret && raw.tokenSecret),
+      ),
+    };
   }
 
   async connectDemoErp(tenantId: string, userId: string) {
@@ -382,6 +396,8 @@ export class IntegrationService {
       clientSecret?: string;
       tokenId?: string;
       tokenSecret?: string;
+      /** Optional override for SuiteTalk base (tests / private gateway). */
+      baseUrl?: string;
     },
   ) {
     const mode = input.mode === 'live' ? 'live' : 'mock';
@@ -392,34 +408,46 @@ export class IntegrationService {
 
     let accessToken: string | undefined;
     let credentialsHash: string;
+    let settings: Prisma.InputJsonObject;
 
     if (mode === 'mock') {
       accessToken = `ns_${randomBytes(24).toString('base64url')}`;
       credentialsHash = hashSecret(accessToken);
+      settings = {
+        mode,
+        accountId,
+        clientIdSet: false,
+        tokenIdSet: false,
+        secretsSet: false,
+      };
     } else {
       const clientId = input.clientId?.trim();
       const clientSecret = input.clientSecret?.trim();
-      if (!clientId || !clientSecret) {
+      const tokenId = input.tokenId?.trim();
+      const tokenSecret = input.tokenSecret?.trim();
+      if (!clientId || !clientSecret || !tokenId || !tokenSecret) {
         throw new BadRequestException(
-          'live mode requires clientId and clientSecret (TBA consumer key/secret)',
+          'live mode requires clientId, clientSecret, tokenId, and tokenSecret (TBA)',
         );
       }
-      // Store hash of consumer + token material; SuiteTalk call deferred to later epic
-      const material = [
+      credentialsHash = hashSecret(
+        [clientId, clientSecret, tokenId, tokenSecret].join(':'),
+      );
+      settings = {
+        mode,
+        accountId,
         clientId,
         clientSecret,
-        input.tokenId?.trim() ?? '',
-        input.tokenSecret?.trim() ?? '',
-      ].join(':');
-      credentialsHash = hashSecret(material);
+        tokenId,
+        tokenSecret,
+        clientIdSet: true,
+        tokenIdSet: true,
+        secretsSet: true,
+        ...(input.baseUrl?.trim()
+          ? { baseUrl: input.baseUrl.trim() }
+          : {}),
+      };
     }
-
-    const settings = {
-      mode,
-      accountId,
-      clientIdSet: mode === 'live' ? Boolean(input.clientId?.trim()) : false,
-      tokenIdSet: mode === 'live' ? Boolean(input.tokenId?.trim()) : false,
-    } satisfies Prisma.InputJsonObject;
 
     const now = new Date();
     const row = await this.prisma.connectorConnection.upsert({
@@ -450,13 +478,13 @@ export class IntegrationService {
       id: row.id,
       packKey: row.packKey,
       status: row.status,
-      settings: row.settings,
+      settings: this.publicConnectorSettings(row.settings),
       connectedAt: row.connectedAt,
       ...(accessToken ? { accessToken } : {}),
       message:
         mode === 'mock'
           ? 'NetSuite connected in mock mode'
-          : 'NetSuite credentials stored (live SuiteTalk push still stubbed on sync)',
+          : 'NetSuite TBA credentials stored for SuiteTalk sync',
     };
   }
 
@@ -502,8 +530,25 @@ export class IntegrationService {
 
     const invoices = await this.prisma.invoice.findMany({
       where: { tenantId, status: 'approved' },
+      include: {
+        // vendor via vendorId lookup below
+      },
       orderBy: { approvedAt: 'asc' },
     });
+
+    const vendorIds = [
+      ...new Set(
+        invoices
+          .map((inv) => inv.vendorId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const vendors = vendorIds.length
+      ? await this.prisma.vendor.findMany({
+          where: { tenantId, id: { in: vendorIds } },
+        })
+      : [];
+    const vendorById = new Map(vendors.map((v) => [v.id, v]));
 
     const lines = [
       [
@@ -515,56 +560,207 @@ export class IntegrationService {
         'netsuite_account',
         'vendor_bill_external_id',
         'mode',
+        'http_status',
+        'netsuite_id',
+        'result',
       ].join(','),
     ];
-    for (const inv of invoices) {
-      lines.push(
-        [
-          inv.id,
-          csv(inv.invoiceNumber),
-          String(inv.totalMinor ?? ''),
-          csv(inv.currency),
-          inv.approvedAt?.toISOString() ?? '',
-          csv(accountId),
-          `NS-VB-${inv.id.slice(0, 8)}`,
-          mode,
-        ].join(','),
+
+    let okCount = 0;
+    const errors: string[] = [];
+    const syncedIds: string[] = [];
+
+    if (mode === 'live') {
+      const consumerKey =
+        typeof settings.clientId === 'string' ? settings.clientId : '';
+      const consumerSecret =
+        typeof settings.clientSecret === 'string' ? settings.clientSecret : '';
+      const tokenId =
+        typeof settings.tokenId === 'string' ? settings.tokenId : '';
+      const tokenSecret =
+        typeof settings.tokenSecret === 'string' ? settings.tokenSecret : '';
+      if (!consumerKey || !consumerSecret || !tokenId || !tokenSecret) {
+        throw new BadRequestException(
+          'NetSuite live connection is missing TBA credentials — reconnect',
+        );
+      }
+      const baseUrl =
+        typeof settings.baseUrl === 'string' ? settings.baseUrl : undefined;
+      const { NetsuiteSuiteTalkClient } = await import('./netsuite-client');
+      const client = new NetsuiteSuiteTalkClient(
+        {
+          accountId,
+          consumerKey,
+          consumerSecret,
+          tokenId,
+          tokenSecret,
+        },
+        baseUrl,
       );
+
+      for (const inv of invoices) {
+        const vendor = inv.vendorId ? vendorById.get(inv.vendorId) : undefined;
+        const externalId = `APTORA-${inv.id}`;
+        const totalMajor = (inv.totalMinor ?? 0) / 100;
+        try {
+          const result = await client.createVendorBill({
+            externalId,
+            tranDate:
+              inv.invoiceDate?.toISOString().slice(0, 10) ??
+              new Date().toISOString().slice(0, 10),
+            memo: inv.invoiceNumber
+              ? `Aptora invoice ${inv.invoiceNumber}`
+              : `Aptora invoice ${inv.id.slice(0, 8)}`,
+            currency: inv.currency,
+            totalMajor,
+            vendorExternalId: vendor?.externalId ?? vendor?.code ?? null,
+            vendorName: vendor?.name ?? inv.vendorNameRaw,
+          });
+          if (result.ok) {
+            okCount += 1;
+            syncedIds.push(inv.id);
+          } else {
+            errors.push(
+              `${inv.id}: HTTP ${result.status} ${result.body.slice(0, 200)}`,
+            );
+          }
+          lines.push(
+            [
+              inv.id,
+              csv(inv.invoiceNumber),
+              String(inv.totalMinor ?? ''),
+              csv(inv.currency),
+              inv.approvedAt?.toISOString() ?? '',
+              csv(accountId),
+              csv(externalId),
+              mode,
+              String(result.status),
+              csv(result.netsuiteId ?? ''),
+              result.ok ? 'ok' : 'error',
+            ].join(','),
+          );
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'request failed';
+          errors.push(`${inv.id}: ${msg}`);
+          lines.push(
+            [
+              inv.id,
+              csv(inv.invoiceNumber),
+              String(inv.totalMinor ?? ''),
+              csv(inv.currency),
+              inv.approvedAt?.toISOString() ?? '',
+              csv(accountId),
+              csv(externalId),
+              mode,
+              '',
+              '',
+              csv(msg),
+            ].join(','),
+          );
+        }
+      }
+    } else {
+      for (const inv of invoices) {
+        okCount += 1;
+        syncedIds.push(inv.id);
+        lines.push(
+          [
+            inv.id,
+            csv(inv.invoiceNumber),
+            String(inv.totalMinor ?? ''),
+            csv(inv.currency),
+            inv.approvedAt?.toISOString() ?? '',
+            csv(accountId),
+            `NS-VB-${inv.id.slice(0, 8)}`,
+            mode,
+            '200',
+            '',
+            'ok',
+          ].join(','),
+        );
+      }
     }
+
     const content = `${lines.join('\n')}\n`;
     const fileName = `netsuite-sync-${Date.now()}.csv`;
+    const failed = mode === 'live' && errors.length > 0 && okCount === 0;
 
     try {
+      if (failed) {
+        const storagePath = await this.writeArtifact(
+          tenantId,
+          fileName,
+          content,
+        );
+        const job = await this.prisma.integrationJob.create({
+          data: {
+            tenantId,
+            type: 'sync_netsuite',
+            status: 'failed',
+            fileName,
+            storagePath,
+            rowCount: okCount,
+            errorMessage: errors.slice(0, 5).join(' | ').slice(0, 2000),
+            createdById: userId,
+            finishedAt: new Date(),
+          },
+        });
+        throw new BadRequestException({
+          message: `NetSuite SuiteTalk sync failed for all ${invoices.length} invoice(s)`,
+          jobId: job.id,
+          errors: errors.slice(0, 10),
+        });
+      }
+
       const result = await this.finishExport({
         tenantId,
         userId,
         type: 'sync_netsuite',
         fileName,
         content,
-        rowCount: invoices.length,
+        rowCount: okCount,
         afterWrite: async () => {
+          if (syncedIds.length === 0) return;
           await this.prisma.invoice.updateMany({
             where: {
               tenantId,
-              status: 'approved',
+              id: { in: syncedIds },
               exportedAt: null,
             },
             data: { exportedAt: new Date() },
           });
         },
       });
+
+      // For partial live success, still succeed the job but include warnings
+      if (mode === 'live' && errors.length) {
+        await this.prisma.integrationJob.update({
+          where: { id: result.job.id },
+          data: {
+            errorMessage: `Partial: ${errors.length} failed. ${errors.slice(0, 3).join(' | ')}`.slice(
+              0,
+              2000,
+            ),
+          },
+        });
+      }
+
       return {
         job: result.job,
         packKey: NETSUITE_PACK_KEY,
         rowCount: result.rowCount,
         fileName: result.fileName,
         mode,
+        errors: errors.slice(0, 10),
         message:
           mode === 'mock'
             ? `Stub-pushed ${result.rowCount} vendor bill(s) to NetSuite (mock)`
-            : `Recorded ${result.rowCount} vendor bill stub(s) for account ${accountId} (live SuiteTalk deferred)`,
+            : errors.length
+              ? `SuiteTalk pushed ${okCount}/${invoices.length} vendor bill(s) to ${accountId} (${errors.length} failed)`
+              : `SuiteTalk pushed ${okCount} vendor bill(s) to ${accountId}`,
       };
     } catch (err) {
+      if (err instanceof BadRequestException) throw err;
       const job = await this.prisma.integrationJob.create({
         data: {
           tenantId,

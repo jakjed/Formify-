@@ -1,3 +1,3 @@
 # Integration
 
-Integration Center: template catalog, CSV import/export, **Demo ERP** + **NetSuite** connector runtime (mock/live credential connect + stub sync jobs), job history. Live SuiteTalk HTTP = P4-E1.
+Integration Center: template catalog, CSV import/export, **Demo ERP** + **NetSuite SuiteTalk** (TBA HMAC-SHA256 vendor bills), job history. QBO = P4-E2.

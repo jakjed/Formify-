@@ -54,6 +54,10 @@ class ConnectNetsuiteDto {
   @IsOptional()
   @IsString()
   tokenSecret?: string;
+
+  @IsOptional()
+  @IsString()
+  baseUrl?: string;
 }
 
 @ApiTags('integration')
