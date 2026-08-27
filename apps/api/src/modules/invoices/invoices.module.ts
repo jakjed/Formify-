@@ -4,9 +4,10 @@ import { InvoicesService } from './application/invoices.service';
 import { UsageModule } from '../usage/usage.module';
 import { WorkflowModule } from '../workflow/workflow.module';
 import { InvoiceRulesModule } from '../invoice-rules/invoice-rules.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-  imports: [UsageModule, WorkflowModule, InvoiceRulesModule],
+  imports: [UsageModule, WorkflowModule, InvoiceRulesModule, AuditModule],
   controllers: [InvoicesController],
   providers: [InvoicesService],
   exports: [InvoicesService],

@@ -28,6 +28,43 @@ type Invoice = {
 
 type Vendor = { id: string; code: string; name: string };
 
+type ActivityItem =
+  | {
+      id: string;
+      kind: 'audit';
+      at: string;
+      actorName: string | null;
+      action: string;
+    }
+  | {
+      id: string;
+      kind: 'comment';
+      at: string;
+      actorName: string | null;
+      body: string;
+    };
+
+type Comment = {
+  id: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
+};
+
+function formatAction(action: string) {
+  const labels: Record<string, string> = {
+    'invoice.updated': 'Updated invoice fields',
+    'invoice.uploaded': 'Uploaded document',
+    'invoice.captured_email': 'Captured via email',
+    'invoice.submitted': 'Submitted for approval',
+    'invoice.approved': 'Approved',
+    'invoice.rejected': 'Rejected',
+    'invoice.voided': 'Voided',
+    'invoice.exceptions_resolved': 'Resolved exceptions',
+  };
+  return labels[action] ?? action.replace(/\./g, ' ');
+}
+
 function toDateInput(value: string | null) {
   if (!value) return '';
   return value.slice(0, 10);
@@ -54,6 +91,9 @@ export function InvoiceWorkspacePage() {
     { code: string; message: string; blocking: boolean }[]
   >([]);
   const [duplicateOfId, setDuplicateOfId] = useState<string | null>(null);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentBody, setCommentBody] = useState('');
 
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [vendorNameRaw, setVendorNameRaw] = useState('');
@@ -66,24 +106,35 @@ export function InvoiceWorkspacePage() {
   const [total, setTotal] = useState('');
   const [notes, setNotes] = useState('');
 
+  async function loadSidePanels(invoiceId: string) {
+    const [validation, activityRows, commentRows] = await Promise.all([
+      apiFetch<{
+        issues: { code: string; message: string; blocking: boolean }[];
+        duplicateOfId: string | null;
+        blocking: boolean;
+        invoice: Invoice;
+      }>(`/api/invoices/${invoiceId}/validation`),
+      apiFetch<ActivityItem[]>(`/api/invoices/${invoiceId}/activity`),
+      apiFetch<Comment[]>(`/api/invoices/${invoiceId}/comments`),
+    ]);
+    setValidationIssues(validation.issues);
+    setDuplicateOfId(validation.duplicateOfId);
+    setInvoice(validation.invoice);
+    setActivity(activityRows);
+    setComments(commentRows);
+    return validation;
+  }
+
   useEffect(() => {
     if (!id) return;
     void (async () => {
       try {
-        const [inv, vendorList, validation] = await Promise.all([
-          apiFetch<Invoice>(`/api/invoices/${id}`),
+        const [validation, vendorList] = await Promise.all([
+          loadSidePanels(id),
           apiFetch<Vendor[]>('/api/vendors'),
-          apiFetch<{
-            issues: { code: string; message: string; blocking: boolean }[];
-            duplicateOfId: string | null;
-            invoice: Invoice;
-          }>(`/api/invoices/${id}/validation`),
         ]);
-        setInvoice(validation.invoice ?? inv);
         setVendors(vendorList);
-        setValidationIssues(validation.issues);
-        setDuplicateOfId(validation.duplicateOfId);
-        const current = validation.invoice ?? inv;
+        const current = validation.invoice;
         setInvoiceNumber(current.invoiceNumber ?? '');
         setVendorNameRaw(current.vendorNameRaw ?? '');
         setVendorId(current.vendorId ?? '');
@@ -122,15 +173,7 @@ export function InvoiceWorkspacePage() {
         }),
       });
       setInvoice(inv);
-      const validation = await apiFetch<{
-        issues: { code: string; message: string; blocking: boolean }[];
-        duplicateOfId: string | null;
-        blocking: boolean;
-        invoice: Invoice;
-      }>(`/api/invoices/${id}/validation`);
-      setValidationIssues(validation.issues);
-      setDuplicateOfId(validation.duplicateOfId);
-      setInvoice(validation.invoice);
+      const validation = await loadSidePanels(id);
       setMessage(
         validation.blocking
           ? 'Saved — blocking validation issues remain'
@@ -179,7 +222,25 @@ export function InvoiceWorkspacePage() {
       method: 'POST',
     });
     setInvoice(inv);
+    await loadSidePanels(id);
     setMessage('Exceptions marked resolved');
+  }
+
+  async function onAddComment(e: FormEvent) {
+    e.preventDefault();
+    if (!id || !commentBody.trim()) return;
+    setError(null);
+    try {
+      await apiFetch(`/api/invoices/${id}/comments`, {
+        method: 'POST',
+        body: JSON.stringify({ body: commentBody.trim() }),
+      });
+      setCommentBody('');
+      await loadSidePanels(id);
+      setMessage('Comment added');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Comment failed');
+    }
   }
 
   if (!invoice && !error) return <section className="page"><p>Loading…</p></section>;
@@ -318,6 +379,57 @@ export function InvoiceWorkspacePage() {
             </li>
           ))}
         </ul>
+      </div>
+
+      <div className="panel" style={{ marginTop: '1.5rem' }}>
+        <h2>Activity</h2>
+        {activity.length === 0 && <p className="muted">No activity yet.</p>}
+        <ul className="activity-feed">
+          {activity.map((item) => (
+            <li key={`${item.kind}-${item.id}`}>
+              <span className="activity-feed__time">
+                {new Date(item.at).toLocaleString()}
+              </span>
+              <span className="activity-feed__actor">
+                {item.actorName ?? 'System'}
+              </span>
+              {item.kind === 'comment' ? (
+                <p className="activity-feed__body">{item.body}</p>
+              ) : (
+                <p className="activity-feed__body">{formatAction(item.action)}</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="panel" style={{ marginTop: '1.5rem' }}>
+        <h2>Comments</h2>
+        {comments.length === 0 && <p className="muted">No comments yet.</p>}
+        <ul className="task-list">
+          {comments.map((c) => (
+            <li key={c.id}>
+              <div>
+                <strong>{c.authorName}</strong>
+                <span className="muted">
+                  {' '}
+                  · {new Date(c.createdAt).toLocaleString()}
+                </span>
+                <p>{c.body}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <form className="inline-form" onSubmit={(e) => void onAddComment(e)}>
+          <input
+            value={commentBody}
+            onChange={(e) => setCommentBody(e.target.value)}
+            placeholder="Add a comment…"
+            required
+            style={{ flex: 1, minWidth: '12rem' }}
+          />
+          <button type="submit">Post</button>
+        </form>
       </div>
     </section>
   );

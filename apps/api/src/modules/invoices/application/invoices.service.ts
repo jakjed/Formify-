@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InvoiceStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
+import { AuditService } from '../../audit/application/audit.service';
 import { InvoiceValidationService } from '../../invoice-rules/application/invoice-validation.service';
 import { UsageService } from '../../usage/application/usage.service';
 import { WorkflowService } from '../../workflow/application/workflow.service';
@@ -25,6 +26,7 @@ export class InvoicesService {
     private readonly usage: UsageService,
     private readonly workflow: WorkflowService,
     private readonly validation: InvoiceValidationService,
+    private readonly audit: AuditService,
   ) {}
 
   list(tenantId: string, query: InvoiceListQuery = {}) {
@@ -248,6 +250,7 @@ export class InvoicesService {
       taxMinor?: number | null;
       totalMinor?: number | null;
       notes?: string | null;
+      actorUserId?: string;
     },
   ) {
     await this.get(tenantId, id);
@@ -275,7 +278,124 @@ export class InvoicesService {
       },
     });
     await this.validation.syncExceptions(tenantId, id);
+    await this.audit.record({
+      tenantId,
+      actorId: data.actorUserId,
+      action: 'invoice.updated',
+      entityType: 'Invoice',
+      entityId: id,
+    });
     return this.get(tenantId, id);
+  }
+
+  async listComments(tenantId: string, invoiceId: string) {
+    await this.get(tenantId, invoiceId);
+    const rows = await this.prisma.invoiceComment.findMany({
+      where: { tenantId, invoiceId },
+      orderBy: { createdAt: 'asc' },
+    });
+    const authors = await this.loadAuthorMap(
+      tenantId,
+      rows.map((r) => r.authorId),
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      authorId: row.authorId,
+      authorName: authors.get(row.authorId) ?? 'Unknown',
+      body: row.body,
+      createdAt: row.createdAt.toISOString(),
+    }));
+  }
+
+  async addComment(
+    tenantId: string,
+    invoiceId: string,
+    authorId: string,
+    body: string,
+  ) {
+    await this.get(tenantId, invoiceId);
+    const trimmed = body.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Comment body is required');
+    }
+    const comment = await this.prisma.invoiceComment.create({
+      data: {
+        tenantId,
+        invoiceId,
+        authorId,
+        body: trimmed,
+      },
+    });
+    await this.audit.record({
+      tenantId,
+      actorId: authorId,
+      action: 'invoice.comment_added',
+      entityType: 'Invoice',
+      entityId: invoiceId,
+      meta: { commentId: comment.id },
+    });
+    const authors = await this.loadAuthorMap(tenantId, [authorId]);
+    return {
+      id: comment.id,
+      authorId: comment.authorId,
+      authorName: authors.get(authorId) ?? 'Unknown',
+      body: comment.body,
+      createdAt: comment.createdAt.toISOString(),
+    };
+  }
+
+  async getActivity(tenantId: string, invoiceId: string) {
+    await this.get(tenantId, invoiceId);
+    const [auditRows, comments] = await Promise.all([
+      this.audit.listForEntity(tenantId, 'Invoice', invoiceId, 50),
+      this.prisma.invoiceComment.findMany({
+        where: { tenantId, invoiceId },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
+    ]);
+    const authors = await this.loadAuthorMap(
+      tenantId,
+      [
+        ...auditRows.map((r) => r.actorId).filter(Boolean),
+        ...comments.map((c) => c.authorId),
+      ] as string[],
+    );
+
+    const auditItems = auditRows
+      .filter((row) => row.action !== 'invoice.comment_added')
+      .map((row) => ({
+      id: row.id,
+      kind: 'audit' as const,
+      at: row.createdAt.toISOString(),
+      actorId: row.actorId,
+      actorName: row.actorId ? authors.get(row.actorId) ?? null : null,
+      action: row.action,
+      meta: row.meta,
+    }));
+
+    const commentItems = comments.map((row) => ({
+      id: row.id,
+      kind: 'comment' as const,
+      at: row.createdAt.toISOString(),
+      actorId: row.authorId,
+      actorName: authors.get(row.authorId) ?? null,
+      body: row.body,
+    }));
+
+    return [...auditItems, ...commentItems].sort(
+      (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime(),
+    );
+  }
+
+  private async loadAuthorMap(tenantId: string, userIds: string[]) {
+    const unique = [...new Set(userIds.filter(Boolean))];
+    if (unique.length === 0) return new Map<string, string>();
+    const users = await this.prisma.user.findMany({
+      where: { tenantId, id: { in: unique } },
+      select: { id: true, displayName: true },
+    });
+    return new Map(users.map((u) => [u.id, u.displayName]));
   }
 
   async validate(tenantId: string, id: string) {
@@ -285,7 +405,11 @@ export class InvoicesService {
     return { ...result, invoice };
   }
 
-  async resolveExceptions(tenantId: string, id: string) {
+  async resolveExceptions(
+    tenantId: string,
+    id: string,
+    actorUserId?: string,
+  ) {
     await this.get(tenantId, id);
     await this.prisma.invoiceException.updateMany({
       where: { invoiceId: id, resolved: false },
@@ -300,6 +424,13 @@ export class InvoicesService {
         data: { status: 'needs_review' },
       });
     }
+    await this.audit.record({
+      tenantId,
+      actorId: actorUserId,
+      action: 'invoice.exceptions_resolved',
+      entityType: 'Invoice',
+      entityId: id,
+    });
     return this.get(tenantId, id);
   }
 
@@ -358,9 +489,9 @@ export class InvoicesService {
     return updated;
   }
 
-  async void(tenantId: string, id: string) {
+  async void(tenantId: string, id: string, actorUserId?: string) {
     await this.get(tenantId, id);
-    return this.prisma.invoice.update({
+    const updated = await this.prisma.invoice.update({
       where: { id },
       data: { status: 'void' },
       include: {
@@ -369,6 +500,14 @@ export class InvoicesService {
         lines: { orderBy: { lineNo: 'asc' } },
       },
     });
+    await this.audit.record({
+      tenantId,
+      actorId: actorUserId,
+      action: 'invoice.voided',
+      entityType: 'Invoice',
+      entityId: id,
+    });
+    return updated;
   }
 }
 

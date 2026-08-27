@@ -14,7 +14,7 @@ import {
   CurrentUser,
 } from '../../../common/current-user.decorator';
 import type { RequestUser } from '../../identity/domain/identity.types';
-import { UpdateInvoiceDto } from './invoices.dto';
+import { UpdateInvoiceDto, CreateInvoiceCommentDto } from './invoices.dto';
 import { RequireScopes } from '../../../common/scopes.decorator';
 
 @Controller('invoices')
@@ -76,6 +76,29 @@ export class InvoicesController {
     return this.invoices.validate(tenantId, id);
   }
 
+  @Get(':id/comments')
+  @RequireScopes('invoices:read')
+  comments(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
+    return this.invoices.listComments(tenantId, id);
+  }
+
+  @Post(':id/comments')
+  @RequireScopes('invoices:write')
+  addComment(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: CreateInvoiceCommentDto,
+  ) {
+    return this.invoices.addComment(tenantId, id, user.id, dto.body);
+  }
+
+  @Get(':id/activity')
+  @RequireScopes('invoices:read')
+  activity(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
+    return this.invoices.getActivity(tenantId, id);
+  }
+
   @Get(':id')
   @RequireScopes('invoices:read')
   get(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
@@ -86,16 +109,24 @@ export class InvoicesController {
   @RequireScopes('invoices:write')
   update(
     @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Param('id') id: string,
     @Body() dto: UpdateInvoiceDto,
   ) {
-    return this.invoices.update(tenantId, id, dto);
+    return this.invoices.update(tenantId, id, {
+      ...dto,
+      actorUserId: user.id,
+    });
   }
 
   @Post(':id/resolve-exceptions')
   @RequireScopes('invoices:write')
-  resolve(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
-    return this.invoices.resolveExceptions(tenantId, id);
+  resolve(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.invoices.resolveExceptions(tenantId, id, user.id);
   }
 
   @Post(':id/submit')
@@ -116,7 +147,11 @@ export class InvoicesController {
 
   @Post(':id/void')
   @RequireScopes('invoices:write')
-  void(@CurrentTenantId() tenantId: string, @Param('id') id: string) {
-    return this.invoices.void(tenantId, id);
+  void(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.invoices.void(tenantId, id, user.id);
   }
 }

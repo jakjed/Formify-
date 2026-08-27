@@ -191,6 +191,36 @@
   color: var(--aptora-ink);
 }
 
+.activity-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.activity-feed li {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--aptora-border);
+}
+
+.activity-feed__time {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--aptora-muted);
+}
+
+.activity-feed__actor {
+  display: block;
+  font-weight: 600;
+  margin-top: 0.15rem;
+}
+
+.activity-feed__body {
+  margin: 0.35rem 0 0;
+  color: var(--aptora-ink);
+}
+
 .shell__main {
   padding: 2.5rem 2rem;
 }

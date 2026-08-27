@@ -26,6 +26,19 @@ export class AuditService {
     });
   }
 
+  listForEntity(
+    tenantId: string,
+    entityType: string,
+    entityId: string,
+    limit = 50,
+  ) {
+    return this.prisma.auditEvent.findMany({
+      where: { tenantId, entityType, entityId },
+      orderBy: { createdAt: 'desc' },
+      take: Math.min(limit, 100),
+    });
+  }
+
   list(tenantId: string, limit = 100) {
     return this.prisma.auditEvent.findMany({
       where: { tenantId },
