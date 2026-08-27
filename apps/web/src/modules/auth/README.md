@@ -1,1 +1,1 @@
-Login, invite accept, password reset.
+Login, invite accept (`/invite/:token`), password reset (`/reset`).

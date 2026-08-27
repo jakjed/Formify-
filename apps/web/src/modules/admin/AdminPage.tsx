@@ -56,6 +56,8 @@ type UserRow = {
   email: string;
   displayName: string;
   role: string;
+  status: string;
+  lockedUntil: string | null;
   createdAt: string;
 };
 
@@ -107,6 +109,7 @@ export function AdminPage() {
   const [scopes, setScopes] = useState<string[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [newKeyToken, setNewKeyToken] = useState<string | null>(null);
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -196,6 +199,34 @@ export function AdminPage() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Create user failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onInviteUser(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    setInviteLink(null);
+    try {
+      const invited = await apiFetch<{ acceptPath: string }>('/api/users/invite', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: data.get('email'),
+          displayName: data.get('displayName'),
+          role: data.get('role'),
+        }),
+      });
+      form.reset();
+      setInviteLink(invited.acceptPath);
+      setMessage('Invite created — copy the link once');
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invite failed');
     } finally {
       setBusy(false);
     }
@@ -322,6 +353,11 @@ export function AdminPage() {
       {tab === 'users' && (
         <div className="panel">
           <h2>Users</h2>
+          {inviteLink && (
+            <p className="ok">
+              Invite link (copy once): <code>{inviteLink}</code>
+            </p>
+          )}
           <ul className="task-list">
             {users.map((u) => (
               <li key={u.id}>
@@ -329,12 +365,40 @@ export function AdminPage() {
                   <strong>{u.displayName}</strong>
                   <span className="muted">
                     {' '}
-                    · {u.email} · {u.role}
+                    · {u.email} · {u.role} · {u.status}
+                    {u.lockedUntil ? ` · locked until ${u.lockedUntil}` : ''}
                   </span>
                 </div>
               </li>
             ))}
           </ul>
+          <h3>Invite user</h3>
+          <form className="workspace-form" onSubmit={(e) => void onInviteUser(e)}>
+            <label>
+              Display name
+              <input name="displayName" required minLength={2} />
+            </label>
+            <label>
+              Email
+              <input name="email" type="email" required />
+            </label>
+            <label>
+              Role
+              <select name="role" defaultValue="ap_clerk">
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="span-2 actions">
+              <button type="submit" disabled={busy}>
+                Send invite
+              </button>
+            </div>
+          </form>
+          <h3>Create user (with password)</h3>
           <form className="workspace-form" onSubmit={(e) => void onCreateUser(e)}>
             <label>
               Display name

@@ -68,6 +68,8 @@ export function LoginPage() {
         </button>
         <p className="muted">
           Need a tenant? <Link to="/bootstrap">Bootstrap workspace</Link>
+          {' · '}
+          <Link to="/reset">Forgot password</Link>
         </p>
       </form>
     </div>

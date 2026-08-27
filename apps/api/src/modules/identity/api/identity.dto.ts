@@ -55,6 +55,46 @@ export class CreateTenantUserDto {
   role!: 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
 }
 
+export class InviteUserDto {
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  @MinLength(2)
+  displayName!: string;
+
+  @IsIn(['admin', 'ap_manager', 'ap_clerk', 'approver'])
+  role!: 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
+}
+
+export class AcceptInviteDto {
+  @IsString()
+  @MinLength(16)
+  token!: string;
+
+  @IsString()
+  @MinLength(8)
+  password!: string;
+}
+
+export class PasswordResetRequestDto {
+  @IsUUID()
+  tenantId!: string;
+
+  @IsEmail()
+  email!: string;
+}
+
+export class PasswordResetConfirmDto {
+  @IsString()
+  @MinLength(16)
+  token!: string;
+
+  @IsString()
+  @MinLength(8)
+  password!: string;
+}
+
 export class UpdateTenantUserDto {
   @IsOptional()
   @IsString()

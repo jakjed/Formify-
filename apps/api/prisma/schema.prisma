@@ -19,6 +19,12 @@ enum UserRole {
   approver
 }
 
+enum UserStatus {
+  invited
+  active
+  locked
+}
+
 enum AuthProviderType {
   local
   oidc
@@ -58,6 +64,8 @@ model Tenant {
   auditEvents    AuditEvent[]
   apiKeys        ApiKey[]
   invoiceComments InvoiceComment[]
+  userInvites    UserInvite[]
+  passwordResets PasswordResetToken[]
 }
 
 model ModuleLicense {
@@ -85,19 +93,57 @@ model Entity {
 }
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  tenantId     String   @db.Uuid
-  email        String
-  displayName  String
-  passwordHash String
-  role         UserRole @default(admin)
-  createdAt    DateTime @default(now())
+  id               String     @id @default(uuid()) @db.Uuid
+  tenantId         String     @db.Uuid
+  email            String
+  displayName      String
+  passwordHash     String?
+  role             UserRole   @default(admin)
+  status           UserStatus @default(active)
+  failedLoginCount Int        @default(0)
+  lockedUntil      DateTime?
+  createdAt        DateTime   @default(now())
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  sessions Session[]
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  sessions       Session[]
+  invites        UserInvite[]
+  passwordResets PasswordResetToken[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
+}
+
+model UserInvite {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  userId      String    @db.Uuid
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  invitedById String?   @db.Uuid
+  createdAt   DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
 }
 
 model Session {

@@ -24,6 +24,12 @@ Formerly working name: Formify.
 - [docs/architecture/E2_CAPTURE.md](docs/architecture/E2_CAPTURE.md) — capture upload + invoice workspace
 - [docs/architecture/E3_WORKFLOW_EXPORT.md](docs/architecture/E3_WORKFLOW_EXPORT.md) — approvals + Integration Center export
 - [docs/architecture/E4_IMPORT_TEXTRACT.md](docs/architecture/E4_IMPORT_TEXTRACT.md) — CSV import + optional Textract
+- [docs/architecture/E5_EMAIL_NOTIFY_AUDIT.md](docs/architecture/E5_EMAIL_NOTIFY_AUDIT.md) — email capture, notifications, audit
+- [docs/architecture/E6_ADMIN_APIKEYS_USAGE.md](docs/architecture/E6_ADMIN_APIKEYS_USAGE.md) — admin users, API keys, usage
+- [docs/architecture/E7_WORKLIST_DASHBOARD.md](docs/architecture/E7_WORKLIST_DASHBOARD.md) — worklist, exceptions, ops
+- [docs/architecture/E8_DUP_VALIDATION.md](docs/architecture/E8_DUP_VALIDATION.md) — duplicate detection + validation
+- [docs/architecture/E9_COMMENTS_ACTIVITY.md](docs/architecture/E9_COMMENTS_ACTIVITY.md) — comments + activity timeline
+- [docs/architecture/E10_INVITE_RESET.md](docs/architecture/E10_INVITE_RESET.md) — invites, password reset, lockout
 
 ## Workspace
 

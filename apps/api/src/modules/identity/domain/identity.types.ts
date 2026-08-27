@@ -9,13 +9,18 @@ export type AuthProviderConfig = {
 
 export type UserRole = 'admin' | 'ap_manager' | 'ap_clerk' | 'approver';
 
+export type UserStatus = 'invited' | 'active' | 'locked';
+
 export type UserRecord = {
   id: string;
   tenantId: string;
   email: string;
   displayName: string;
-  passwordHash: string;
+  passwordHash: string | null;
   role: UserRole;
+  status: UserStatus;
+  failedLoginCount: number;
+  lockedUntil: string | null;
   createdAt: string;
 };
 
