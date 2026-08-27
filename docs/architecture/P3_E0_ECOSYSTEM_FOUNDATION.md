@@ -24,4 +24,4 @@ Headers on delivery: `X-Aptora-Event`, `X-Aptora-Signature: sha256=…`
 
 ## Next
 
-P3-E1 SSO OIDC ✅ · P3-E2 Partner OAuth ✅ · P3-E3 SCIM · P3-E4 Connector runtime
+P3-E1 SSO OIDC ✅ · P3-E2 Partner OAuth ✅ · P3-E3 SCIM ✅ · P3-E4 Connector runtime

@@ -1,10 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { setupOpenApi } from './openapi';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
   app.setGlobalPrefix('api');
   app.enableCors({
     origin: process.env.WEB_ORIGIN?.split(',') ?? [
@@ -13,6 +16,12 @@ async function bootstrap() {
     ],
     credentials: true,
   });
+  // Accept SCIM content-type used by IdPs (Entra/Okta)
+  app.useBodyParser('json', {
+    type: ['application/json', 'application/scim+json'],
+    limit: '2mb',
+  });
+  app.useBodyParser('urlencoded', { extended: true });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

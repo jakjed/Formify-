@@ -38,4 +38,4 @@ Tenant-scoped OAuth2 **client credentials** apps for partners/machines, with the
 
 ## Next
 
-P3-E3 SCIM · P3-E4 Connector runtime · P3-E5 Advanced SoD
+P3-E3 SCIM ✅ · P3-E4 Connector runtime · P3-E5 Advanced SoD
