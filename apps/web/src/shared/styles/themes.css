@@ -115,3 +115,243 @@
 [data-aptora-theme='vivid'] .eyebrow {
   color: var(--aptora-brand);
 }
+
+/* —— Electric: wild saturated violet ↔ magenta ↔ cyan (disciplined, not rainbow) —— */
+
+[data-aptora-theme='electric'] {
+  --aptora-ink: #1a0a2e;
+  --aptora-ink-soft: #4a2468;
+  --aptora-paper: #fdf2f8;
+  --aptora-paper-deep: #fae8ff;
+  --aptora-surface: #ffffff;
+  --aptora-surface-tint: #fdf4ff;
+  --aptora-muted: #7c6494;
+  --aptora-border: rgb(168 85 247 / 26%);
+  --aptora-border-strong: rgb(192 38 211 / 38%);
+  --aptora-brand: #c026d3;
+  --aptora-brand-bright: #e879f9;
+  --aptora-teal: #06b6d4;
+  --aptora-teal-deep: #0891b2;
+  --aptora-teal-hover: #22d3ee;
+  --aptora-teal-glow: rgb(192 38 211 / 38%);
+  --aptora-forest: #86198f;
+  --aptora-sage: #a855f7;
+  --aptora-sky: #0891b2;
+  --aptora-success: #059669;
+  --aptora-success-soft: #ecfdf5;
+  --aptora-warning: #ea580c;
+  --aptora-warning-soft: #fff7ed;
+  --aptora-danger: #e11d48;
+  --aptora-danger-soft: #fff1f2;
+  --aptora-info: #0891b2;
+  --aptora-info-soft: #ecfeff;
+  --aptora-amber: #f97316;
+  --aptora-amber-soft: #ffedd5;
+  --aptora-shadow:
+    0 2px 6px rgb(109 40 217 / 10%),
+    0 10px 28px rgb(190 24 93 / 12%);
+  --aptora-shadow-lift:
+    0 8px 22px rgb(192 38 211 / 22%),
+    0 18px 44px rgb(109 40 217 / 16%);
+  --aptora-focus-ring: 0 0 0 3px rgb(232 121 249 / 42%);
+}
+
+[data-aptora-theme='electric'] .shell {
+  background:
+    radial-gradient(920px 520px at -6% -8%, rgb(192 38 211 / 32%), transparent 56%),
+    radial-gradient(780px 460px at 102% 4%, rgb(6 182 212 / 26%), transparent 52%),
+    radial-gradient(680px 400px at 62% 108%, rgb(219 39 119 / 18%), transparent 54%),
+    linear-gradient(158deg, #fdf2f8 0%, #faf5ff 42%, #ecfeff 100%);
+}
+
+[data-aptora-theme='electric'] .shell__nav {
+  background: linear-gradient(168deg, #5b21b6 0%, #86198f 48%, #9d174d 100%);
+  border-right-color: rgb(232 121 249 / 32%);
+  box-shadow:
+    inset -1px 0 0 rgb(255 255 255 / 8%),
+    4px 0 28px rgb(91 33 182 / 18%);
+}
+
+[data-aptora-theme='electric'] .shell__brand span {
+  color: #fdf4ff;
+}
+
+[data-aptora-theme='electric'] .shell__collapse-btn {
+  background: rgb(255 255 255 / 12%);
+  border-color: rgb(244 114 182 / 35%);
+  color: #fdf4ff;
+}
+
+[data-aptora-theme='electric'] .shell__entity select {
+  background: rgb(255 255 255 / 10%);
+  border-color: rgb(244 114 182 / 35%);
+  color: #fdf4ff;
+}
+
+[data-aptora-theme='electric'] .shell__nav-group {
+  color: rgb(250 232 255 / 55%);
+}
+
+[data-aptora-theme='electric'] .shell__link {
+  color: rgb(250 232 255 / 88%);
+}
+
+[data-aptora-theme='electric'] .shell__link:hover {
+  background: rgb(255 255 255 / 12%);
+  color: #ffffff;
+}
+
+[data-aptora-theme='electric'] .shell__link--active {
+  background: linear-gradient(
+    95deg,
+    rgb(255 255 255 / 20%) 0%,
+    rgb(244 114 182 / 22%) 100%
+  );
+  color: #ffffff;
+  box-shadow:
+    inset 0 0 0 1px rgb(244 114 182 / 45%),
+    0 4px 16px rgb(190 24 93 / 22%);
+}
+
+[data-aptora-theme='electric'] .shell__link--muted {
+  color: rgb(250 232 255 / 72%);
+}
+
+[data-aptora-theme='electric'] .user-menu__panel {
+  background: #2e1065;
+  border-color: rgb(232 121 249 / 35%);
+  color: #fdf4ff;
+}
+
+[data-aptora-theme='electric'] .user-menu__name {
+  color: #fdf4ff;
+}
+
+[data-aptora-theme='electric'] .user-menu__email {
+  color: rgb(250 232 255 / 65%);
+}
+
+[data-aptora-theme='electric'] .user-menu__item {
+  color: rgb(250 232 255 / 92%);
+}
+
+[data-aptora-theme='electric'] .user-menu__item:hover {
+  background: rgb(255 255 255 / 10%);
+  color: #ffffff;
+}
+
+[data-aptora-theme='electric'] .user-menu__theme strong {
+  color: #fdf4ff;
+}
+
+[data-aptora-theme='electric'] .panel {
+  background: linear-gradient(
+    155deg,
+    rgb(255 255 255 / 96%) 0%,
+    rgb(250 232 255 / 55%) 100%
+  );
+  border-color: rgb(192 38 211 / 22%);
+}
+
+[data-aptora-theme='electric'] .stat-tile {
+  background: linear-gradient(145deg, #ffffff 0%, rgb(253 244 255 / 92%) 100%);
+  border-color: rgb(168 85 247 / 28%);
+  box-shadow: var(--aptora-shadow);
+}
+
+[data-aptora-theme='electric'] .procure__kpi {
+  background: linear-gradient(145deg, #ffffff 0%, rgb(236 254 255 / 65%) 100%);
+  border-color: rgb(6 182 212 / 26%);
+}
+
+[data-aptora-theme='electric'] .stat-orb {
+  background: rgb(255 255 255 / 88%);
+}
+
+[data-aptora-theme='electric'] .stat-orb--teal {
+  background: linear-gradient(145deg, #f0abfc 0%, #ffffff 58%);
+  border-color: rgb(192 38 211 / 35%);
+}
+
+[data-aptora-theme='electric'] .stat-orb--teal::after {
+  background: radial-gradient(circle, rgb(232 121 249 / 75%), transparent 68%);
+}
+
+[data-aptora-theme='electric'] .stat-orb--amber {
+  background: linear-gradient(145deg, #fbcfe8 0%, #ffffff 58%);
+  border-color: rgb(219 39 119 / 32%);
+}
+
+[data-aptora-theme='electric'] .stat-orb--amber::after {
+  background: radial-gradient(circle, rgb(244 114 182 / 70%), transparent 68%);
+}
+
+[data-aptora-theme='electric'] .stat-orb--sky {
+  background: linear-gradient(145deg, #a5f3fc 0%, #ffffff 58%);
+  border-color: rgb(6 182 212 / 35%);
+}
+
+[data-aptora-theme='electric'] .stat-orb--sky::after {
+  background: radial-gradient(circle, rgb(34 211 238 / 68%), transparent 68%);
+}
+
+[data-aptora-theme='electric'] .stat-orb--forest {
+  background: linear-gradient(145deg, #e9d5ff 0%, #ffffff 58%);
+  border-color: rgb(147 51 234 / 30%);
+}
+
+[data-aptora-theme='electric'] .btn--primary {
+  background: linear-gradient(128deg, #c026d3 0%, #db2777 52%, #e11d48 100%);
+  border-color: transparent;
+  box-shadow: 0 6px 20px rgb(219 39 119 / 38%);
+  color: #ffffff;
+}
+
+[data-aptora-theme='electric'] .btn--primary:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 8px 26px rgb(219 39 119 / 45%);
+}
+
+[data-aptora-theme='electric'] .btn--ghost {
+  border-color: rgb(192 38 211 / 35%);
+  color: var(--aptora-ink-soft);
+  background: rgb(253 244 255 / 65%);
+}
+
+[data-aptora-theme='electric'] .btn--ghost:hover {
+  background: rgb(250 232 255 / 85%);
+  border-color: rgb(192 38 211 / 50%);
+  color: #86198f;
+}
+
+[data-aptora-theme='electric'] .eyebrow {
+  color: #a21caf;
+  letter-spacing: 0.12em;
+}
+
+[data-aptora-theme='electric'] .procure__tab--active {
+  color: #86198f;
+  background: rgb(192 38 211 / 14%);
+  border-color: rgb(192 38 211 / 28%);
+}
+
+[data-aptora-theme='electric'] .tabs__btn--active,
+[data-aptora-theme='electric'] .view-chip--active {
+  border-color: #c026d3;
+  color: #86198f;
+  background: rgb(192 38 211 / 12%);
+}
+
+[data-aptora-theme='electric'] a:not(.shell__link):not(.btn) {
+  color: #0891b2;
+}
+
+[data-aptora-theme='electric'] a:not(.shell__link):not(.btn):hover {
+  color: #0e7490;
+}
+
+[data-aptora-theme='electric'] .shell__link,
+[data-aptora-theme='electric'] .shell__link:hover,
+[data-aptora-theme='electric'] a.shell__link {
+  color: inherit;
+}
