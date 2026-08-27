@@ -5,6 +5,7 @@ import {
   IsString,
   IsUUID,
   Min,
+  MinLength,
   ValidateIf,
 } from 'class-validator';
 
@@ -60,4 +61,10 @@ export class UpdateInvoiceDto {
   @ValidateIf((_, v) => v !== null)
   @IsString()
   notes?: string | null;
+}
+
+export class CreateInvoiceCommentDto {
+  @IsString()
+  @MinLength(1)
+  body!: string;
 }
