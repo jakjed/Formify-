@@ -14,6 +14,7 @@ import { TenancyService } from '../../tenancy/application/tenancy.service';
 
 export const DEMO_ERP_PACK_KEY = 'demo-erp';
 export const NETSUITE_PACK_KEY = 'netsuite';
+export const QBO_PACK_KEY = 'quickbooks';
 
 function hashSecret(raw: string) {
   return createHash('sha256').update(raw).digest('hex');
@@ -184,10 +185,11 @@ export class IntegrationService {
           'Push approved invoices as vendor bills via SuiteTalk REST + TBA (mock or live).',
       },
       {
-        key: 'quickbooks',
+        key: QBO_PACK_KEY,
         name: 'QuickBooks Online',
-        status: 'planned',
-        description: 'Bills and vendors via Intuit OAuth (later connector pack).',
+        status: 'available',
+        description:
+          'Push approved invoices as bills via Intuit QBO API (mock or live OAuth bearer).',
       },
       {
         key: 'xero',
@@ -227,9 +229,14 @@ export class IntegrationService {
     return {
       mode: raw.mode ?? null,
       accountId: raw.accountId ?? null,
+      realmId: raw.realmId ?? null,
+      environment: raw.environment ?? null,
+      expenseAccountId: raw.expenseAccountId ?? null,
       baseUrl: raw.baseUrl ?? null,
       clientIdSet: Boolean(raw.clientId || raw.clientIdSet),
       tokenIdSet: Boolean(raw.tokenId || raw.tokenIdSet),
+      accessTokenSet: Boolean(raw.accessToken || raw.accessTokenSet),
+      refreshTokenSet: Boolean(raw.refreshToken || raw.refreshTokenSet),
       secretsSet: Boolean(
         raw.secretsSet || (raw.clientSecret && raw.tokenSecret),
       ),
@@ -774,6 +781,395 @@ export class IntegrationService {
       });
       throw new BadRequestException({
         message: 'NetSuite sync failed',
+        jobId: job.id,
+      });
+    }
+  }
+
+  async connectQbo(
+    tenantId: string,
+    userId: string,
+    input: {
+      mode?: 'mock' | 'live';
+      realmId?: string;
+      accessToken?: string;
+      refreshToken?: string;
+      environment?: 'sandbox' | 'production';
+      expenseAccountId?: string;
+      /** Optional override for QBO API base (tests / private gateway). */
+      baseUrl?: string;
+    },
+  ) {
+    const mode = input.mode === 'live' ? 'live' : 'mock';
+    const environment =
+      input.environment === 'production' ? 'production' : 'sandbox';
+    const expenseAccountId = (input.expenseAccountId ?? '1').trim() || '1';
+
+    let accessToken: string | undefined;
+    let credentialsHash: string;
+    let settings: Prisma.InputJsonObject;
+
+    if (mode === 'mock') {
+      accessToken = `qbo_${randomBytes(24).toString('base64url')}`;
+      credentialsHash = hashSecret(accessToken);
+      settings = {
+        mode,
+        realmId: (input.realmId ?? '123145263000000').trim(),
+        environment,
+        expenseAccountId,
+        accessTokenSet: false,
+        refreshTokenSet: false,
+      };
+    } else {
+      const realmId = input.realmId?.trim();
+      const liveToken = input.accessToken?.trim();
+      if (!realmId || !liveToken) {
+        throw new BadRequestException(
+          'live mode requires realmId and accessToken',
+        );
+      }
+      credentialsHash = hashSecret([realmId, liveToken].join(':'));
+      const refreshToken = input.refreshToken?.trim();
+      settings = {
+        mode,
+        realmId,
+        accessToken: liveToken,
+        environment,
+        expenseAccountId,
+        accessTokenSet: true,
+        refreshTokenSet: Boolean(refreshToken),
+        ...(refreshToken ? { refreshToken } : {}),
+        ...(input.baseUrl?.trim()
+          ? { baseUrl: input.baseUrl.trim() }
+          : {}),
+      };
+    }
+
+    const now = new Date();
+    const row = await this.prisma.connectorConnection.upsert({
+      where: {
+        tenantId_packKey: { tenantId, packKey: QBO_PACK_KEY },
+      },
+      create: {
+        tenantId,
+        packKey: QBO_PACK_KEY,
+        status: 'connected',
+        credentialsHash,
+        settings,
+        connectedAt: now,
+        disconnectedAt: null,
+        createdById: userId,
+      },
+      update: {
+        status: 'connected',
+        credentialsHash,
+        settings,
+        connectedAt: now,
+        disconnectedAt: null,
+        createdById: userId,
+      },
+    });
+
+    return {
+      id: row.id,
+      packKey: row.packKey,
+      status: row.status,
+      settings: this.publicConnectorSettings(row.settings),
+      connectedAt: row.connectedAt,
+      ...(accessToken ? { accessToken } : {}),
+      message:
+        mode === 'mock'
+          ? 'QuickBooks Online connected in mock mode'
+          : 'QuickBooks Online credentials stored for bill sync',
+    };
+  }
+
+  async disconnectQbo(tenantId: string) {
+    const existing = await this.prisma.connectorConnection.findUnique({
+      where: {
+        tenantId_packKey: { tenantId, packKey: QBO_PACK_KEY },
+      },
+    });
+    if (!existing) {
+      throw new NotFoundException('QuickBooks Online connection not found');
+    }
+    return this.prisma.connectorConnection.update({
+      where: { id: existing.id },
+      data: {
+        status: 'disconnected',
+        credentialsHash: null,
+        disconnectedAt: new Date(),
+      },
+      select: {
+        id: true,
+        packKey: true,
+        status: true,
+        disconnectedAt: true,
+      },
+    });
+  }
+
+  async syncQbo(tenantId: string, userId: string) {
+    const connection = await this.prisma.connectorConnection.findUnique({
+      where: {
+        tenantId_packKey: { tenantId, packKey: QBO_PACK_KEY },
+      },
+    });
+    if (
+      !connection ||
+      connection.status !== 'connected' ||
+      !connection.credentialsHash
+    ) {
+      throw new BadRequestException(
+        'Connect QuickBooks Online before running sync',
+      );
+    }
+
+    const settings = (connection.settings ?? {}) as Record<string, unknown>;
+    const mode = settings.mode === 'live' ? 'live' : 'mock';
+    const realmId =
+      typeof settings.realmId === 'string' ? settings.realmId : 'unknown';
+    const environment =
+      settings.environment === 'production' ? 'production' : 'sandbox';
+    const expenseAccountId =
+      typeof settings.expenseAccountId === 'string' &&
+      settings.expenseAccountId.trim()
+        ? settings.expenseAccountId.trim()
+        : '1';
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: { tenantId, status: 'approved' },
+      orderBy: { approvedAt: 'asc' },
+    });
+
+    const vendorIds = [
+      ...new Set(
+        invoices
+          .map((inv) => inv.vendorId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const vendors = vendorIds.length
+      ? await this.prisma.vendor.findMany({
+          where: { tenantId, id: { in: vendorIds } },
+        })
+      : [];
+    const vendorById = new Map(vendors.map((v) => [v.id, v]));
+
+    const lines = [
+      [
+        'invoice_id',
+        'invoice_number',
+        'total_minor',
+        'currency',
+        'approved_at',
+        'qbo_realm',
+        'doc_number',
+        'mode',
+        'http_status',
+        'qbo_id',
+        'result',
+      ].join(','),
+    ];
+
+    let okCount = 0;
+    const errors: string[] = [];
+    const syncedIds: string[] = [];
+
+    if (mode === 'live') {
+      const accessToken =
+        typeof settings.accessToken === 'string' ? settings.accessToken : '';
+      if (!accessToken) {
+        throw new BadRequestException(
+          'QuickBooks Online live connection is missing accessToken — reconnect',
+        );
+      }
+      const baseUrl =
+        typeof settings.baseUrl === 'string' ? settings.baseUrl : undefined;
+      const { QuickbooksClient } = await import('./qbo-client');
+      const client = new QuickbooksClient({
+        realmId,
+        accessToken,
+        environment,
+        baseUrl,
+      });
+
+      for (const inv of invoices) {
+        const vendor = inv.vendorId ? vendorById.get(inv.vendorId) : undefined;
+        const docNumber = (inv.invoiceNumber ?? inv.id.slice(0, 8)).slice(0, 21);
+        const totalMajor = (inv.totalMinor ?? 0) / 100;
+        try {
+          const result = await client.createBill({
+            docNumber,
+            txnDate:
+              inv.invoiceDate?.toISOString().slice(0, 10) ??
+              new Date().toISOString().slice(0, 10),
+            privateNote: inv.invoiceNumber
+              ? `Aptora invoice ${inv.invoiceNumber}`
+              : `Aptora invoice ${inv.id.slice(0, 8)}`,
+            totalMajor,
+            currency: inv.currency,
+            vendorId: vendor?.externalId ?? null,
+            vendorName: vendor?.name ?? inv.vendorNameRaw,
+            expenseAccountId,
+          });
+          if (result.ok) {
+            okCount += 1;
+            syncedIds.push(inv.id);
+          } else {
+            errors.push(
+              `${inv.id}: HTTP ${result.status} ${result.body.slice(0, 200)}`,
+            );
+          }
+          lines.push(
+            [
+              inv.id,
+              csv(inv.invoiceNumber),
+              String(inv.totalMinor ?? ''),
+              csv(inv.currency),
+              inv.approvedAt?.toISOString() ?? '',
+              csv(realmId),
+              csv(docNumber),
+              mode,
+              String(result.status),
+              csv(result.qboId ?? ''),
+              result.ok ? 'ok' : 'error',
+            ].join(','),
+          );
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'request failed';
+          errors.push(`${inv.id}: ${msg}`);
+          lines.push(
+            [
+              inv.id,
+              csv(inv.invoiceNumber),
+              String(inv.totalMinor ?? ''),
+              csv(inv.currency),
+              inv.approvedAt?.toISOString() ?? '',
+              csv(realmId),
+              csv(docNumber),
+              mode,
+              '',
+              '',
+              csv(msg),
+            ].join(','),
+          );
+        }
+      }
+    } else {
+      for (const inv of invoices) {
+        okCount += 1;
+        syncedIds.push(inv.id);
+        lines.push(
+          [
+            inv.id,
+            csv(inv.invoiceNumber),
+            String(inv.totalMinor ?? ''),
+            csv(inv.currency),
+            inv.approvedAt?.toISOString() ?? '',
+            csv(realmId),
+            csv((inv.invoiceNumber ?? inv.id.slice(0, 8)).slice(0, 21)),
+            mode,
+            '200',
+            `QBO-BILL-${inv.id.slice(0, 8)}`,
+            'ok',
+          ].join(','),
+        );
+      }
+    }
+
+    const content = `${lines.join('\n')}\n`;
+    const fileName = `qbo-sync-${Date.now()}.csv`;
+    const failed = mode === 'live' && errors.length > 0 && okCount === 0;
+
+    try {
+      if (failed) {
+        const storagePath = await this.writeArtifact(
+          tenantId,
+          fileName,
+          content,
+        );
+        const job = await this.prisma.integrationJob.create({
+          data: {
+            tenantId,
+            type: 'sync_qbo',
+            status: 'failed',
+            fileName,
+            storagePath,
+            rowCount: okCount,
+            errorMessage: errors.slice(0, 5).join(' | ').slice(0, 2000),
+            createdById: userId,
+            finishedAt: new Date(),
+          },
+        });
+        throw new BadRequestException({
+          message: `QuickBooks Online sync failed for all ${invoices.length} invoice(s)`,
+          jobId: job.id,
+          errors: errors.slice(0, 10),
+        });
+      }
+
+      const result = await this.finishExport({
+        tenantId,
+        userId,
+        type: 'sync_qbo',
+        fileName,
+        content,
+        rowCount: okCount,
+        afterWrite: async () => {
+          if (syncedIds.length === 0) return;
+          await this.prisma.invoice.updateMany({
+            where: {
+              tenantId,
+              id: { in: syncedIds },
+              exportedAt: null,
+            },
+            data: { exportedAt: new Date() },
+          });
+        },
+      });
+
+      if (mode === 'live' && errors.length) {
+        await this.prisma.integrationJob.update({
+          where: { id: result.job.id },
+          data: {
+            errorMessage: `Partial: ${errors.length} failed. ${errors.slice(0, 3).join(' | ')}`.slice(
+              0,
+              2000,
+            ),
+          },
+        });
+      }
+
+      return {
+        job: result.job,
+        packKey: QBO_PACK_KEY,
+        rowCount: result.rowCount,
+        fileName: result.fileName,
+        mode,
+        errors: errors.slice(0, 10),
+        message:
+          mode === 'mock'
+            ? `Stub-pushed ${result.rowCount} bill(s) to QuickBooks Online (mock)`
+            : errors.length
+              ? `QBO pushed ${okCount}/${invoices.length} bill(s) to realm ${realmId} (${errors.length} failed)`
+              : `QBO pushed ${okCount} bill(s) to realm ${realmId}`,
+      };
+    } catch (err) {
+      if (err instanceof BadRequestException) throw err;
+      const job = await this.prisma.integrationJob.create({
+        data: {
+          tenantId,
+          type: 'sync_qbo',
+          status: 'failed',
+          rowCount: 0,
+          errorMessage: err instanceof Error ? err.message : 'Sync failed',
+          createdById: userId,
+          finishedAt: new Date(),
+        },
+      });
+      throw new BadRequestException({
+        message: 'QuickBooks Online sync failed',
         jobId: job.id,
       });
     }

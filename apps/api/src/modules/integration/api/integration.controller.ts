@@ -60,6 +60,36 @@ class ConnectNetsuiteDto {
   baseUrl?: string;
 }
 
+class ConnectQboDto {
+  @IsOptional()
+  @IsIn(['mock', 'live'])
+  mode?: 'mock' | 'live';
+
+  @IsOptional()
+  @IsString()
+  realmId?: string;
+
+  @IsOptional()
+  @IsString()
+  accessToken?: string;
+
+  @IsOptional()
+  @IsString()
+  refreshToken?: string;
+
+  @IsOptional()
+  @IsIn(['sandbox', 'production'])
+  environment?: 'sandbox' | 'production';
+
+  @IsOptional()
+  @IsString()
+  expenseAccountId?: string;
+
+  @IsOptional()
+  @IsString()
+  baseUrl?: string;
+}
+
 @ApiTags('integration')
 @ApiBearerAuth('bearer')
 @Controller('integration')
@@ -164,6 +194,36 @@ export class IntegrationController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.integration.syncNetsuite(tenantId, user.id);
+  }
+
+  @Post('connections/quickbooks/connect')
+  @ApiOperation({
+    summary: 'Connect QuickBooks Online (mock token or live OAuth bearer)',
+  })
+  connectQbo(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: ConnectQboDto,
+  ) {
+    return this.integration.connectQbo(tenantId, user.id, dto);
+  }
+
+  @Post('connections/quickbooks/disconnect')
+  @ApiOperation({ summary: 'Disconnect QuickBooks Online' })
+  disconnectQbo(@CurrentTenantId() tenantId: string) {
+    return this.integration.disconnectQbo(tenantId);
+  }
+
+  @Post('connections/quickbooks/sync')
+  @RequireScopes('exports:read')
+  @ApiOperation({
+    summary: 'Push approved invoices as QuickBooks Online bills',
+  })
+  syncQbo(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.integration.syncQbo(tenantId, user.id);
   }
 
   @Post('exports/approved-invoices')

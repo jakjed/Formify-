@@ -9,8 +9,8 @@ After Phase 3 ecosystem foundation, ship **first production-shaped ERP connector
 | Epic | Outcome |
 |---|---|
 | P4-E0 NetSuite connector | Available pack: mock/live credential connect + stub vendor-bill sync ✅ |
-| P4-E1 SuiteTalk runtime | Real NetSuite TBA/OAuth HTTP vendor bill create (this slice) |
-| P4-E2 QuickBooks Online | Second live pack |
+| P4-E1 SuiteTalk runtime | Real NetSuite TBA/OAuth HTTP vendor bill create ✅ |
+| P4-E2 QuickBooks Online | Second live pack (mock/live bill sync) ✅ |
 | P4-E3 Go-live harden | SOC2 evidence hooks, approval reminders, export SLOs |
 
 ## 3. Exit (P4-E0)
@@ -27,3 +27,12 @@ After Phase 3 ecosystem foundation, ship **first production-shaped ERP connector
 - [x] Live sync POSTs vendorBill per approved invoice  
 - [x] Secrets stored + redacted on connection list  
 - [x] Docs: `P4_E1_SUITETALK_RUNTIME.md`  
+
+## 5. Exit (P4-E2)
+
+- [x] `quickbooks` pack status `available`  
+- [x] Connect mock (token once) or live (realm + access token)  
+- [x] Live sync POSTs Bill per approved invoice  
+- [x] Sync → `IntegrationJob` type `sync_qbo`  
+- [x] Integration Center UI (form + sync/disconnect)  
+- [x] Docs: `P4_E2_QUICKBOOKS.md`  
