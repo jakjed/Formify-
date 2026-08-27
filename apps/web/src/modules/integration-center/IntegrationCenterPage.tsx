@@ -252,6 +252,7 @@ export function IntegrationCenterPage() {
           clientSecret: data.get('clientSecret') || undefined,
           tokenId: data.get('tokenId') || undefined,
           tokenSecret: data.get('tokenSecret') || undefined,
+          baseUrl: data.get('baseUrl') || undefined,
         }),
       });
       if (res.accessToken) setNsToken(res.accessToken);
@@ -316,9 +317,8 @@ export function IntegrationCenterPage() {
       <div className="panel">
         <h2>Connector packs</h2>
         <p className="muted">
-          Connect Demo ERP or NetSuite, then run a stub sync of approved
-          invoices. Live SuiteTalk HTTP is deferred; credentials are stored
-          hashed for the next runtime epic.
+          Connect Demo ERP or NetSuite, then run sync. NetSuite live mode uses
+          SuiteTalk REST + TBA (HMAC-SHA256) to create vendor bills.
         </p>
         {demoToken && (
           <p className="ok">
@@ -432,31 +432,38 @@ export function IntegrationCenterPage() {
             Mode
             <select name="mode" defaultValue="mock">
               <option value="mock">mock</option>
-              <option value="live">live (store TBA secrets)</option>
+              <option value="live">live (SuiteTalk TBA)</option>
             </select>
           </label>
           <label>
             Client ID / consumer key
-            <input name="clientId" placeholder="live mode" />
+            <input name="clientId" placeholder="required for live" />
           </label>
           <label>
             Client secret / consumer secret
             <input
               name="clientSecret"
               type="password"
-              placeholder="live mode"
+              placeholder="required for live"
             />
           </label>
           <label>
             Token ID
-            <input name="tokenId" placeholder="optional TBA" />
+            <input name="tokenId" placeholder="required for live" />
           </label>
           <label>
             Token secret
             <input
               name="tokenSecret"
               type="password"
-              placeholder="optional TBA"
+              placeholder="required for live"
+            />
+          </label>
+          <label className="span-2">
+            SuiteTalk base URL override (optional)
+            <input
+              name="baseUrl"
+              placeholder="https://…suitetalk.api.netsuite.com"
             />
           </label>
           <div className="span-2 actions">
