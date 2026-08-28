@@ -1,4 +1,4 @@
-# Aptora Phase 2 PRD — Procure (Contracts + PR + PO)
+# Procure Ledger Phase 2 PRD — Procure (Contracts + PR + PO)
 
 ## 1. Intent
 

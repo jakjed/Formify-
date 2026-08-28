@@ -5,18 +5,18 @@ import { resolve } from 'node:path';
 
 export function buildOpenApiDocument(app: INestApplication) {
   const config = new DocumentBuilder()
-    .setTitle('Aptora API')
+    .setTitle('Procure Ledger API')
     .setDescription(
-      'Phase 1 modular monolith — auth session, master data, invoices, capture/files, integration jobs. Authenticate with a session bearer token or an `aptora_…` API key.',
+      'Phase 1 modular monolith — auth session, master data, invoices, capture/files, integration jobs. Authenticate with a session bearer token or a `pl_…` API key (legacy `aptora_…` keys still accepted).',
     )
     .setVersion('0.1.0')
     .addBearerAuth(
       {
         type: 'http',
         scheme: 'bearer',
-        bearerFormat: 'JWT / session / aptora_ API key',
+        bearerFormat: 'JWT / session / pl_ API key',
         description:
-          'Session token from POST /api/auth/login (or invite accept), or an API key starting with aptora_',
+          'Session token from POST /api/auth/login (or invite accept), or an API key starting with pl_ (legacy aptora_ accepted)',
       },
       'bearer',
     )
@@ -40,7 +40,7 @@ export function setupOpenApi(app: INestApplication) {
   SwaggerModule.setup('api/docs', app, document, {
     jsonDocumentUrl: 'api/docs-json',
     yamlDocumentUrl: 'api/docs-yaml',
-    customSiteTitle: 'Aptora API',
+    customSiteTitle: 'Procure Ledger API',
   });
 
   const outPath =

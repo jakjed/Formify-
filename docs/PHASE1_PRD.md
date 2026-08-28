@@ -1,8 +1,8 @@
-# Aptora Phase 1 PRD — AP Invoices (Web)
+# Procure Ledger Phase 1 PRD — AP Invoices (Web)
 
-**Product:** Aptora  
+**Product:** Procure Ledger  
 **Phase:** 1 — sellable wedge  
-**SKU:** Aptora AP (Platform Core + Invoices + Capture + Integration Center)  
+**SKU:** Procure Ledger AP (Platform Core + Invoices + Capture + Integration Center)  
 **Client:** Cloud web only (desktop-first; tablet browser acceptable)  
 **Status:** Ready for design & engineering breakdown  
 **Depends on:** [PRODUCT_BLUEPRINT.md](./PRODUCT_BLUEPRINT.md)  
@@ -20,7 +20,7 @@ Ship a **ready-to-sell** multi-tenant web product that lets mid-market AP teams:
 4. Export **payment-ready** approved invoices via **Integration Center templates** (and read via API)  
 5. Be metered on **approved invoice count** + OCR pages  
 
-**Success for Phase 1:** a new tenant reaches first real `invoice.approved` → template export within one guided day; paying customers can run weekly AP on Aptora without PR/PO/Contracts.
+**Success for Phase 1:** a new tenant reaches first real `invoice.approved` → template export within one guided day; paying customers can run weekly AP on Procure Ledger without PR/PO/Contracts.
 
 ---
 
@@ -90,7 +90,7 @@ Ship a **ready-to-sell** multi-tenant web product that lets mid-market AP teams:
 | P-03 | Users with username/password; invite, reset, lockout |
 | P-04 | Roles + granular permissions (see §5.8) |
 | P-05 | `AuthProviderConfig` model with `local` enabled; unused `oidc`/`saml` types reserved |
-| P-06 | Module license flag: `invoices` enabled for Aptora AP |
+| P-06 | Module license flag: `invoices` enabled for Procure Ledger AP |
 | P-07 | Notification center (in-app) + email for approval assigned / export failed |
 | P-08 | Append-only audit log for auth, admin, invoice field/state changes |
 | P-09 | Global search: invoices by number/vendor/amount; vendors; users (permissioned) |
@@ -195,7 +195,7 @@ Capabilities include: `invoice.read`, `invoice.write`, `invoice.approve`, `invoi
 ## 6. Information architecture (web)
 
 ```text
-Aptora
+Procure Ledger
 ├── My Work              (approvals + assigned exceptions)
 ├── Invoices
 │   ├── All invoices

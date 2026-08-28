@@ -4,7 +4,7 @@
 
 Minimal **SCIM 2.0 Users** API for IdP provisioning (Entra / Okta style).
 
-- Machine auth only: API key (`aptora_`) or OAuth access token (`aptoauth_`)
+- Machine auth only: API key (`pl_`; legacy `aptora_` accepted) or OAuth access token (`aptoauth_`)
 - Scopes: `scim:read`, `scim:write` (same vocabulary as Admin → API keys / OAuth apps)
 - Maps to existing `User` rows (no Groups, no new Prisma models)
 
@@ -12,7 +12,7 @@ Minimal **SCIM 2.0 Users** API for IdP provisioning (Entra / Okta style).
 
 ## Attribute map
 
-| SCIM | Aptora |
+| SCIM | Procure Ledger |
 |---|---|
 | `id` | `User.id` |
 | `userName` / `emails[0].value` | `email` |

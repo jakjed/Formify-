@@ -5,7 +5,7 @@ const API = process.env.API_BASE ?? 'http://127.0.0.1:3001';
 test.describe('Phase 1 web + API acceptance', () => {
   test('login and bootstrap pages render', async ({ page }) => {
     await page.goto('/login');
-    await expect(page.getByRole('heading')).toContainText(/Aptora/i);
+    await expect(page.getByRole('heading')).toContainText(/Procure Ledger/i);
     await page.getByRole('link', { name: /Bootstrap/i }).click();
     await expect(page).toHaveURL(/bootstrap/);
     await expect(page.getByText(/Create a tenant/i)).toBeVisible();

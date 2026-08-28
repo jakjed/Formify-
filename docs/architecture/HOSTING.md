@@ -1,4 +1,4 @@
-# Aptora hosting guide
+# Procure Ledger hosting guide
 
 **Primary production target:** AWS (multi-tenant SaaS)  
 **Early demo option:** Railway / Render / Fly.io for API + Postgres, static web on CloudFront or the same platform  
@@ -158,7 +158,7 @@ Early fixed cost is usually modest; **per-invoice OCR** dominates as you grow �
 1. **Run local stack** with Postgres (`pnpm db:up` → `pnpm db:deploy` → `pnpm dev`).  
 2. **Build Phase 1 features** on that foundation (master data → invoices).  
 3. Create an **AWS account** (or org) and decide default region (`eu` vs `us`).  
-4. Reserve/buy domain for Aptora when trademark/domain is clear.  
+4. Reserve/buy domain for Procure Ledger when trademark/domain is clear.  
 5. Only then stand up **staging** (Railway *or* thin AWS).
 
 Hosting follows the product; don’t freeze feature work waiting on perfect infra.

@@ -166,7 +166,7 @@ export class IdentityService {
     });
     if (!user) {
       throw new UnauthorizedException(
-        'No Aptora user for this email — invite or create the user first',
+        'No Procure Ledger user for this email — invite or create the user first',
       );
     }
     if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {

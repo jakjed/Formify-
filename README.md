@@ -1,8 +1,10 @@
-# Aptora monorepo
+# Procure Ledger monorepo
 
 Modular Accounts Payable / Procure-to-Pay suite (invoices first; contracts, PR, and PO next) — cloud web first, React Native mobile second.
 
-Formerly working name: Formify.
+Formerly working names: Formify, Aptora.
+
+**Domain:** procureledger.com · **Contact:** jakub.jedrej@procureledger.com
 
 | Layer | Path | Role |
 |---|---|---|
@@ -16,7 +18,7 @@ Formerly working name: Formify.
 ## Docs
 
 - **[docs/PRODUCT_BLUEPRINT.md](docs/PRODUCT_BLUEPRINT.md)** — full product, UX, architecture, hosting, packaging, roadmap
-- **[docs/PHASE1_PRD.md](docs/PHASE1_PRD.md)** — Phase 1 PRD + screen inventory (Aptora AP web wedge)
+- **[docs/PHASE1_PRD.md](docs/PHASE1_PRD.md)** — Phase 1 PRD + screen inventory (Procure Ledger AP web wedge)
 - **[docs/PHASE2_PRD.md](docs/PHASE2_PRD.md)** — Phase 2 Procure (Contracts + PR + PO)
 - **[docs/PHASE3_PRD.md](docs/PHASE3_PRD.md)** — Phase 3 Ecosystem (webhooks, connectors, SSO…)
 - [docs/architecture/MONOREPO.md](docs/architecture/MONOREPO.md) — folder & module rules

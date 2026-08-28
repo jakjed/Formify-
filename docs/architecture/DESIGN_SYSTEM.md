@@ -1,4 +1,4 @@
-# Aptora design system (in-app)
+# Procure Ledger design system (in-app)
 
 ## Principles
 

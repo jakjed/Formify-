@@ -38,7 +38,7 @@ export class CaptureService {
       data: {
         tenantId,
         token,
-        address: `${tenant.slug}-invoices@inbound.aptora.local`,
+        address: `${tenant.slug}-invoices@inbound.procureledger.local`,
       },
     });
   }

@@ -10,7 +10,7 @@ Aligns with [PRODUCT_BLUEPRINT.md](../PRODUCT_BLUEPRINT.md) §7 — buy OCR, inv
 
 **Yes — on the principles.** Leaders (Stampli, Coupa AP, Ironclad, Icertis, Kofax, Rossum-class) converge on the same architecture:
 
-| Principle | World-class pattern | Aptora today | Aptora target |
+| Principle | World-class pattern | Procure Ledger today | Procure Ledger target |
 | --- | --- | --- | --- |
 | **Scan once per file version** | Immutable document → one extraction job; edits are human corrections on stored results | Invoices: yes on upload/ingest | + hash cache; contracts wired |
 | **Structured payload + geometry** | Bounding boxes, confidence, field keys for click/drag HITL | Invoices: `ocrPayload` on `Invoice` | Same shape on `Contract` / `ContractDocument` |
@@ -20,7 +20,7 @@ Aligns with [PRODUCT_BLUEPRINT.md](../PRODUCT_BLUEPRINT.md) §7 — buy OCR, inv
 | **Meter OCR pages, not edits** | Cloud OCR billed per page; STP and HITL are product value | `OcrPageMeter` | Same meter for contract pages |
 | **LLM for interpretation, not vision** | Summaries, red flags, clause ID run on extracted text | Invoices: not yet; Contracts: **stub only** | LLM reads cached text + field hits |
 
-What separates category leaders is not “OCR on every click” — it is **extraction quality + HITL speed + learning** (vendor/layout memory). Aptora’s blueprint matches that: Textract for vision, Aptora for workspace and workflow.
+What separates category leaders is not “OCR on every click” — it is **extraction quality + HITL speed + learning** (vendor/layout memory). Procure Ledger’s blueprint matches that: Textract for vision, Procure Ledger for workspace and workflow.
 
 ---
 

@@ -1,6 +1,6 @@
 # Approval rules (entity / amount bands)
 
-On submit, Aptora evaluates **enabled** `ApprovalRule` rows for the tenant **and module**, highest `priority` first.
+On submit, Procure Ledger evaluates **enabled** `ApprovalRule` rows for the tenant **and module**, highest `priority` first.
 
 `moduleKey` scopes policies and rules to one of:
 

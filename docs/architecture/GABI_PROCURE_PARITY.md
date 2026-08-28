@@ -1,10 +1,10 @@
 # Gabi / Ledgerline procure parity
 
-Maps the Gabi (`docs/Gabi_draft`) / Ledgerline P2P prototype surfaces onto Aptora API + web UI.
+Maps the Gabi (`docs/Gabi_draft`) / Ledgerline P2P prototype surfaces onto Procure Ledger API + web UI.
 
 ## Gap → implemented
 
-| Gabi surface | Aptora API | Web UI |
+| Gabi surface | Procure Ledger API | Web UI |
 |---|---|---|
 | Contract Setup search / status filter | `GET /api/contracts?q=&status=` | Contracts → **Setup** |
 | New contract + CLM / owner / term fields | `POST /api/contracts` | Setup → **+ New Contract** |
@@ -30,7 +30,7 @@ Maps the Gabi (`docs/Gabi_draft`) / Ledgerline P2P prototype surfaces onto Aptor
 
 ## Status vocabulary
 
-Aptora uses snake_case statuses (`draft`, `in_approval`, `pending_signature`, `active`, …) rather than Gabi’s display labels (`Draft`, `Under Approval`, `Pending Signature`, `Signed`).
+Procure Ledger uses snake_case statuses (`draft`, `in_approval`, `pending_signature`, `active`, …) rather than Gabi’s display labels (`Draft`, `Under Approval`, `Pending Signature`, `Signed`).
 
 ## Related
 
