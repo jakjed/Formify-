@@ -14,10 +14,13 @@ type Provider = {
   settings: { displayName?: string; mode?: string };
 };
 
+/** Local dev default — Acme tenant (matches admin@acme.test seed). */
+const DEV_ACME_TENANT_ID = '6bc4e774-3846-47d0-af2c-fa59b32498a0';
+
 export function LoginPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const [tenantId, setTenantId] = useState('');
+  const [tenantId, setTenantId] = useState(DEV_ACME_TENANT_ID);
   const [email, setEmail] = useState('admin@acme.test');
   const [password, setPassword] = useState('password1');
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -110,6 +113,11 @@ export function LoginPage() {
             required
           />
         </label>
+        <p className="muted">
+          Local dev: Acme tenant is prefilled. Demo tenant{' '}
+          <code>57e8767b-9883-4a8d-b109-f330c57d4470</code> with{' '}
+          <code>admin@demo.test</code>.
+        </p>
         {localOn && (
           <>
             <label>
