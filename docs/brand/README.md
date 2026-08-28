@@ -1,6 +1,6 @@
 # Procure Ledger brand mark
 
-Primary mark for **Procure Ledger** (Ledger Light design system). Geometric **PL** monogram with ledger slash — paper `#F7F6F2`, ink `#0F1914`, signal teal `#0F766E`.
+Primary mark for **Procure Ledger** (Ledger Light design system). Simple open-ledger icon with **PL** initials — warm paper `#F7F6F2`, ink `#0F1914`, accent teal `#0F766E`. Flat, rounded, readable at small sizes.
 
 | Asset | Path | Use |
 |---|---|---|
