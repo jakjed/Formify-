@@ -124,8 +124,10 @@ export class TenancyService {
   }
 
   /**
-   * Users with entity memberships only see those entities (including admin).
-   * Admin with zero memberships sees all (bootstrap). Non-admin with none sees none.
+   * Admins always see every tenant entity (memberships apply to non-admins).
+   * Non-admin with memberships → assigned entities only.
+   * Non-admin without memberships → none.
+   * Admin without memberships → all (bootstrap).
    */
   async listEntitiesFiltered(
     tenantId: string,
@@ -133,6 +135,9 @@ export class TenancyService {
     role: string,
   ): Promise<EntityRecord[]> {
     await this.getTenant(tenantId);
+    if (role === 'admin') {
+      return this.listEntities(tenantId);
+    }
     const memberships = await this.prisma.userEntityMembership.findMany({
       where: { tenantId, userId },
       include: { entity: true },
@@ -146,24 +151,49 @@ export class TenancyService {
         code: m.entity.code,
       }));
     }
-    if (role === 'admin') {
-      return this.listEntities(tenantId);
-    }
     return [];
   }
 
   async createEntity(
     tenantId: string,
     input: { name: string; code: string },
+    createdByUserId?: string,
   ): Promise<EntityRecord> {
     await this.getTenant(tenantId);
+    const code = input.code.trim().toUpperCase();
+    const name = input.name.trim();
+
+    const existing = await this.prisma.entity.findFirst({
+      where: { tenantId, code },
+    });
+    if (existing) {
+      throw new ConflictException(
+        `Entity code "${code}" already exists as "${existing.name}". It is in the system — refresh the entity list (Admin → Entities or shell selector).`,
+      );
+    }
+
     try {
-      const entity = await this.prisma.entity.create({
-        data: {
-          tenantId,
-          name: input.name.trim(),
-          code: input.code.trim().toUpperCase(),
-        },
+      const entity = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.entity.create({
+          data: { tenantId, name, code },
+        });
+        if (createdByUserId) {
+          await tx.userEntityMembership.upsert({
+            where: {
+              userId_entityId: {
+                userId: createdByUserId,
+                entityId: created.id,
+              },
+            },
+            create: {
+              tenantId,
+              userId: createdByUserId,
+              entityId: created.id,
+            },
+            update: {},
+          });
+        }
+        return created;
       });
       return {
         id: entity.id,
@@ -176,7 +206,9 @@ export class TenancyService {
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === 'P2002'
       ) {
-        throw new ConflictException(`Entity code "${input.code}" already exists`);
+        throw new ConflictException(
+          `Entity code "${code}" already exists. Refresh the entity list.`,
+        );
       }
       throw err;
     }

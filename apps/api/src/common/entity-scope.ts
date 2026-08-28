@@ -8,8 +8,8 @@ export type EntityScope =
 
 /**
  * Resolve which entities a user may see.
- * - Users with memberships are limited to those entities (including admin).
- * - Admin with zero memberships sees all tenant entities (bootstrap).
+ * - Admins always see all tenant entities.
+ * - Non-admins with memberships are limited to those entities.
  * - Non-admin with zero memberships sees nothing.
  *
  * `entityParam`: undefined/'all'/'' → all accessible; uuid → single if allowed.
@@ -21,22 +21,23 @@ export async function resolveEntityScope(
   role: string,
   entityParam?: string | null,
 ): Promise<EntityScope> {
-  const memberships = await prisma.userEntityMembership.findMany({
-    where: { tenantId, userId },
-    select: { entityId: true },
-  });
-
   let accessible: string[];
-  if (memberships.length > 0) {
-    accessible = memberships.map((m) => m.entityId);
-  } else if (role === 'admin') {
+  if (role === 'admin') {
     const all = await prisma.entity.findMany({
       where: { tenantId },
       select: { id: true },
     });
     accessible = all.map((e) => e.id);
   } else {
-    accessible = [];
+    const memberships = await prisma.userEntityMembership.findMany({
+      where: { tenantId, userId },
+      select: { entityId: true },
+    });
+    if (memberships.length > 0) {
+      accessible = memberships.map((m) => m.entityId);
+    } else {
+      accessible = [];
+    }
   }
 
   if (accessible.length === 0) {

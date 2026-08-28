@@ -24,9 +24,10 @@ Operational cost rises quickly (migrations, backups, connector credentials, supp
 ## How Aptora enforces entity access
 
 1. Assign users to entities in **Admin → Users** (memberships + default).
-2. Users with memberships only receive those entities from `GET /api/entities` (including admins who have memberships).
-3. Transaction and Directory list APIs accept `entityId` (`all` or a UUID) and filter via `resolveEntityScope` / `scopedEntityWhere`.
-4. Master data (vendors, GL, tax, terms, cost centers) carries optional `entityId` so coding catalogs can be entity-specific.
+2. **Admins** always receive every entity from `GET /api/entities`.
+3. **Non-admins** with memberships only receive assigned entities.
+4. Transaction and Directory list APIs accept `entityId` (`all` or a UUID) and filter via `resolveEntityScope` / `scopedEntityWhere`.
+5. Master data (vendors, GL, tax, terms, cost centers) carries optional `entityId` so coding catalogs can be entity-specific.
 
 ## Roles vs capabilities (clerk who also approves)
 
@@ -37,6 +38,6 @@ Additional **capabilities** on the user (not separate roles):
 - `canAccessDirectory` — authorized people may open Directory (admins always can).
 - `canApprove` — e.g. an `ap_clerk` who is also an approver receives approval tasks without changing their primary role.
 
-**Delegation:** Users manage their own rules at **Command Center → My delegation** (`/account/delegation`). Admins oversee all tenant delegations at **Admin → Delegation** (revoke any; no create-on-behalf in Admin).
+**Delegation:** Users manage their own rules via the **Account menu → Delegations** (`/account/delegation`). Admins oversee all tenant delegations at **Admin → Delegation** (revoke any; no create-on-behalf in Admin).
 
 See also: `COMMAND_CENTER_AND_ADMIN.md`, `APPROVAL_RULES.md`.

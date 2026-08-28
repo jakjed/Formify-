@@ -592,8 +592,14 @@ export function AdminPage() {
       form.reset();
       setMessage('Entity created');
       await refresh();
+      window.dispatchEvent(new CustomEvent('aptora:entities-changed'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Create entity failed');
+      const msg = err instanceof Error ? err.message : 'Create entity failed';
+      if (/already exists/i.test(msg)) {
+        await refresh();
+        window.dispatchEvent(new CustomEvent('aptora:entities-changed'));
+      }
+      setError(msg);
     } finally {
       setBusy(false);
     }
