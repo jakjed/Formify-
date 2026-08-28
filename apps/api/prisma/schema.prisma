@@ -92,6 +92,7 @@ model Tenant {
   webhookEndpoints WebhookEndpoint[]
   connectorConnections ConnectorConnection[]
   approvalDelegations ApprovalDelegation[]
+  savedViews          InvoiceSavedView[]
 }
 
 model ModuleLicense {
@@ -140,6 +141,9 @@ model User {
   canApprove       Boolean    @default(false)
   failedLoginCount Int        @default(0)
   lockedUntil      DateTime?
+  /// Encrypted TOTP secret (AES-256-GCM). Null until MFA is enrolled.
+  totpSecret       String?
+  totpEnabled      Boolean    @default(false)
   createdAt        DateTime   @default(now())
 
   tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -149,6 +153,7 @@ model User {
   entityMemberships UserEntityMembership[]
   delegationsFrom   ApprovalDelegation[] @relation("DelegationFrom")
   delegationsTo     ApprovalDelegation[] @relation("DelegationTo")
+  savedViews        InvoiceSavedView[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -634,19 +639,50 @@ model SodPolicy {
 }
 
 model ApprovalTask {
-  id           String             @id @default(uuid()) @db.Uuid
-  tenantId     String             @db.Uuid
-  invoiceId    String             @db.Uuid
-  assigneeId   String             @db.Uuid
-  status       ApprovalTaskStatus @default(pending)
-  comment      String?
-  createdAt    DateTime           @default(now())
-  decidedAt    DateTime?
+  id             String             @id @default(uuid()) @db.Uuid
+  tenantId       String             @db.Uuid
+  invoiceId      String             @db.Uuid
+  assigneeId     String             @db.Uuid
+  status         ApprovalTaskStatus @default(pending)
+  comment        String?
+  /// Opaque token for email magic-link approve/reject.
+  emailToken     String?            @unique
+  lastRemindedAt DateTime?
+  createdAt      DateTime           @default(now())
+  decidedAt      DateTime?
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, assigneeId, status])
   @@index([invoiceId])
+}
+
+/// Named worklist filters (server-backed, shareable within tenant).
+model InvoiceSavedView {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  userId    String   @db.Uuid
+  name      String
+  /// { status?, q?, hasOpenExceptions?, sort?, minTotalMinor? }
+  filters   Json     @default("{}")
+  shared    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, userId])
+}
+
+/// Public waitlist when self-serve bootstrap is closed.
+model WaitlistSignup {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String
+  company   String?
+  createdAt DateTime @default(now())
+
+  @@unique([email])
 }
 
 enum IntegrationJobType {

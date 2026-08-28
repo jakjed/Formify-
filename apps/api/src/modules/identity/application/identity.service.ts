@@ -8,8 +8,17 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import * as argon2 from 'argon2';
+import * as jose from 'jose';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
+import {
+  decryptTotpSecret,
+  encryptTotpSecret,
+  generateTotpSecret,
+  mfaSigningKey,
+  otpauthUrl,
+  verifyTotp,
+} from '../../../common/totp';
 import type {
   ApprovalDelegationRecord,
   AuthProviderConfig,
@@ -42,8 +51,53 @@ function newOpaqueToken(): string {
 export class IdentityService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getAuthProviders(tenantId?: string): Promise<AuthProviderConfig[]> {
-    if (!tenantId) {
+  async resolveWorkspace(input: { tenantId?: string; slug?: string }) {
+    const tenant = await this.findTenant(input);
+    if (!tenant) {
+      throw new NotFoundException('Workspace not found');
+    }
+    return {
+      tenantId: tenant.id,
+      slug: tenant.slug,
+      name: tenant.name,
+    };
+  }
+
+  async findTenant(input: {
+    tenantId?: string;
+    slug?: string;
+  }): Promise<{ id: string; slug: string; name: string } | null> {
+    const rawId = input.tenantId?.trim();
+    const rawSlug = input.slug?.trim();
+    const uuid =
+      (rawId && isUuid(rawId) ? rawId : undefined) ??
+      (rawSlug && isUuid(rawSlug) ? rawSlug : undefined);
+    if (uuid) {
+      const byId = await this.prisma.tenant.findUnique({
+        where: { id: uuid },
+        select: { id: true, slug: true, name: true },
+      });
+      if (byId) return byId;
+    }
+    const slug = (rawSlug || (!uuid ? rawId : undefined))?.toLowerCase();
+    if (!slug || isUuid(slug)) return null;
+    return this.prisma.tenant.findUnique({
+      where: { slug },
+      select: { id: true, slug: true, name: true },
+    });
+  }
+
+  async getAuthProviders(tenantId?: string, slug?: string): Promise<AuthProviderConfig[]> {
+    let resolvedId = tenantId;
+    if (!resolvedId && slug) {
+      const tenant = await this.findTenant({ slug });
+      resolvedId = tenant?.id;
+    } else if (resolvedId && !isUuid(resolvedId)) {
+      const tenant = await this.findTenant({ slug: resolvedId });
+      resolvedId = tenant?.id;
+    }
+
+    if (!resolvedId) {
       return [
         { type: 'local', enabled: true, order: 1, settings: {} },
         { type: 'oidc', enabled: false, order: 2, settings: {} },
@@ -52,23 +106,32 @@ export class IdentityService {
     }
 
     const rows = await this.prisma.authProviderConfig.findMany({
-      where: { tenantId },
+      where: { tenantId: resolvedId },
       orderBy: { order: 'asc' },
     });
+
+    const hideMock = process.env.NODE_ENV === 'production';
 
     if (rows.length === 0) {
       return this.getAuthProviders();
     }
 
-    return rows.map((row) => ({
-      type: row.type,
-      enabled: row.enabled,
-      order: row.order,
-      settings: this.publicSettings(
-        row.type,
-        (row.settings ?? {}) as Record<string, unknown>,
-      ),
-    }));
+    return rows
+      .map((row) => {
+        const settings = this.publicSettings(
+          row.type,
+          (row.settings ?? {}) as Record<string, unknown>,
+        );
+        const mock = settings.mode === 'mock';
+        const enabled = row.enabled && !(hideMock && mock);
+        return {
+          type: row.type,
+          enabled,
+          order: row.order,
+          settings: hideMock && mock ? { ...settings, mode: 'live' } : settings,
+        };
+      })
+      .filter((row) => row.type === 'local' || row.enabled || !hideMock);
   }
 
   async listProvidersAdmin(tenantId: string) {
@@ -352,14 +415,25 @@ export class IdentityService {
   }
 
   async login(input: {
-    tenantId: string;
+    tenantId?: string;
+    slug?: string;
     email: string;
     password: string;
-  }): Promise<{ token: string; user: Omit<UserRecord, 'passwordHash'> }> {
+    totpCode?: string;
+  }): Promise<
+    | { token: string; user: Omit<UserRecord, 'passwordHash'>; mfaRequired?: false }
+    | { mfaRequired: true; mfaToken: string }
+  > {
+    const tenant = await this.findTenant({
+      tenantId: input.tenantId,
+      slug: input.slug,
+    });
+    if (!tenant) throw new UnauthorizedException('Invalid credentials');
+
     const email = input.email.toLowerCase();
     const user = await this.prisma.user.findUnique({
       where: {
-        tenantId_email: { tenantId: input.tenantId, email },
+        tenantId_email: { tenantId: tenant.id, email },
       },
     });
     if (!user) throw new UnauthorizedException('Invalid credentials');
@@ -399,8 +473,84 @@ export class IdentityService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    if (user.totpEnabled && user.totpSecret) {
+      if (input.totpCode) {
+        const secret = decryptTotpSecret(user.totpSecret);
+        if (!verifyTotp(secret, input.totpCode)) {
+          throw new UnauthorizedException('Invalid authenticator code');
+        }
+      } else {
+        const mfaToken = await this.signMfaChallenge(user.id, tenant.id);
+        return { mfaRequired: true, mfaToken };
+      }
+    }
+
+    return this.issueSession(user.id);
+  }
+
+  async verifyMfa(input: { mfaToken: string; code: string }) {
+    const payload = await this.verifyMfaChallenge(input.mfaToken);
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.userId },
+    });
+    if (!user?.totpEnabled || !user.totpSecret) {
+      throw new UnauthorizedException('MFA is not enabled');
+    }
+    const secret = decryptTotpSecret(user.totpSecret);
+    if (!verifyTotp(secret, input.code)) {
+      throw new UnauthorizedException('Invalid authenticator code');
+    }
+    return this.issueSession(user.id);
+  }
+
+  async startMfaSetup(userId: string, email: string) {
+    const secret = generateTotpSecret();
+    const encrypted = encryptTotpSecret(secret);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { totpSecret: encrypted, totpEnabled: false },
+    });
+    return {
+      secret,
+      otpauthUrl: otpauthUrl(secret, email),
+    };
+  }
+
+  async confirmMfaSetup(userId: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.totpSecret) {
+      throw new BadRequestException('Start MFA setup first');
+    }
+    const secret = decryptTotpSecret(user.totpSecret);
+    if (!verifyTotp(secret, code)) {
+      throw new BadRequestException('Invalid authenticator code');
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { totpEnabled: true },
+    });
+    return { totpEnabled: true };
+  }
+
+  async disableMfa(userId: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.totpEnabled || !user.totpSecret) {
+      return { totpEnabled: false };
+    }
+    const secret = decryptTotpSecret(user.totpSecret);
+    if (!verifyTotp(secret, code)) {
+      throw new BadRequestException('Invalid authenticator code');
+    }
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { totpEnabled: false, totpSecret: null },
+    });
+    return { totpEnabled: false };
+  }
+
+  private async issueSession(userId: string) {
     const updated = await this.prisma.user.update({
-      where: { id: user.id },
+      where: { id: userId },
       data: {
         failedLoginCount: 0,
         lockedUntil: null,
@@ -420,7 +570,26 @@ export class IdentityService {
       },
     });
 
-    return { token, user: this.toSafeUser(updated) };
+    return { token, user: this.toSafeUser(updated), mfaRequired: false as const };
+  }
+
+  private async signMfaChallenge(userId: string, tenantId: string) {
+    return new jose.SignJWT({ userId, tenantId, purpose: 'mfa' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime('5m')
+      .sign(mfaSigningKey());
+  }
+
+  private async verifyMfaChallenge(token: string) {
+    try {
+      const { payload } = await jose.jwtVerify(token, mfaSigningKey());
+      if (payload.purpose !== 'mfa' || typeof payload.userId !== 'string') {
+        throw new UnauthorizedException('Invalid MFA challenge');
+      }
+      return { userId: payload.userId, tenantId: String(payload.tenantId ?? '') };
+    } catch {
+      throw new UnauthorizedException('MFA challenge expired — sign in again');
+    }
   }
 
   async getSession(token: string) {
@@ -659,18 +828,25 @@ export class IdentityService {
       data: { acceptedAt: new Date() },
     });
 
-    return this.login({
-      tenantId: user.tenantId,
-      email: user.email,
-      password: input.password,
-    });
+    return this.issueSession(user.id);
   }
 
-  async requestPasswordReset(input: { tenantId: string; email: string }) {
+  async requestPasswordReset(input: {
+    tenantId?: string;
+    slug?: string;
+    email: string;
+  }) {
+    const tenant = await this.findTenant({
+      tenantId: input.tenantId,
+      slug: input.slug,
+    });
     const email = input.email.toLowerCase();
+    if (!tenant) {
+      return { ok: true as const };
+    }
     const user = await this.prisma.user.findUnique({
       where: {
-        tenantId_email: { tenantId: input.tenantId, email },
+        tenantId_email: { tenantId: tenant.id, email },
       },
     });
 
@@ -687,7 +863,7 @@ export class IdentityService {
     const token = newOpaqueToken();
     const row = await this.prisma.passwordResetToken.create({
       data: {
-        tenantId: input.tenantId,
+        tenantId: tenant.id,
         userId: user.id,
         tokenHash: hashToken(token),
         expiresAt: new Date(Date.now() + RESET_TTL_MS),
@@ -1039,6 +1215,7 @@ export class IdentityService {
     canApprove: boolean;
     failedLoginCount: number;
     lockedUntil: Date | null;
+    totpEnabled?: boolean;
     createdAt: Date;
     entityMemberships?: {
       id: string;
@@ -1069,6 +1246,7 @@ export class IdentityService {
       canApprove: user.canApprove,
       failedLoginCount: user.failedLoginCount,
       lockedUntil: user.lockedUntil ? user.lockedUntil.toISOString() : null,
+      totpEnabled: Boolean(user.totpEnabled),
       createdAt: user.createdAt.toISOString(),
       defaultEntityId,
       ...(memberships ? { entityMemberships: memberships } : {}),
@@ -1102,4 +1280,10 @@ export class IdentityService {
       ...(row.toUser ? { toUser: row.toUser } : {}),
     };
   }
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }

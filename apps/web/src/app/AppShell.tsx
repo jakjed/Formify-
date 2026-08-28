@@ -11,6 +11,7 @@ import {
 } from '../shared/lib/entity';
 import { CommandPalette } from '../shared/components/CommandPalette';
 import { UserMenu } from '../shared/components/UserMenu';
+import { NotificationBell } from '../shared/components/NotificationBell';
 
 type ModuleRow = { moduleKey: string; enabled: boolean };
 type EntityRow = { id: string; name: string; code: string };
@@ -373,6 +374,15 @@ export function AppShell() {
             <NavIcon id="search" />
             {!collapsed && <span className="shell__link-label">Search (⌘K)</span>}
           </button>
+          <NotificationBell
+            collapsed={collapsed}
+            unread={unread}
+            onChange={() => {
+              void apiFetch<{ id: string }[]>('/api/notifications?unreadOnly=true')
+                .then((rows) => setUnread(rows.length))
+                .catch(() => undefined);
+            }}
+          />
         </div>
 
         <nav className="shell__nav-scroll" aria-label="Primary">
@@ -398,15 +408,6 @@ export function AppShell() {
                   {!collapsed && (
                     <span className="shell__link-label">{link.label}</span>
                   )}
-                  {link.to === '/admin' && unread > 0 ? (
-                    <span
-                      className={
-                        collapsed ? 'nav-badge nav-badge--dot' : 'nav-badge'
-                      }
-                    >
-                      {collapsed ? '' : unread}
-                    </span>
-                  ) : null}
                 </NavLink>
               ))}
             </div>

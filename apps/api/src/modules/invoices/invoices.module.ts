@@ -6,6 +6,7 @@ import { WorkflowModule } from '../workflow/workflow.module';
 import { InvoiceRulesModule } from '../invoice-rules/invoice-rules.module';
 import { AuditModule } from '../audit/audit.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { WebhooksModule } from '../webhooks/webhooks.module';
     InvoiceRulesModule,
     AuditModule,
     WebhooksModule,
+    NotificationsModule,
   ],
   controllers: [InvoicesController],
   providers: [InvoicesService],

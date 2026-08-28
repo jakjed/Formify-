@@ -22,6 +22,7 @@ import {
 } from 'class-validator';
 import { UserRole } from '@prisma/client';
 import { WorkflowService } from '../application/workflow.service';
+import { Public } from '../../../common/public.decorator';
 import {
   CurrentTenantId,
   CurrentUser,
@@ -264,6 +265,32 @@ export class WorkflowController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.workflow.myWork(tenantId, user.id);
+  }
+
+  @Post('approvals/remind')
+  remind(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.workflow.remindPending(tenantId, user.id);
+  }
+
+  @Public()
+  @Get('approvals/email/:token')
+  emailPreview(@Param('token') token: string) {
+    return this.workflow.getEmailApproval(token);
+  }
+
+  @Public()
+  @Post('approvals/email/:token/approve')
+  emailApprove(@Param('token') token: string, @Body() dto: DecideDto) {
+    return this.workflow.decideByEmailToken(token, 'approved', dto.comment);
+  }
+
+  @Public()
+  @Post('approvals/email/:token/reject')
+  emailReject(@Param('token') token: string, @Body() dto: DecideDto) {
+    return this.workflow.decideByEmailToken(token, 'rejected', dto.comment);
   }
 
   @Post('approvals/:taskId/approve')

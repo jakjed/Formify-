@@ -108,6 +108,17 @@ export function UserMenu({ collapsed, me }: Props) {
           >
             Delegations
           </button>
+          <button
+            type="button"
+            className="user-menu__item"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              navigate('/account/security');
+            }}
+          >
+            Security
+          </button>
 
           <div className="user-menu__section">
             <button

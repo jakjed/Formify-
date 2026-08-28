@@ -3,6 +3,9 @@ import { AppShell } from './AppShell';
 import { HomePage } from '../modules/my-work/HomePage';
 import { LoginPage } from '../modules/auth/LoginPage';
 import { BootstrapPage } from '../modules/auth/BootstrapPage';
+import { WaitlistPage } from '../modules/auth/WaitlistPage';
+import { LegalPage } from '../modules/auth/LegalPage';
+import { EmailApprovePage } from '../modules/auth/EmailApprovePage';
 import { InviteAcceptPage } from '../modules/auth/InviteAcceptPage';
 import { PasswordResetRequestPage } from '../modules/auth/PasswordResetRequestPage';
 import { PasswordResetConfirmPage } from '../modules/auth/PasswordResetConfirmPage';
@@ -12,6 +15,7 @@ import { InvoicesPage } from '../modules/invoices/InvoicesPage';
 import { InvoiceWorkspacePage } from '../modules/invoices/InvoiceWorkspacePage';
 import { IntegrationCenterPage } from '../modules/integration-center/IntegrationCenterPage';
 import { DelegationPage } from '../modules/account/DelegationPage';
+import { SecurityPage } from '../modules/account/SecurityPage';
 import { AdminPage } from '../modules/admin/AdminPage';
 import { DirectoryPage } from '../modules/directory/DirectoryPage';
 import { ExceptionsPage } from '../modules/ops/ExceptionsPage';
@@ -30,6 +34,11 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/bootstrap" element={<BootstrapPage />} />
+      <Route path="/waitlist" element={<WaitlistPage />} />
+      <Route path="/legal/terms" element={<LegalPage kind="terms" />} />
+      <Route path="/legal/privacy" element={<LegalPage kind="privacy" />} />
+      <Route path="/legal/dpa" element={<LegalPage kind="dpa" />} />
+      <Route path="/approve/:token" element={<EmailApprovePage />} />
       <Route path="/invite/:token" element={<InviteAcceptPage />} />
       <Route path="/reset" element={<PasswordResetRequestPage />} />
       <Route path="/reset/:token" element={<PasswordResetConfirmPage />} />
@@ -49,6 +58,7 @@ export function App() {
           <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
           <Route path="/integration" element={<IntegrationCenterPage />} />
           <Route path="/account/delegation" element={<DelegationPage />} />
+          <Route path="/account/security" element={<SecurityPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Route>
       </Route>

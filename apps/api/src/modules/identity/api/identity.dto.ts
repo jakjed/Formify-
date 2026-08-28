@@ -41,8 +41,14 @@ export class RegisterUserDto {
 }
 
 export class LoginDto {
+  @IsOptional()
   @IsUUID()
-  tenantId!: string;
+  tenantId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  slug?: string;
 
   @IsEmail()
   email!: string;
@@ -50,6 +56,32 @@ export class LoginDto {
   @IsString()
   @MinLength(8)
   password!: string;
+
+  @IsOptional()
+  @IsString()
+  totpCode?: string;
+}
+
+export class MfaVerifyDto {
+  @IsString()
+  @MinLength(16)
+  mfaToken!: string;
+
+  @IsString()
+  @MinLength(6)
+  code!: string;
+}
+
+export class MfaConfirmDto {
+  @IsString()
+  @MinLength(6)
+  code!: string;
+}
+
+export class MfaDisableDto {
+  @IsString()
+  @MinLength(6)
+  code!: string;
 }
 
 export class CreateTenantUserDto {
@@ -125,8 +157,14 @@ export class AcceptInviteDto {
 }
 
 export class PasswordResetRequestDto {
+  @IsOptional()
   @IsUUID()
-  tenantId!: string;
+  tenantId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  slug?: string;
 
   @IsEmail()
   email!: string;

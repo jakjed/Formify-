@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   Param,
@@ -23,7 +24,7 @@ import {
   CurrentUser,
 } from '../../../common/current-user.decorator';
 import type { RequestUser } from '../../identity/domain/identity.types';
-import { UpdateInvoiceDto, CreateInvoiceCommentDto } from './invoices.dto';
+import { UpdateInvoiceDto, CreateInvoiceCommentDto, CreateSavedViewDto, BulkInvoicesDto } from './invoices.dto';
 import { RequireScopes } from '../../../common/scopes.decorator';
 
 @ApiTags('invoices')
@@ -116,6 +117,71 @@ export class InvoicesController {
     return this.invoices.listExceptionQueue(tenantId, code);
   }
 
+  @Get('capture-inbox')
+  @RequireScopes('invoices:read')
+  @ApiOperation({ summary: 'Live capture / extracting queue' })
+  captureInbox(@CurrentTenantId() tenantId: string) {
+    return this.invoices.captureInbox(tenantId);
+  }
+
+  @Get('views')
+  @RequireScopes('invoices:read')
+  listViews(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.invoices.listSavedViews(tenantId, user.id);
+  }
+
+  @Post('views')
+  @RequireScopes('invoices:write')
+  createView(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: CreateSavedViewDto,
+  ) {
+    return this.invoices.createSavedView(tenantId, user.id, dto);
+  }
+
+  @Delete('views/:id')
+  @RequireScopes('invoices:write')
+  deleteView(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+  ) {
+    return this.invoices.deleteSavedView(tenantId, user.id, id);
+  }
+
+  @Post('bulk')
+  @RequireScopes('invoices:write')
+  bulk(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Body() dto: BulkInvoicesDto,
+  ) {
+    return this.invoices.bulkAction(tenantId, user.id, dto);
+  }
+
+  @Get('vendor-360/:vendorId')
+  @RequireScopes('invoices:read')
+  vendor360(
+    @CurrentTenantId() tenantId: string,
+    @Param('vendorId') vendorId: string,
+  ) {
+    return this.invoices.getVendor360(tenantId, vendorId);
+  }
+
+  @Get('coding-suggest')
+  @RequireScopes('invoices:read')
+  codingSuggest(
+    @CurrentTenantId() tenantId: string,
+    @Query('vendorId') vendorId: string,
+  ) {
+    if (!vendorId) return { sourceInvoiceId: null, lines: [] };
+    return this.invoices.codingSuggest(tenantId, vendorId);
+  }
+
   @Get(':id/validation')
   @RequireScopes('invoices:read')
   @ApiOperation({ summary: 'Validation result for an invoice' })
@@ -124,6 +190,34 @@ export class InvoicesController {
     @Param('id') id: string,
   ) {
     return this.invoices.validate(tenantId, id);
+  }
+
+  @Get(':id/match')
+  @RequireScopes('invoices:read')
+  matchPanel(
+    @CurrentTenantId() tenantId: string,
+    @Param('id') id: string,
+  ) {
+    return this.invoices.getMatchPanel(tenantId, id);
+  }
+
+  @Get(':id/next')
+  @RequireScopes('invoices:read')
+  next(
+    @CurrentTenantId() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Query('status') status?: InvoiceStatus | InvoiceStatus[],
+    @Query('hasOpenExceptions') hasOpenExceptions?: string,
+    @Query('entityId') entityId?: string,
+  ) {
+    return this.invoices.nextInQueue(tenantId, id, {
+      status,
+      hasOpenExceptions: hasOpenExceptions === 'true',
+      entityId,
+      userId: user.id,
+      role: user.role,
+    });
   }
 
   @Post(':id/validate')
