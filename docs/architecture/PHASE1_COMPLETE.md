@@ -1,4 +1,4 @@
-# Phase 1 complete — Aptora AP Invoices (web wedge)
+# Phase 1 complete — Procure Ledger AP Invoices (web wedge)
 
 Phase 1 engineering track is closed on `main` through E13.
 

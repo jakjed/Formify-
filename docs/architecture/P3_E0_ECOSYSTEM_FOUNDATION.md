@@ -20,7 +20,7 @@ Kick off Phase 3:
 
 Dispatch today: `invoice.approved` after force/approve.
 
-Headers on delivery: `X-Aptora-Event`, `X-Aptora-Signature: sha256=…`
+Headers on delivery: `X-Procure-Ledger-Event`, `X-Procure-Ledger-Signature: sha256=…`
 
 ## Next
 

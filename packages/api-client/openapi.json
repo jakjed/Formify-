@@ -3670,8 +3670,8 @@
     }
   },
   "info": {
-    "title": "Aptora API",
-    "description": "Phase 1 modular monolith — auth session, master data, invoices, capture/files, integration jobs. Authenticate with a session bearer token or an `aptora_…` API key.",
+    "title": "Procure Ledger API",
+    "description": "Phase 1 modular monolith — auth session, master data, invoices, capture/files, integration jobs. Authenticate with a session bearer token or an `pl_…` API key.",
     "version": "0.1.0",
     "contact": {}
   },
@@ -3714,9 +3714,9 @@
     "securitySchemes": {
       "bearer": {
         "scheme": "bearer",
-        "bearerFormat": "JWT / session / aptora_ API key",
+        "bearerFormat": "JWT / session / pl_ API key",
         "type": "http",
-        "description": "Session token from POST /api/auth/login (or invite accept), or an API key starting with aptora_"
+        "description": "Session token from POST /api/auth/login (or invite accept), or an API key starting with pl_"
       }
     },
     "schemas": {

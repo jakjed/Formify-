@@ -159,7 +159,7 @@ export class OAuthService {
     return {
       id: row.client.createdById ?? row.clientId,
       tenantId: row.tenantId,
-      email: `oauth:${row.client.clientId}@aptora.local`,
+      email: `oauth:${row.client.clientId}@procureledger.local`,
       displayName: `OAuth app (${row.client.name})`,
       role: 'admin',
       status: 'active',

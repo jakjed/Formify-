@@ -1,6 +1,9 @@
 export type { ModuleKey } from './modules/common/product';
 export {
   PRODUCT_NAME,
+  PRODUCT_DOMAIN,
+  PRODUCT_CONTACT_EMAIL,
+  DEV_MAIL_DOMAIN,
   PHASE1_MODULES,
   PHASE2_MODULES,
   ALL_MODULE_KEYS,

@@ -1483,7 +1483,7 @@ export function AdminPage() {
                   <strong>{k.name}</strong>
                   <span className="muted">
                     {' '}
-                    · aptora_{k.prefix}… · {k.scopes.join(', ')}
+                    · pl_{k.prefix}… · {k.scopes.join(', ')}
                     {k.revokedAt ? ' · revoked' : ''}
                   </span>
                 </div>
@@ -1726,7 +1726,7 @@ export function AdminPage() {
           <div className="panel">
             <h2>Outbound notifications</h2>
             <p className="lede">
-              From address used when Aptora sends approval and workflow email to
+              From address used when Procure Ledger sends approval and workflow email to
               approvers (in-app notifications always remain on).
             </p>
             {!outboundEmail && <p className="muted">Loading…</p>}

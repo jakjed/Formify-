@@ -1,6 +1,6 @@
 # Multi-company (entity) data separation
 
-## Recommendation for Aptora SaaS
+## Recommendation for Procure Ledger SaaS
 
 **Default: one application instance and one shared database per region, with row-level isolation.**
 
@@ -21,7 +21,7 @@ Use a dedicated database (or even a dedicated deployment) only when required by:
 
 Operational cost rises quickly (migrations, backups, connector credentials, support). Prefer shared DB + tenant + entity unless a deal requires otherwise.
 
-## How Aptora enforces entity access
+## How Procure Ledger enforces entity access
 
 1. Assign users to entities in **Admin → Users** (memberships + default).
 2. **Admins** always receive every entity from `GET /api/entities`.

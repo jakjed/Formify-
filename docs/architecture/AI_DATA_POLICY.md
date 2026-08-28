@@ -1,33 +1,33 @@
 # AI & document processing — data handling policy
 
-How Aptora treats invoice and contract content when OCR or AI features are used. Written for sales, security review, and DPA conversations.
+How Procure Ledger treats invoice and contract content when OCR or AI features are used. Written for sales, security review, and DPA conversations.
 
 ## Executive summary (for clients)
 
 | Question | Answer |
 | --- | --- |
-| Are my invoices/contracts sent to ChatGPT or public AI websites? | **No.** Aptora does not call OpenAI, ChatGPT, Claude, or other consumer LLM APIs in the product today. |
+| Are my invoices/contracts sent to ChatGPT or public AI websites? | **No.** Procure Ledger does not call OpenAI, ChatGPT, Claude, or other consumer LLM APIs in the product today. |
 | Is any “AI” running now? | Contract summarize / red flags / AI intake are **local stubs** (deterministic text in our API). No model inference, no external call. |
-| When OCR is on, where does data go? | Optional **AWS Textract** in your tenant’s region (same AWS account Aptora hosts in). PDF/image bytes are processed for field extraction only. |
-| Will you train models on our data? | **No.** Aptora does not use customer documents to train foundation models. |
+| When OCR is on, where does data go? | Optional **AWS Textract** in your tenant’s region (same AWS account Procure Ledger hosts in). PDF/image bytes are processed for field extraction only. |
+| Will you train models on our data? | **No.** Procure Ledger does not use customer documents to train foundation models. |
 | Can we turn AI off? | **Yes.** OCR provider and any future LLM assist are **tenant-admin configurable**; default posture is conservative. |
 
 ---
 
 ## Current state (Phase 1 / 2)
 
-### What leaves the Aptora environment today
+### What leaves the Procure Ledger environment today
 
 | Feature | External call? | What is sent |
 | --- | --- | --- |
 | Invoice upload + stub OCR | No | Parsed locally in API |
 | Invoice upload + Textract | Yes → **AWS Textract** only | Document bytes to Analyze Expense in configured `AWS_REGION` |
-| Contract AI intake / summarize / red flags | **No** | Stub strings generated inside Aptora API |
-| Email capture ingest | No (simulated webhook) | Stays in Aptora storage |
+| Contract AI intake / summarize / red flags | **No** | Stub strings generated inside Procure Ledger API |
+| Email capture ingest | No (simulated webhook) | Stays in Procure Ledger storage |
 
 There is **no LLM SDK**, no OpenAI/Anthropic/Bedrock integration in the codebase as of this document.
 
-### What stays inside Aptora
+### What stays inside Procure Ledger
 
 - Stored files (`FileAsset` / future contract binaries)
 - Extracted fields and `ocrPayload` (geometry JSON)
@@ -69,7 +69,7 @@ LLM input = **already extracted text** and field values from `DocumentExtraction
 
 ### 4. No training on customer data
 
-- Contractual commitment: customer content is **not** used to train Aptora or third-party foundation models.
+- Contractual commitment: customer content is **not** used to train Procure Ledger or third-party foundation models.
 - Prefer Bedrock / Azure models with **no training** and **zero retention** inference settings where available.
 
 ### 5. Audit and transparency
@@ -87,7 +87,7 @@ LLM input = **already extracted text** and field values from `DocumentExtraction
 
 ## What to tell procurement / IT
 
-> Aptora’s default path is **scan once with AWS Textract in your region**, human review in our app, and **no generative AI**. Optional AI features, when offered, run in your cloud region on extracted text only, are off by default, and are never used to train public models. We do not send your documents to ChatGPT.
+> Procure Ledger’s default path is **scan once with AWS Textract in your region**, human review in our app, and **no generative AI**. Optional AI features, when offered, run in your cloud region on extracted text only, are off by default, and are never used to train public models. We do not send your documents to ChatGPT.
 
 ---
 

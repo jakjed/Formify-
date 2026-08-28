@@ -351,7 +351,7 @@ export function ContractsPage() {
               <h3>Upload from supplier · Scan document</h3>
               <div className="procure__ai" style={{ marginBottom: '0.85rem' }}>
                 <div className="procure__ai-tag">How it works</div>
-                Upload the supplier PDF or text agreement. Aptora extracts fields once,
+                Upload the supplier PDF or text agreement. Procure Ledger extracts fields once,
                 runs a rule-based red-flag pass on the text, and opens a draft for your review.
               </div>
               <form className="workspace-form" onSubmit={(e) => void onScanIntake(e)}>
@@ -654,7 +654,7 @@ export function ContractsPage() {
                   </div>
                   {sig?.envelopeId && (
                     <div className="procure__notice procure__notice--info">
-                      Signing happens outside Aptora. When every party has signed, complete
+                      Signing happens outside Procure Ledger. When every party has signed, complete
                       the contract with the executed copy.
                     </div>
                   )}

@@ -38,6 +38,6 @@ curl -X POST "http://localhost:3001/api/capture/email/$TOKEN" \
 
 ## Notes
 
-- Real SMTP/inbound MX is out of scope; the webhook simulates provider → Aptora
+- Real SMTP/inbound MX is out of scope; the webhook simulates provider → Procure Ledger
 - OCR still uses stub/Textract providers from E4
 - Audit is append-only; no update/delete APIs

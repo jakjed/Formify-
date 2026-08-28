@@ -1,7 +1,8 @@
-# Aptora — AP / P2P Product Blueprint
+# Procure Ledger — AP / P2P Product Blueprint
 
-**Product name:** **Aptora** (confirmed)  
-**Former working name:** Formify  
+**Product name:** **Procure Ledger** (confirmed)  
+**Domain:** **procureledger.com**  
+**Former working names:** Aptora, Formify  
 **Document type:** Ready-to-sell product blueprint (product + UX + architecture + GTM)  
 **Audience:** Founder / product leader briefing design & engineering  
 **Date:** 2026-08-26 (decisions locked)
@@ -12,7 +13,7 @@
 
 | Topic | Decision |
 |---|---|
-| Brand | **Aptora** (horizontal finance/AP market name) |
+| Brand | **Procure Ledger** (horizontal finance/AP market name) |
 | Buyers | Mid-market → upper mid-market finance/procurement; expandable to enterprise |
 | Market | **Universal / horizontal** — not vertical-specific |
 | Delivery | Multi-tenant SaaS first; dedicated tenant / private cloud path later |
@@ -28,7 +29,7 @@
 | Mobile scope | Approvals, capture, day-to-day AP, admin (after web GA) |
 | Backend | **NestJS (TypeScript) modular monolith** — see §7 |
 
-**Why Aptora:** Sounds like Accounts Payable without being literal (“AP-app”), works in US/EU sales conversations, avoids “forms” connotation of Formify, short enough for app icon + wordmark.
+**Why Procure Ledger:** Sounds like Accounts Payable without being literal (“AP-app”), works in US/EU sales conversations, avoids “forms” connotation of Formify, short enough for app icon + wordmark.
 
 **Why React Native (Expo) later:** Same as prior — shared TS talent with web; ship web GA first to close deals, then mobile ≤ one phase behind.
 
@@ -36,7 +37,7 @@
 
 ## 1. Executive product definition
 
-**Positioning.** Aptora is a modular Accounts Payable and Procure-to-Pay cloud suite — starting with invoice capture and processing, then expanding into contracts, purchase requests, and purchase orders. Finance teams buy modules independently, run on a calm high-speed web app (mobile follows), move data through an Integration Center and open APIs, and keep paying vendors in their existing bank/ERP — Aptora stops at payment-ready.
+**Positioning.** Procure Ledger is a modular Accounts Payable and Procure-to-Pay cloud suite — starting with invoice capture and processing, then expanding into contracts, purchase requests, and purchase orders. Finance teams buy modules independently, run on a calm high-speed web app (mobile follows), move data through an Integration Center and open APIs, and keep paying vendors in their existing bank/ERP — Procure Ledger stops at payment-ready.
 
 ### Target users & buyers
 
@@ -62,7 +63,7 @@
 
 **Comps:** Coupa, SAP Ariba, Oracle Fusion AP, Tipalti, Bill.com, Melio, Stampli, MineralTree, AvidXchange, ERP-native AP.
 
-**Thesis:** Mid-market wants Stampli-like clarity with a path to suite depth — without Coupa weight or forced payments. Aptora wins on modular land-and-expand (invoices → procure), Integration Center honesty (templates first), and UX that feels best-in-class.
+**Thesis:** Mid-market wants Stampli-like clarity with a path to suite depth — without Coupa weight or forced payments. Procure Ledger wins on modular land-and-expand (invoices → procure), Integration Center honesty (templates first), and UX that feels best-in-class.
 
 ### Why we win (5)
 
@@ -179,11 +180,11 @@ Cross-cutting: delegation, escalation, audit, comments, attachments, versioning 
 
 ## 4. World-class UX / UI system brief
 
-### Visual direction — “Ledger Light” (Aptora)
+### Visual direction — “Ledger Light” (Procure Ledger)
 
 | Token | Direction |
 |---|---|
-| **Brand** | **Aptora** wordmark as hero on marketing; precise in-app mark |
+| **Brand** | **Procure Ledger** wordmark as hero on marketing; precise in-app mark |
 | **Typography** | Display: Fraunces or Newsreader; UI: Geist / IBM Plex Sans |
 | **Color** | Ink `#0F1914`, paper `#F7F6F2`, signal teal `#0F766E`, amber alert, crimson danger |
 | **Atmosphere** | Soft paper grain on marketing; calm structured surfaces in-app |
@@ -295,7 +296,7 @@ Sortable/filterable worklists, saved views, bulk actions, keyboard, side-by-side
 
 ### Backend choice — **NestJS (TypeScript) modular monolith**
 
-**Why this wins for Aptora given your constraints:**
+**Why this wins for Procure Ledger given your constraints:**
 
 | Factor | NestJS | .NET 8 | Java/Spring |
 |---|---|---|---|
@@ -319,7 +320,7 @@ Sortable/filterable worklists, saved views, bulk actions, keyboard, side-by-side
 | Google Document AI Invoice Parser | Top accuracy band; usually worse $/page for mid-market volumes |
 | Veryfi / Mindee / Rossum | Good specialists; Rossum pricey; keep as bake-off if Textract STP stagnates |
 
-**Rule:** Buy OCR; invest eng in **Aptora HITL workspace + per-vendor learning**, not training base models.
+**Rule:** Buy OCR; invest eng in **Procure Ledger HITL workspace + per-vendor learning**, not training base models.
 
 ### Full Stage-1 stack
 
@@ -393,13 +394,13 @@ Suggested packages:
 
 | Package | Contents |
 |---|---|
-| **Aptora AP** | Platform + Invoices |
-| **Aptora Procure** | + PR + PO (+ Contracts optional add) |
-| **Aptora Full** | All modules |
+| **Procure Ledger AP** | Platform + Invoices |
+| **Procure Ledger Procure** | + PR + PO (+ Contracts optional add) |
+| **Procure Ledger Full** | All modules |
 
 ### Onboarding
 
-Self-serve Aptora AP: templates for vendors/COA → inbound email → 3 sample invoices → first export template.  
+Self-serve Procure Ledger AP: templates for vendors/COA → inbound email → 3 sample invoices → first export template.  
 Assisted for multi-entity / complex workflows.
 
 ### &lt;1 day / &lt;1 week checklists
@@ -426,7 +427,7 @@ NestJS modular monolith, Postgres, tenancy, local auth + AuthProviderConfig, des
 
 **Demo:** admin invites user, toggles Invoices module, uploads vendor template.
 
-### Phase 1 — Sellable wedge: **Aptora AP (Invoices + Capture + Integration Center)**
+### Phase 1 — Sellable wedge: **Procure Ledger AP (Invoices + Capture + Integration Center)**
 
 OCR (Textract), HITL workspace, coding, approvals, exceptions, email/upload ingest, template export of payment-ready invoices, volume metering hooks, horizontal mid-market positioning.
 
@@ -470,7 +471,7 @@ ERP connectors, partner OAuth, dedicated tenants, SCIM, advanced SoD — still *
 
 | # | Topic | Status |
 |---|---|---|
-| 1 | Name | **Locked: Aptora** (confirmed) |
+| 1 | Name | **Locked: Procure Ledger** (confirmed) |
 | 2 | Wedge | **Locked: Invoices first; Contracts/PR/PO second** |
 | 3 | Integrations | **Locked: Integration Center + templates; connectors later** |
 | 4 | Payments | **Locked: not in-app** |
@@ -483,7 +484,7 @@ ERP connectors, partner OAuth, dedicated tenants, SCIM, advanced SoD — still *
 
 ### Optional later (not blocking Phase 1)
 
-1. Trademark/domain registration for **Aptora**  
+1. Trademark/domain registration for **Procure Ledger**  
 2. First SSO provider when a deal requires it (Google vs Microsoft Entra vs Okta)
 
 ---
@@ -508,4 +509,4 @@ Password policy, MFA-ready flags (optional TOTP as early upsell), and session co
 
 ## Appendix C — Rename map
 
-All product copy, repo branding, and marketing should migrate **Formify → Aptora**. Keep git repo rename as a separate ops task if desired.
+All product copy, repo branding, and marketing should migrate **Formify → Procure Ledger**. Keep git repo rename as a separate ops task if desired.

@@ -126,7 +126,7 @@ export function IntegrationCenterPage() {
         fallbackName;
       a.click();
       URL.revokeObjectURL(url);
-      setMessage(`Exported ${res.headers.get('X-Aptora-Row-Count') ?? '?'} rows`);
+      setMessage(`Exported ${res.headers.get('X-Procure-Ledger-Row-Count') ?? '?'} rows`);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Export failed');

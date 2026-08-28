@@ -18,7 +18,7 @@ PRD **A-01**: publish OpenAPI 3 for auth session, vendors, invoices, files (capt
 Documented as HTTP Bearer (`bearer`):
 
 - Session token from `POST /api/auth/login` or invite accept
-- Or API key `aptora_…` (scopes enforced per route)
+- Or API key `pl_…` (legacy `aptora_…` accepted; scopes enforced per route)
 
 ## Tags
 

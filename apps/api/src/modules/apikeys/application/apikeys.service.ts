@@ -58,7 +58,7 @@ export class ApiKeysService {
 
     const secret = randomBytes(24).toString('base64url');
     const prefix = secret.slice(0, 8);
-    const raw = `aptora_${secret}`;
+    const raw = `pl_${secret}`;
     const row = await this.prisma.apiKey.create({
       data: {
         tenantId: input.tenantId,
@@ -113,7 +113,7 @@ export class ApiKeysService {
     return {
       id: row.createdById ?? row.id,
       tenantId: row.tenantId,
-      email: `apikey:${row.prefix}@aptora.local`,
+      email: `apikey:${row.prefix}@procureledger.local`,
       displayName: `API key (${row.name})`,
       role: 'admin',
       status: 'active',
