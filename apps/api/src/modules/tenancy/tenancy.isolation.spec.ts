@@ -5,7 +5,9 @@ import * as argon2 from 'argon2';
  * Tenant isolation smoke (PRD P-01 / exit criteria).
  * Requires DATABASE_URL and applied migrations.
  */
-describe('tenant isolation', () => {
+const run = Boolean(process.env.DATABASE_URL);
+
+(run ? describe : describe.skip)('tenant isolation', () => {
   const prisma = new PrismaClient();
   const suffix = Date.now().toString(36);
 
