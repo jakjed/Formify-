@@ -40,7 +40,7 @@ export class AuthGuard implements CanActivate {
     const token = header.slice('Bearer '.length).trim();
     if (!token) throw new UnauthorizedException('Missing bearer token');
 
-    if (token.startsWith('aptora_')) {
+    if (token.startsWith('pl_') || token.startsWith('aptora_')) {
       const principal = await this.apiKeys.resolveBearer(token);
       if (!principal) throw new UnauthorizedException('Invalid API key');
       request.user = principal;

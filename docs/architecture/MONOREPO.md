@@ -2,7 +2,7 @@
 
 ## Why this shape
 
-Aptora is sold as **independently enableable modules** (Invoices now; Contracts / PR / PO later) on a **shared Platform Core**.  
+Procure Ledger is sold as **independently enableable modules** (Invoices now; Contracts / PR / PO later) on a **shared Platform Core**.  
 Phase 1 ships a **modular monolith** (one API process, clear module boundaries). Extract capture workers or connectors later without renaming folders.
 
 ```text

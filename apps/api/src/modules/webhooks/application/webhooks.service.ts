@@ -179,8 +179,8 @@ export class WebhooksService {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Aptora-Event': event,
-            'X-Aptora-Signature': `sha256=${signature}`,
+            'X-Procure-Ledger-Event': event,
+            'X-Procure-Ledger-Signature': `sha256=${signature}`,
           },
           body,
           signal: controller.signal,

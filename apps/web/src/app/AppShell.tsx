@@ -332,7 +332,7 @@ export function AppShell() {
           <div className="shell__brand">
             <img
               className="shell__brand-mark"
-              src="/brand/aptora-mark-64.png"
+              src="/brand/procure-ledger-mark-64.png"
               width={36}
               height={36}
               alt=""

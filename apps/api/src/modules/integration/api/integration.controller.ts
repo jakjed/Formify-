@@ -353,8 +353,8 @@ export class IntegrationController {
       'Content-Disposition',
       `attachment; filename="${result.fileName}"`,
     );
-    res.setHeader('X-Aptora-Job-Id', result.job.id);
-    res.setHeader('X-Aptora-Row-Count', String(result.rowCount));
+    res.setHeader('X-Procure-Ledger-Job-Id', result.job.id);
+    res.setHeader('X-Procure-Ledger-Row-Count', String(result.rowCount));
     return new StreamableFile(Buffer.from(result.content, 'utf8'));
   }
 }

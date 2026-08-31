@@ -619,8 +619,8 @@ export class IntegrationService {
               inv.invoiceDate?.toISOString().slice(0, 10) ??
               new Date().toISOString().slice(0, 10),
             memo: inv.invoiceNumber
-              ? `Aptora invoice ${inv.invoiceNumber}`
-              : `Aptora invoice ${inv.id.slice(0, 8)}`,
+              ? `Procure Ledger invoice ${inv.invoiceNumber}`
+              : `Procure Ledger invoice ${inv.id.slice(0, 8)}`,
             currency: inv.currency,
             totalMajor,
             vendorExternalId: vendor?.externalId ?? vendor?.code ?? null,
@@ -1010,8 +1010,8 @@ export class IntegrationService {
               inv.invoiceDate?.toISOString().slice(0, 10) ??
               new Date().toISOString().slice(0, 10),
             privateNote: inv.invoiceNumber
-              ? `Aptora invoice ${inv.invoiceNumber}`
-              : `Aptora invoice ${inv.id.slice(0, 8)}`,
+              ? `Procure Ledger invoice ${inv.invoiceNumber}`
+              : `Procure Ledger invoice ${inv.id.slice(0, 8)}`,
             totalMajor,
             currency: inv.currency,
             vendorId: vendor?.externalId ?? null,

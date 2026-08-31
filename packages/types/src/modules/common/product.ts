@@ -1,5 +1,9 @@
 /** Brand & product constants */
-export const PRODUCT_NAME = 'Aptora' as const;
+export const PRODUCT_NAME = 'Procure Ledger' as const;
+export const PRODUCT_DOMAIN = 'procureledger.com' as const;
+export const PRODUCT_CONTACT_EMAIL = 'jakub.jedrej@procureledger.com' as const;
+/** Dev/staging simulated mail domain (production uses @procureledger.com) */
+export const DEV_MAIL_DOMAIN = 'procureledger.local' as const;
 
 export type ModuleKey =
   | 'invoices'

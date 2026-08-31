@@ -1,8 +1,10 @@
 # Plan releasowania produkcyjnego (go-live)
 
-Checklist operacyjny dla pierwszego wdrożenia Aptora na produkcję — **EU-first**, AWS, B2B SaaS. Uzupełnia [HOSTING.md](./HOSTING.md), [RESIDENCY.md](./RESIDENCY.md) i [AI_DATA_POLICY.md](./AI_DATA_POLICY.md).
+Checklist operacyjny dla pierwszego wdrożenia Procure Ledger na produkcję — **EU-first**, AWS, B2B SaaS. Uzupełnia [HOSTING.md](./HOSTING.md), [RESIDENCY.md](./RESIDENCY.md) i [AI_DATA_POLICY.md](./AI_DATA_POLICY.md).
 
 **Cel:** jeden region produkcyjny (`eu-west-1`), staging na Railway, pierwszy płacący klient bez ręcznego deployu na serwerze.
+
+**Domena produktu:** `procureledger.com` · kontakt operacyjny: `jakub.jedrej@procureledger.com`
 
 ---
 
@@ -29,7 +31,7 @@ Zanim pierwszy klient podpisze umowę:
 | --- | --- | --- |
 | **Regulamin (ToS)** | SLA, limity użycia, odpowiedzialność, wypowiedzenie | Prawnik / PM |
 | **Polityka prywatności** | RODO, cele przetwarzania, prawa użytkownika | Prawnik |
-| **DPA (umowa powierzenia)** | Rola: Aptora = processor, klient = controller; subprocessors | Prawnik |
+| **DPA (umowa powierzenia)** | Rola: Procure Ledger = processor, klient = controller; subprocessors | Prawnik |
 | **Lista subprocesorów** | AWS (hosting, RDS, S3, Textract, opcjonalnie Bedrock), e-mail (np. SES/Resend) | PM + DevOps |
 | **Order form / załącznik techniczny** | Region danych (`eu`), OCR on/off, AI assist off (domyślnie) | PM |
 | **Incident response** | Kto, w jakim czasie, powiadomienie klienta (RODO 72h) | PM + DevOps |
@@ -45,24 +47,24 @@ Zanim pierwszy klient podpisze umowę:
 
 ## Faza 1 — Domena i DNS
 
-Przykład: domena `aptora.com` (zastąp własną).
+Przykład: domena `procureledger.com` (zastąp własną).
 
 ### Rekordy produkcyjne
 
 | Host | Typ | Cel | Uwagi |
 | --- | --- | --- | --- |
-| `app.aptora.com` | CNAME | CloudFront distribution (web SPA) | Cert ACM w `us-east-1` dla CloudFront |
-| `api.aptora.com` | CNAME / ALIAS | ALB lub CloudFront → API | HTTPS obowiązkowy |
-| `staging.aptora.com` | CNAME | Railway / Render (web) | Osobny cert |
-| `staging-api.aptora.com` | CNAME | Railway API service | |
+| `app.procureledger.com` | CNAME | CloudFront distribution (web SPA) | Cert ACM w `us-east-1` dla CloudFront |
+| `api.procureledger.com` | CNAME / ALIAS | ALB lub CloudFront → API | HTTPS obowiązkowy |
+| `staging.procureledger.com` | CNAME | Railway / Render (web) | Osobny cert |
+| `staging-api.procureledger.com` | CNAME | Railway API service | |
 
 ### SSO (gdy klient wymaga enterprise login)
 
 | Callback | URL |
 | --- | --- |
-| OIDC redirect | `https://api.aptora.com/api/auth/oidc/callback` |
-| SAML ACS | `https://api.aptora.com/api/auth/saml/acs` |
-| SAML metadata | `https://api.aptora.com/api/auth/saml/metadata?tenantId={uuid}` |
+| OIDC redirect | `https://api.procureledger.com/api/auth/oidc/callback` |
+| SAML ACS | `https://api.procureledger.com/api/auth/saml/acs` |
+| SAML metadata | `https://api.procureledger.com/api/auth/saml/metadata?tenantId={uuid}` |
 
 Te same ścieżki na staging z prefiksem `staging-api.`.
 
@@ -108,8 +110,8 @@ pnpm db:deploy
 NODE_ENV=production
 DATABASE_URL=postgresql://...railway...
 PORT=3001
-WEB_ORIGIN=https://staging.aptora.com
-API_PUBLIC_URL=https://staging-api.aptora.com
+WEB_ORIGIN=https://staging.procureledger.com
+API_PUBLIC_URL=https://staging-api.procureledger.com
 STORAGE_PATH=/data/uploads
 OCR_PROVIDER=stub
 AWS_REGION=eu-west-1
@@ -140,8 +142,8 @@ RATE_LIMIT_MAX=120
 | 2 | **RDS PostgreSQL** | `aptora-prod-db` | Multi-AZ gdy SLA wymaga; min `db.t4g.small` na start |
 | 3 | **S3 — web** | `aptora-prod-web-eu` | Static SPA, block public access, OAI/OAC → CloudFront |
 | 4 | **S3 — documents** | `aptora-prod-files-eu` | SSE-S3, lifecycle (np. IA po 90 dniach) |
-| 5 | **CloudFront — web** | `app.aptora.com` | Origin: S3 web bucket |
-| 6 | **CloudFront / ALB — API** | `api.aptora.com` | Origin: ALB → ECS |
+| 5 | **CloudFront — web** | `app.procureledger.com` | Origin: S3 web bucket |
+| 6 | **CloudFront / ALB — API** | `api.procureledger.com` | Origin: ALB → ECS |
 | 7 | **ECS Fargate** | Cluster `aptora-prod`, service `api` | 2 tasks min dla HA |
 | 8 | **ECR** | Repo `aptora/api` | Obraz z CI |
 | 9 | **Secrets Manager** | `aptora/prod/api` | DB URL, session secret, opcjonalnie AWS keys |
@@ -190,8 +192,8 @@ Pełna lista w `apps/api/.env.example`. **Prod vs staging — inne sekrety zawsz
 NODE_ENV=production
 DATABASE_URL=postgresql://...@aptora-prod-db....eu-west-1.rds.amazonaws.com:5432/aptora
 PORT=3001
-WEB_ORIGIN=https://app.aptora.com
-API_PUBLIC_URL=https://api.aptora.com
+WEB_ORIGIN=https://app.procureledger.com
+API_PUBLIC_URL=https://api.procureledger.com
 STORAGE_PATH=s3://aptora-prod-files-eu/uploads
 OCR_PROVIDER=textract
 AWS_REGION=eu-west-1
@@ -206,7 +208,7 @@ SESSION_SECRET=<64+ random bytes>
 ### Web (build-time)
 
 ```env
-VITE_API_URL=https://api.aptora.com
+VITE_API_URL=https://api.procureledger.com
 ```
 
 ### Checklist env
@@ -418,4 +420,4 @@ aws rds create-db-snapshot --db-instance-identifier aptora-prod-db --db-snapshot
 
 ---
 
-*Ostatnia aktualizacja: 2026-08-27 — Aptora Phase 1/2 go-live.*
+*Ostatnia aktualizacja: 2026-08-27 — Procure Ledger Phase 1/2 go-live.*

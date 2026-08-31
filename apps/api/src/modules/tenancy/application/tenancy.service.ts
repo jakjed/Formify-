@@ -80,7 +80,7 @@ export class TenancyService {
           },
           captureMailbox: {
             create: {
-              address: `${input.slug}-invoices@inbound.aptora.local`,
+              address: `${input.slug}-invoices@inbound.procureledger.local`,
               token,
             },
           },

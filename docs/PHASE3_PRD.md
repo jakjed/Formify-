@@ -1,8 +1,8 @@
-# Aptora Phase 3 PRD — Ecosystem
+# Procure Ledger Phase 3 PRD — Ecosystem
 
 ## 1. Intent
 
-After AP Invoices (Phase 1) and Procure (Phase 2), open Aptora to **partners and ERPs** without in-app payments.
+After AP Invoices (Phase 1) and Procure (Phase 2), open Procure Ledger to **partners and ERPs** without in-app payments.
 
 **Success for Phase 3 foundation:** tenants can register outbound webhooks, see planned connector packs in Integration Center, and continue template/API exports — with a clear path to OAuth connectors, SSO, and SCIM.
 

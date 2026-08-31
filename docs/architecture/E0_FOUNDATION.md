@@ -1,6 +1,6 @@
 # E0 Foundation
 
-Bootstrap of the Aptora modular monolith + web shell + **PostgreSQL persistence** for tenancy/identity.
+Bootstrap of the Procure Ledger modular monolith + web shell + **PostgreSQL persistence** for tenancy/identity.
 
 ## Prerequisites
 

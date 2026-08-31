@@ -4,7 +4,7 @@
 
 - Admin **users** CRUD (create + role/password update)
 - **Entities** list/create/update for the current tenant
-- **API keys** (`aptora_…`) hashed at rest; scopes: `invoices:read|write`, `masterdata:write`, `exports:read`
+- **API keys** (`pl_…`; legacy `aptora_…` still accepted) hashed at rest; scopes: `invoices:read|write`, `masterdata:write`, `exports:read`
 - Bearer auth accepts session **or** API key; `@RequireScopes` enforced for keys only
 - **Usage & plan**: MTD approved count, soft warn, optional hard block on approve
 - Admin UI tabs: Users, Entities, API keys, Usage, Mailbox, Notifications, Audit
@@ -27,5 +27,5 @@
 
 ```bash
 # create key in Admin UI, then:
-curl -H "Authorization: Bearer aptora_…" http://localhost:3001/api/invoices
+curl -H "Authorization: Bearer pl_…" http://localhost:3001/api/invoices
 ```

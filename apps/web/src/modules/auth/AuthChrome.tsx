@@ -18,7 +18,7 @@ export function AuthBrand() {
     <div className="auth__brand">
       <img
         className="auth__mark"
-        src="/brand/aptora-mark.png"
+        src="/brand/procure-ledger-mark.png"
         width={72}
         height={72}
         alt=""

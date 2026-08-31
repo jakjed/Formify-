@@ -113,7 +113,7 @@ export class NotificationsService {
         where: { id: tenantId },
       });
       return {
-        fromAddress: `notifications@${tenant.slug}.aptora.local`,
+        fromAddress: `notifications@${tenant.slug}.procureledger.local`,
         fromName: `${tenant.name} AP`,
         replyTo: null as string | null,
         enabled: false,

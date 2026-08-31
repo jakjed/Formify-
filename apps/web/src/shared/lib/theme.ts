@@ -1,8 +1,8 @@
-export type AptoraTheme = 'default' | 'contrast' | 'vivid' | 'electric' | 'forge';
+export type AppTheme = 'default' | 'contrast' | 'vivid' | 'electric' | 'forge';
 
-export const THEME_KEY = 'aptora_theme';
+export const THEME_KEY = 'procure_ledger_theme';
 
-export const THEME_OPTIONS: { id: AptoraTheme; label: string; hint: string }[] = [
+export const THEME_OPTIONS: { id: AppTheme; label: string; hint: string }[] = [
   { id: 'default', label: 'Default', hint: 'Balanced ledger light' },
   { id: 'contrast', label: 'High contrast', hint: 'Sharper text and borders' },
   { id: 'vivid', label: 'Vivid', hint: 'Richer brand color overlays' },
@@ -18,8 +18,9 @@ export const THEME_OPTIONS: { id: AptoraTheme; label: string; hint: string }[] =
   },
 ];
 
-export function getTheme(): AptoraTheme {
-  const stored = localStorage.getItem(THEME_KEY);
+export function getTheme(): AppTheme {
+  const stored =
+    localStorage.getItem(THEME_KEY) ?? localStorage.getItem('aptora_theme');
   if (
     stored === 'contrast' ||
     stored === 'vivid' ||
@@ -32,11 +33,11 @@ export function getTheme(): AptoraTheme {
   return 'default';
 }
 
-export function setTheme(theme: AptoraTheme) {
+export function setTheme(theme: AppTheme) {
   localStorage.setItem(THEME_KEY, theme);
   applyTheme(theme);
 }
 
-export function applyTheme(theme: AptoraTheme = getTheme()) {
-  document.documentElement.dataset.aptoraTheme = theme;
+export function applyTheme(theme: AppTheme = getTheme()) {
+  document.documentElement.dataset.plTheme = theme;
 }

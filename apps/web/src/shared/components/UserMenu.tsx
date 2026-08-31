@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  type AptoraTheme,
+  type AppTheme,
   THEME_OPTIONS,
   getTheme,
   setTheme,
@@ -22,7 +22,7 @@ export function UserMenu({ collapsed, me }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
-  const [theme, setThemeState] = useState<AptoraTheme>(() => getTheme());
+  const [theme, setThemeState] = useState<AppTheme>(() => getTheme());
 
   const label = me?.displayName?.trim() || me?.email?.split('@')[0] || 'Account';
 
@@ -47,7 +47,7 @@ export function UserMenu({ collapsed, me }: Props) {
     };
   }, []);
 
-  function pickTheme(next: AptoraTheme) {
+  function pickTheme(next: AppTheme) {
     setTheme(next);
     setThemeState(next);
   }
@@ -139,7 +139,7 @@ export function UserMenu({ collapsed, me }: Props) {
                   <label key={opt.id} className="user-menu__theme">
                     <input
                       type="radio"
-                      name="aptora-theme"
+                      name="pl-theme"
                       checked={theme === opt.id}
                       onChange={() => pickTheme(opt.id)}
                     />

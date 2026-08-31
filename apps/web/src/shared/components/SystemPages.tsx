@@ -4,7 +4,7 @@ export function NotFoundPage() {
   return (
     <section className="page">
       <h1>Page not found</h1>
-      <p className="lede">That route does not exist in Aptora.</p>
+      <p className="lede">That route does not exist in Procure Ledger.</p>
       <p>
         <Link to="/">Back to Command Center</Link>
       </p>
