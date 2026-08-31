@@ -1828,6 +1828,32 @@
   border-bottom: 0;
 }
 
+.hitl-line-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--aptora-border);
+}
+
+.hitl-line-row:last-of-type {
+  border-bottom: 0;
+}
+
+.hitl-line-row__fields {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.5rem 0.75rem;
+}
+
+.hitl-line-row__remove {
+  flex-shrink: 0;
+  margin-top: 1.35rem;
+  font-size: 0.85rem;
+  color: var(--aptora-danger, #b42318);
+}
+
 @keyframes hitl-fade-in {
   from {
     opacity: 0;
