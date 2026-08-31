@@ -94,7 +94,20 @@ export class TenancyService {
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === 'P2002'
       ) {
-        throw new ConflictException(`Tenant slug "${input.slug}" already exists`);
+        const target = err.meta?.target;
+        const fields = Array.isArray(target)
+          ? target.join(', ')
+          : typeof target === 'string'
+            ? target
+            : 'unknown field';
+        if (fields.includes('slug')) {
+          throw new ConflictException(
+            `Tenant slug "${input.slug}" already exists`,
+          );
+        }
+        throw new ConflictException(
+          `Could not create workspace (database constraint: ${fields})`,
+        );
       }
       throw err;
     }
