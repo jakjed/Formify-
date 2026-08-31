@@ -1,6 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import type { NextFunction, Request, Response } from 'express';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { AppModule } from './app.module';
 import { setupOpenApi } from './openapi';
 
@@ -31,6 +34,18 @@ async function bootstrap() {
   );
 
   setupOpenApi(app);
+
+  const webDist = join(__dirname, '../../web/dist');
+  if (process.env.SERVE_WEB === '1' && existsSync(webDist)) {
+    app.useStaticAssets(webDist, { index: false });
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+      if (req.path.startsWith('/api')) return next();
+      res.sendFile(join(webDist, 'index.html'), (err) => {
+        if (err) next(err);
+      });
+    });
+  }
 
   const port = Number(process.env.PORT ?? 3001);
   await app.listen(port);
