@@ -14,10 +14,10 @@ type SearchResult = {
 };
 
 const NAV = [
-  { label: 'My Work', to: '/' },
+  { label: 'Command Center', to: '/' },
   { label: 'Invoices', to: '/invoices' },
   { label: 'Exceptions', to: '/exceptions' },
-  { label: 'Dashboard', to: '/ops' },
+  { label: 'Operations', to: '/ops' },
   { label: 'Directory', to: '/directory' },
   { label: 'Integration Center', to: '/integration' },
   { label: 'Admin', to: '/admin' },

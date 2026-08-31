@@ -1,0 +1,17 @@
+node_modules
+.turbo
+.git
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.idea
+.vscode
+apps/api/storage
+e2e/test-results
+e2e/playwright-report
+docs/Gabi_draft
+**/*.tsbuildinfo
+**/dist
+**/coverage

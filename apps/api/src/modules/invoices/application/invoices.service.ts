@@ -13,6 +13,7 @@ import { InvoiceValidationService } from '../../invoice-rules/application/invoic
 import { UsageService } from '../../usage/application/usage.service';
 import { WorkflowService } from '../../workflow/application/workflow.service';
 import { WebhooksService } from '../../webhooks/application/webhooks.service';
+import { NotificationsService } from '../../notifications/application/notifications.service';
 
 export type InvoiceListQuery = {
   status?: InvoiceStatus | InvoiceStatus[];
@@ -35,6 +36,7 @@ export class InvoicesService {
     private readonly validation: InvoiceValidationService,
     private readonly audit: AuditService,
     private readonly webhooks: WebhooksService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(tenantId: string, query: InvoiceListQuery = {}) {
@@ -245,6 +247,9 @@ export class InvoicesService {
     const exceptionStatus = byStatus.exception ?? 0;
     const totalOpen =
       needsReview + inApproval + exceptionStatus + (byStatus.extracting ?? 0);
+    const approved = (byStatus.approved ?? 0) + (byStatus.exported ?? 0) + (byStatus.paid ?? 0);
+    const touched = approved + needsReview + inApproval + exceptionStatus;
+    const stpRate = touched > 0 ? Math.round((approved / touched) * 1000) / 10 : 0;
 
     return {
       byStatus,
@@ -271,6 +276,7 @@ export class InvoicesService {
         softWarned: usage.softWarned,
         hardBlocked: usage.hardBlocked,
       },
+      stpRate,
     };
   }
 
@@ -666,12 +672,19 @@ export class InvoicesService {
       meta: { commentId: comment.id },
     });
     const authors = await this.loadAuthorMap(tenantId, [authorId]);
+    const mentioned = await this.notifyMentions(
+      tenantId,
+      invoiceId,
+      authorId,
+      trimmed,
+    );
     return {
       id: comment.id,
       authorId: comment.authorId,
       authorName: authors.get(authorId) ?? 'Unknown',
       body: comment.body,
       createdAt: comment.createdAt.toISOString(),
+      mentioned,
     };
   }
 
@@ -856,6 +869,295 @@ export class InvoicesService {
       entityId: id,
     });
     return updated;
+  }
+
+  async nextInQueue(
+    tenantId: string,
+    id: string,
+    query: InvoiceListQuery = {},
+  ) {
+    const rows = await this.list(tenantId, { ...query, limit: 200 });
+    const idx = rows.findIndex((r) => r.id === id);
+    const next = idx >= 0 ? rows[idx + 1] ?? rows[0] : rows[0];
+    if (!next || next.id === id) return { nextId: null };
+    return { nextId: next.id };
+  }
+
+  async captureInbox(tenantId: string) {
+    const [extracting, recentIngests] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: {
+          tenantId,
+          status: { in: ['captured', 'extracting'] },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+        include: {
+          fileAsset: { select: { originalName: true, mimeType: true } },
+        },
+      }),
+      this.prisma.emailIngest.findMany({
+        where: { tenantId },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+      }),
+    ]);
+    return { extracting, recentIngests };
+  }
+
+  async getMatchPanel(tenantId: string, id: string) {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id, tenantId },
+      include: {
+        lines: { orderBy: { lineNo: 'asc' } },
+        purchaseOrder: { include: { lines: { orderBy: { lineNo: 'asc' } } } },
+      },
+    });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    const validation = await this.validation.evaluate(tenantId, id);
+    const po = invoice.purchaseOrder;
+    const poTotal =
+      po?.totalMinor ??
+      po?.lines.reduce((sum, line) => sum + (line.amountMinor ?? 0), 0) ??
+      null;
+    const lineRows = invoice.lines.map((line) => {
+      const poLine =
+        po?.lines.find((p) => p.id === line.purchaseOrderLineId) ??
+        po?.lines.find((p) => p.lineNo === line.lineNo) ??
+        null;
+      let state: 'match' | 'mismatch' | 'unmatched' = 'unmatched';
+      if (poLine) {
+        const invAmt = line.amountMinor ?? 0;
+        const poAmt = poLine.amountMinor ?? 0;
+        state = Math.abs(invAmt - poAmt) <= 1 ? 'match' : 'mismatch';
+      }
+      return {
+        invoiceLineNo: line.lineNo,
+        invoiceDesc: line.description,
+        invoiceAmountMinor: line.amountMinor,
+        poLineNo: poLine?.lineNo ?? null,
+        poDesc: poLine?.description ?? null,
+        poAmountMinor: poLine?.amountMinor ?? null,
+        state,
+      };
+    });
+    return {
+      linked: Boolean(po),
+      invoice: {
+        number: invoice.invoiceNumber,
+        vendorName: invoice.vendorNameRaw,
+        totalMinor: invoice.totalMinor,
+        currency: invoice.currency,
+      },
+      po: po
+        ? {
+            id: po.id,
+            number: po.number,
+            title: po.title,
+            status: po.status,
+            totalMinor: poTotal,
+          }
+        : null,
+      lines: lineRows,
+      issues: validation.issues.filter((i) => i.code.startsWith('PO_')),
+    };
+  }
+
+  async getVendor360(tenantId: string, vendorId: string) {
+    const vendor = await this.prisma.vendor.findFirst({
+      where: { id: vendorId, tenantId },
+    });
+    if (!vendor) throw new NotFoundException('Vendor not found');
+    const invoices = await this.prisma.invoice.findMany({
+      where: { tenantId, vendorId },
+      orderBy: { createdAt: 'desc' },
+      take: 12,
+      include: {
+        exceptions: { where: { resolved: false } },
+        lines: { orderBy: { lineNo: 'asc' }, take: 4 },
+      },
+    });
+    const spendMinor = invoices
+      .filter((i) => ['approved', 'exported', 'paid'].includes(i.status))
+      .reduce((sum, i) => sum + (i.totalMinor ?? 0), 0);
+    const openExceptions = invoices.reduce(
+      (sum, i) => sum + i.exceptions.length,
+      0,
+    );
+    const lastCoded = invoices.find(
+      (i) =>
+        ['approved', 'exported', 'paid', 'in_approval'].includes(i.status) &&
+        i.lines.some((l) => l.glAccountId),
+    );
+    return {
+      vendor: {
+        id: vendor.id,
+        code: vendor.code,
+        name: vendor.name,
+        status: vendor.active ? 'active' : 'inactive',
+        email: vendor.email,
+      },
+      spendMinor,
+      openExceptions,
+      invoices: invoices.map((i) => ({
+        id: i.id,
+        invoiceNumber: i.invoiceNumber,
+        status: i.status,
+        totalMinor: i.totalMinor,
+        currency: i.currency,
+        createdAt: i.createdAt,
+      })),
+      lastCoding: lastCoded
+        ? lastCoded.lines.map((l) => ({
+            glAccountId: l.glAccountId,
+            costCenterId: l.costCenterId,
+            categoryId: l.categoryId,
+            taxCodeId: l.taxCodeId,
+          }))
+        : [],
+    };
+  }
+
+  async codingSuggest(tenantId: string, vendorId: string) {
+    const last = await this.prisma.invoice.findFirst({
+      where: {
+        tenantId,
+        vendorId,
+        status: { in: ['approved', 'exported', 'paid'] },
+        lines: { some: { glAccountId: { not: null } } },
+      },
+      orderBy: { approvedAt: 'desc' },
+      include: { lines: { orderBy: { lineNo: 'asc' } } },
+    });
+    if (!last) return { sourceInvoiceId: null, lines: [] };
+    return {
+      sourceInvoiceId: last.id,
+      sourceNumber: last.invoiceNumber,
+      lines: last.lines.map((l) => ({
+        glAccountId: l.glAccountId,
+        costCenterId: l.costCenterId,
+        categoryId: l.categoryId,
+        taxCodeId: l.taxCodeId,
+      })),
+    };
+  }
+
+  async listSavedViews(tenantId: string, userId: string) {
+    return this.prisma.invoiceSavedView.findMany({
+      where: { tenantId, OR: [{ userId }, { shared: true }] },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async createSavedView(
+    tenantId: string,
+    userId: string,
+    input: { name: string; filters?: Record<string, unknown>; shared?: boolean },
+  ) {
+    return this.prisma.invoiceSavedView.create({
+      data: {
+        tenantId,
+        userId,
+        name: input.name.trim(),
+        filters: (input.filters ?? {}) as Prisma.InputJsonValue,
+        shared: Boolean(input.shared),
+      },
+    });
+  }
+
+  async deleteSavedView(tenantId: string, userId: string, id: string) {
+    const row = await this.prisma.invoiceSavedView.findFirst({
+      where: { id, tenantId, userId },
+    });
+    if (!row) throw new NotFoundException('Saved view not found');
+    await this.prisma.invoiceSavedView.delete({ where: { id } });
+    return { ok: true };
+  }
+
+  async bulkAction(
+    tenantId: string,
+    userId: string,
+    input: { ids: string[]; action: 'submit' | 'export' },
+  ) {
+    if (input.ids.length === 0) {
+      throw new BadRequestException('Select at least one invoice');
+    }
+    if (input.action === 'export') {
+      const rows = await this.prisma.invoice.findMany({
+        where: { tenantId, id: { in: input.ids } },
+        orderBy: { createdAt: 'desc' },
+      });
+      const header = [
+        'id',
+        'status',
+        'invoiceNumber',
+        'vendorName',
+        'currency',
+        'totalMinor',
+      ];
+      const lines = [
+        header.join(','),
+        ...rows.map((r) =>
+          [
+            r.id,
+            r.status,
+            csvEscape(r.invoiceNumber ?? ''),
+            csvEscape(r.vendorNameRaw ?? ''),
+            r.currency,
+            r.totalMinor ?? '',
+          ].join(','),
+        ),
+      ];
+      return { action: 'export', count: rows.length, csv: lines.join('\n') };
+    }
+    const results: { id: string; ok: boolean; error?: string }[] = [];
+    for (const id of input.ids) {
+      try {
+        await this.submit(tenantId, id, userId);
+        results.push({ id, ok: true });
+      } catch (err) {
+        results.push({
+          id,
+          ok: false,
+          error: err instanceof Error ? err.message : 'Failed',
+        });
+      }
+    }
+    return { action: 'submit', results };
+  }
+
+  private async notifyMentions(
+    tenantId: string,
+    invoiceId: string,
+    authorId: string,
+    body: string,
+  ) {
+    const handles = [...body.matchAll(/@([a-zA-Z0-9._%+-]+(?:@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})?)/g)]
+      .map((m) => m[1]?.toLowerCase())
+      .filter((h): h is string => Boolean(h));
+    if (handles.length === 0) return [];
+    const users = await this.prisma.user.findMany({
+      where: {
+        tenantId,
+        OR: [
+          { email: { in: handles } },
+          { displayName: { in: handles, mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, email: true, displayName: true },
+    });
+    const targets = users.filter((u) => u.id !== authorId);
+    await this.notifications.notifyMany(
+      targets.map((user) => ({
+        tenantId,
+        userId: user.id,
+        type: 'invoice.mention',
+        title: 'You were mentioned on an invoice',
+        body: body.slice(0, 180),
+        href: `/invoices/${invoiceId}`,
+      })),
+    );
+    return targets.map((u) => u.email);
   }
 }
 

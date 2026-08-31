@@ -1,0 +1,12 @@
+# Railway — single service (Postgres plugin added separately in dashboard)
+# Docs: docs/architecture/RAILWAY_STAGING.md
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

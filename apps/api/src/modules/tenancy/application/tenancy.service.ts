@@ -95,7 +95,20 @@ export class TenancyService {
         err instanceof Prisma.PrismaClientKnownRequestError &&
         err.code === 'P2002'
       ) {
-        throw new ConflictException(`Tenant slug "${input.slug}" already exists`);
+        const target = err.meta?.target;
+        const fields = Array.isArray(target)
+          ? target.join(', ')
+          : typeof target === 'string'
+            ? target
+            : 'unknown field';
+        if (fields.includes('slug')) {
+          throw new ConflictException(
+            `Tenant slug "${input.slug}" already exists`,
+          );
+        }
+        throw new ConflictException(
+          `Could not create workspace (database constraint: ${fields})`,
+        );
       }
       throw err;
     }
@@ -340,6 +353,97 @@ export class TenancyService {
       },
       select: { aiAssistEnabled: true, llmProvider: true },
     });
+  }
+
+  async joinWaitlist(email: string, company?: string) {
+    const row = await this.prisma.waitlistSignup.upsert({
+      where: { email: email.toLowerCase() },
+      create: {
+        email: email.toLowerCase(),
+        company: company?.trim() || null,
+      },
+      update: {
+        company: company?.trim() || null,
+      },
+    });
+    return { ok: true, id: row.id };
+  }
+
+  async getOnboarding(tenantId: string) {
+    await this.getTenant(tenantId);
+    const [
+      entities,
+      vendorCount,
+      glCount,
+      invoiceCount,
+      approvedCount,
+      exportJobs,
+      mailbox,
+    ] = await Promise.all([
+      this.prisma.entity.count({ where: { tenantId } }),
+      this.prisma.vendor.count({ where: { tenantId } }),
+      this.prisma.glAccount.count({ where: { tenantId } }),
+      this.prisma.invoice.count({ where: { tenantId } }),
+      this.prisma.invoice.count({
+        where: { tenantId, status: { in: ['approved', 'exported', 'paid'] } },
+      }),
+      this.prisma.integrationJob.count({
+        where: {
+          tenantId,
+          type: 'export_approved_invoices',
+          status: 'succeeded',
+        },
+      }),
+      this.prisma.captureMailbox.findUnique({ where: { tenantId } }),
+    ]);
+    const steps = [
+      {
+        id: 'entity',
+        label: 'Confirm your entity',
+        href: '/admin?tab=entities',
+        done: entities > 0,
+      },
+      {
+        id: 'vendors',
+        label: 'Import vendors',
+        href: '/integration',
+        done: vendorCount > 0,
+      },
+      {
+        id: 'gl',
+        label: 'Import GL accounts',
+        href: '/integration',
+        done: glCount > 0,
+      },
+      {
+        id: 'upload',
+        label: 'Upload sample invoices',
+        href: '/invoices',
+        done: invoiceCount >= 1,
+        detail: `${invoiceCount} captured`,
+      },
+      {
+        id: 'approve',
+        label: 'Approve an invoice',
+        href: '/',
+        done: approvedCount > 0,
+        detail: `${approvedCount} approved`,
+      },
+      {
+        id: 'export',
+        label: 'Export payment-ready invoices',
+        href: '/integration',
+        done: exportJobs > 0,
+      },
+    ];
+    const completed = steps.filter((s) => s.done).length;
+    return {
+      complete: completed === steps.length,
+      completed,
+      total: steps.length,
+      mailboxConfigured: Boolean(mailbox?.enabled),
+      steps,
+    };
   }
 
   private toTenantRecord(tenant: {

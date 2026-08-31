@@ -11,6 +11,7 @@ import type { ModuleKey } from '@aptora/types';
 import { IntegrationJobType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { TenancyService } from '../../tenancy/application/tenancy.service';
+import { NotificationsService } from '../../notifications/application/notifications.service';
 
 export const DEMO_ERP_PACK_KEY = 'demo-erp';
 export const NETSUITE_PACK_KEY = 'netsuite';
@@ -94,6 +95,7 @@ export class IntegrationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenancy: TenancyService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   listTemplates() {
@@ -386,6 +388,7 @@ export class IntegrationService {
           finishedAt: new Date(),
         },
       });
+      await this.notifyExportFailed(tenantId, job);
       throw new BadRequestException({
         message: 'Demo ERP sync failed',
         jobId: job.id,
@@ -712,6 +715,7 @@ export class IntegrationService {
             finishedAt: new Date(),
           },
         });
+        await this.notifyExportFailed(tenantId, job);
         throw new BadRequestException({
           message: `NetSuite SuiteTalk sync failed for all ${invoices.length} invoice(s)`,
           jobId: job.id,
@@ -779,6 +783,7 @@ export class IntegrationService {
           finishedAt: new Date(),
         },
       });
+      await this.notifyExportFailed(tenantId, job);
       throw new BadRequestException({
         message: 'NetSuite sync failed',
         jobId: job.id,
@@ -1102,6 +1107,7 @@ export class IntegrationService {
             finishedAt: new Date(),
           },
         });
+        await this.notifyExportFailed(tenantId, job);
         throw new BadRequestException({
           message: `QuickBooks Online sync failed for all ${invoices.length} invoice(s)`,
           jobId: job.id,
@@ -1168,6 +1174,7 @@ export class IntegrationService {
           finishedAt: new Date(),
         },
       });
+      await this.notifyExportFailed(tenantId, job);
       throw new BadRequestException({
         message: 'QuickBooks Online sync failed',
         jobId: job.id,
@@ -1460,6 +1467,18 @@ export class IntegrationService {
       content: input.content,
       rowCount: input.rowCount,
     };
+  }
+
+  private async notifyExportFailed(
+    tenantId: string,
+    job: { id: string; type: string; errorMessage: string | null },
+  ) {
+    await this.notifications.notifyRoles(tenantId, ['admin', 'ap_manager'], {
+      type: 'export.failed',
+      title: 'Export failed',
+      body: job.errorMessage || `${job.type} failed`,
+      href: '/integration',
+    });
   }
 
   private async writeArtifact(

@@ -3,6 +3,13 @@ import { Link } from 'react-router-dom';
 import { apiFetch } from '../../shared/lib/api';
 import { formatMoney } from '../procure/shared';
 
+type Onboarding = {
+  complete: boolean;
+  completed: number;
+  total: number;
+  steps: { id: string; label: string; href: string; done: boolean; detail?: string }[];
+};
+
 type ApprovalTask = {
   id: string;
   invoiceId: string;
@@ -14,6 +21,13 @@ type ApprovalTask = {
     totalMinor: number | null;
     currency: string;
     status: string;
+    exceptions?: { code: string; message: string }[];
+    lines?: {
+      lineNo: number;
+      glAccountId?: string | null;
+      glAccount?: { code: string; name: string } | null;
+    }[];
+    fileAsset?: { originalName: string; mimeType: string } | null;
   } | null;
 };
 
@@ -65,34 +79,56 @@ function ageLabel(iso: string) {
 export function HomePage() {
   const [cc, setCc] = useState<CommandCenter | null>(null);
   const [tasks, setTasks] = useState<ApprovalTask[]>([]);
+  const [onboarding, setOnboarding] = useState<Onboarding | null>(null);
+  const [sheet, setSheet] = useState<ApprovalTask | null>(null);
+  const [rejectComment, setRejectComment] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   async function refresh() {
-    const [center, t] = await Promise.all([
+    const [center, t, onboard] = await Promise.all([
       apiFetch<CommandCenter>('/api/ops/command-center'),
       apiFetch<ApprovalTask[]>('/api/approvals/my-work'),
+      apiFetch<Onboarding>('/api/onboarding').catch(() => null),
     ]);
     setCc(center);
     setTasks(t);
+    setOnboarding(onboard);
   }
 
   useEffect(() => {
     void refresh().catch((err: Error) => setError(err.message));
   }, []);
 
-  async function decide(taskId: string, decision: 'approve' | 'reject') {
+  async function decide(taskId: string, decision: 'approve' | 'reject', comment?: string) {
     setError(null);
     setMessage(null);
     try {
+      if (decision === 'reject' && !comment?.trim()) {
+        setError('A comment is required when rejecting.');
+        return;
+      }
       await apiFetch(`/api/approvals/${taskId}/${decision}`, {
         method: 'POST',
-        body: JSON.stringify({}),
+        body: JSON.stringify({ comment }),
       });
       setMessage(decision === 'approve' ? 'Approved' : 'Rejected');
+      setSheet(null);
+      setRejectComment('');
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Action failed');
+    }
+  }
+
+  async function remind() {
+    try {
+      const r = await apiFetch<{ reminded: number }>('/api/approvals/remind', {
+        method: 'POST',
+      });
+      setMessage(`Sent ${r.reminded} reminder${r.reminded === 1 ? '' : 's'}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Reminders failed');
     }
   }
 
@@ -120,11 +156,38 @@ export function HomePage() {
           <Link className="btn btn--ghost" to="/ops">
             Operations
           </Link>
+          <button type="button" className="btn btn--ghost" onClick={() => void remind()}>
+            Send reminders
+          </button>
         </div>
       </header>
 
       {error && <p className="error">{error}</p>}
       {message && <p className="ok">{message}</p>}
+
+      {onboarding && !onboarding.complete && (
+        <div className="panel panel--wide panel--lift first-run">
+          <div className="panel__head">
+            <div>
+              <h2>Get to first approved invoice</h2>
+              <p className="muted">
+                {onboarding.completed} of {onboarding.total} setup steps done.
+              </p>
+            </div>
+          </div>
+          <ol className="first-run__steps">
+            {onboarding.steps.map((step) => (
+              <li key={step.id} className={step.done ? 'is-done' : ''}>
+                <Link to={step.href}>
+                  <span className="first-run__check">{step.done ? '✓' : ''}</span>
+                  {step.label}
+                  {step.detail && <em>{step.detail}</em>}
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       <div className="stat-grid">
         <Link className="stat-tile" to="/contracts">
@@ -246,17 +309,20 @@ export function HomePage() {
                 <div className="approval-card__actions">
                   <button
                     type="button"
+                    className="btn btn--ghost"
+                    onClick={() => {
+                      setSheet(task);
+                      setRejectComment('');
+                    }}
+                  >
+                    Review
+                  </button>
+                  <button
+                    type="button"
                     className="btn btn--primary"
                     onClick={() => void decide(task.id, 'approve')}
                   >
                     Approve
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn--danger-ghost"
-                    onClick={() => void decide(task.id, 'reject')}
-                  >
-                    Reject
                   </button>
                 </div>
               </li>
@@ -264,6 +330,81 @@ export function HomePage() {
           </ul>
         )}
       </div>
+
+      {sheet && (
+        <div className="sheet-overlay" onClick={() => setSheet(null)}>
+          <div
+            className="sheet"
+            role="dialog"
+            aria-label="Approve invoice"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="eyebrow">Decision</p>
+            <h2>{sheet.invoice?.invoiceNumber ?? 'Draft invoice'}</h2>
+            <p className="lede">
+              {sheet.invoice?.vendorNameRaw ?? 'Unknown vendor'} ·{' '}
+              {formatMoney(
+                sheet.invoice?.totalMinor ?? null,
+                sheet.invoice?.currency ?? 'EUR',
+              )}
+            </p>
+            {sheet.invoice?.fileAsset && (
+              <p className="muted">
+                Document: {sheet.invoice.fileAsset.originalName}
+              </p>
+            )}
+            {sheet.invoice?.exceptions && sheet.invoice.exceptions.length > 0 && (
+              <ul>
+                {sheet.invoice.exceptions.map((x) => (
+                  <li key={x.code}>
+                    {x.code}: {x.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {sheet.invoice?.lines && sheet.invoice.lines.length > 0 && (
+              <p className="muted">
+                GL:{' '}
+                {sheet.invoice.lines
+                  .map((l) => l.glAccount?.code)
+                  .filter(Boolean)
+                  .join(', ') || 'not coded'}
+                {' · '}
+                {sheet.invoice.lines.length} coding line
+                {sheet.invoice.lines.length === 1 ? '' : 's'}
+              </p>
+            )}
+            <label>
+              Reject comment
+              <textarea
+                rows={3}
+                value={rejectComment}
+                onChange={(e) => setRejectComment(e.target.value)}
+                placeholder="Required if you reject"
+              />
+            </label>
+            <div className="approval-card__actions">
+              <Link className="btn btn--ghost" to={`/invoices/${sheet.invoiceId}`}>
+                Open workspace
+              </Link>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => void decide(sheet.id, 'approve')}
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                className="btn btn--danger-ghost"
+                onClick={() => void decide(sheet.id, 'reject', rejectComment)}
+              >
+                Reject
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {cc && (
         <div className="stat-grid stat-grid--panels" style={{ marginTop: '1.25rem' }}>

@@ -2,6 +2,7 @@ import {
   DragEvent,
   FormEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -158,7 +159,11 @@ type OcrChip = {
   label: string;
   value: string;
   bbox: OcrBBox | null;
+  confidence: number | null;
+  key?: string;
 };
+
+const HIGH_CONF = 0.85;
 
 type FieldKey =
   | 'invoiceNumber'
@@ -217,6 +222,8 @@ function buildOcrChips(invoice: Invoice): OcrChip[] {
         label: f.label,
         value: f.text.trim(),
         bbox: f.bbox,
+        confidence: f.confidence,
+        key: f.key,
       }));
   }
 
@@ -224,7 +231,7 @@ function buildOcrChips(invoice: Invoice): OcrChip[] {
   const push = (id: string, label: string, value: string | null | undefined) => {
     const v = value?.trim();
     if (!v) return;
-    chips.push({ id, label, value: v, bbox: null });
+    chips.push({ id, label, value: v, bbox: null, confidence: null });
   };
 
   push('vendor', 'Vendor', invoice.vendorNameRaw);
@@ -323,6 +330,8 @@ function DocumentViewer({
   const [textPreview, setTextPreview] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [zoom, setZoom] = useState(100);
+  const [page, setPage] = useState(1);
   const hasGeometry = chips.some((c) => c.bbox);
 
   useEffect(() => {
@@ -399,7 +408,35 @@ function DocumentViewer({
 
   return (
     <div className="hitl-doc__stack">
-      <div className="hitl-doc__canvas">
+      <div className="hitl-doc__zoom">
+        <button type="button" className="btn btn--ghost" onClick={() => setZoom((z) => Math.max(50, z - 25))}>
+          −
+        </button>
+        <span>{zoom}%</span>
+        <button type="button" className="btn btn--ghost" onClick={() => setZoom((z) => Math.min(200, z + 25))}>
+          +
+        </button>
+        {isPdf && (
+          <>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Prev page
+            </button>
+            <span>Page {page}</span>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next page
+            </button>
+          </>
+        )}
+      </div>
+      <div className="hitl-doc__canvas" style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top left' }}>
         {textPreview != null && (
           <pre className="hitl-doc__text" aria-label="Scanned document text">
             {textPreview}
@@ -429,7 +466,7 @@ function DocumentViewer({
           <iframe
             className="hitl-doc__frame"
             title={fileAsset.originalName}
-            src={url}
+            src={`${url}#toolbar=1&navpanes=0&page=${page}&zoom=${zoom}`}
           />
         )}
         {url && !isImage && !isPdf && (
@@ -473,12 +510,14 @@ function DropField({
   children,
   dropActive,
   onDropValue,
+  confidence,
 }: {
   label: string;
   fieldKey: FieldKey;
   children: ReactNode;
   dropActive: boolean;
   onDropValue: (field: FieldKey, value: string) => void;
+  confidence?: number | null;
 }) {
   function onDragOver(e: DragEvent) {
     if (![...e.dataTransfer.types].includes(OCR_MIME)) return;
@@ -492,14 +531,28 @@ function DropField({
     if (value) onDropValue(fieldKey, value);
   }
 
+  const high = confidence != null && confidence >= HIGH_CONF;
   return (
     <label
-      className={`hitl-field${dropActive ? ' hitl-field--drop' : ''}`}
+      className={`hitl-field${dropActive ? ' hitl-field--drop' : ''}${high ? ' hitl-field--high' : ''}`}
       data-field={fieldKey}
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      <span className="hitl-field__label">{label}</span>
+      <span className="hitl-field__label">
+        {label}
+        {confidence != null && (
+          <span
+            className={
+              confidence >= HIGH_CONF
+                ? 'hitl-conf hitl-conf--ok'
+                : 'hitl-conf hitl-conf--low'
+            }
+          >
+            {confidence >= HIGH_CONF ? '✓' : `${Math.round(confidence * 100)}%`}
+          </span>
+        )}
+      </span>
       {children}
     </label>
   );
@@ -533,6 +586,36 @@ export function InvoiceWorkspacePage() {
   const [attachFile, setAttachFile] = useState<File | null>(null);
   const [attachLabel, setAttachLabel] = useState('');
   const [attachInputKey, setAttachInputKey] = useState(0);
+  const [matchPanel, setMatchPanel] = useState<{
+    linked: boolean;
+    invoice: { totalMinor: number | null; vendorName: string | null };
+    po: { number: string; status: string; totalMinor: number | null } | null;
+    lines: {
+      invoiceLineNo: number;
+      invoiceDesc: string | null;
+      invoiceAmountMinor: number | null;
+      poLineNo: number | null;
+      poAmountMinor: number | null;
+      state: string;
+    }[];
+    issues: { code: string; message: string }[];
+  } | null>(null);
+  const [vendor360, setVendor360] = useState<{
+    vendor: { name: string; code: string };
+    spendMinor: number;
+    openExceptions: number;
+    invoices: { id: string; invoiceNumber: string | null; status: string; totalMinor: number | null }[];
+    lastCoding: { glAccountId: string | null }[];
+  } | null>(null);
+  const [codingSuggest, setCodingSuggest] = useState<{
+    sourceNumber: string | null;
+    lines: {
+      glAccountId: string | null;
+      costCenterId: string | null;
+      categoryId: string | null;
+      taxCodeId: string | null;
+    }[];
+  } | null>(null);
 
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [vendorNameRaw, setVendorNameRaw] = useState('');
@@ -550,6 +633,10 @@ export function InvoiceWorkspacePage() {
     () => (invoice ? buildOcrChips(invoice) : []),
     [invoice],
   );
+
+  function fieldConf(key: string) {
+    return chips.find((c) => c.key === key || c.id === key)?.confidence ?? null;
+  }
 
   const filteredCategories = useMemo(() => {
     if (!invoice?.entityId) return categories;
@@ -587,6 +674,9 @@ export function InvoiceWorkspacePage() {
     setInvoice(validation.invoice);
     setActivity(activityRows);
     setComments(commentRows);
+    void apiFetch<typeof matchPanel>(`/api/invoices/${invoiceId}/match`)
+      .then(setMatchPanel)
+      .catch(() => undefined);
     return validation;
   }
 
@@ -678,6 +768,45 @@ export function InvoiceWorkspacePage() {
       cancelled = true;
     };
   }, [purchaseOrderId]);
+
+  useEffect(() => {
+    if (!vendorId) {
+      setVendor360(null);
+      setCodingSuggest(null);
+      return;
+    }
+    void apiFetch<NonNullable<typeof vendor360>>(
+      `/api/invoices/vendor-360/${vendorId}`,
+    )
+      .then(setVendor360)
+      .catch(() => setVendor360(null));
+    void apiFetch<NonNullable<typeof codingSuggest>>(
+      `/api/invoices/coding-suggest?vendorId=${vendorId}`,
+    )
+      .then(setCodingSuggest)
+      .catch(() => setCodingSuggest(null));
+  }, [vendorId]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        void goNext();
+      }
+      if (e.key === 'a' || e.key === 'A') {
+        e.preventDefault();
+        void onApprove();
+      }
+      if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        void onReject();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   function applyChipValue(field: FieldKey, value: string) {
     switch (field) {
@@ -894,6 +1023,18 @@ export function InvoiceWorkspacePage() {
     }
   }
 
+  async function goNext() {
+    if (!id) return;
+    try {
+      const data = await apiFetch<{ nextId: string | null }>(
+        `/api/invoices/${id}/next?status=needs_review`,
+      );
+      if (data.nextId) navigate(`/invoices/${data.nextId}`);
+    } catch {
+      /* stay */
+    }
+  }
+
   async function onApprove() {
     if (!id) return;
     setError(null);
@@ -902,9 +1043,49 @@ export function InvoiceWorkspacePage() {
         method: 'POST',
       });
       setInvoice(inv);
-      setMessage('Force-approved — billable transaction recorded');
+      setMessage('Approved — billable transaction recorded');
+      await goNext();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Approve failed');
+    }
+  }
+
+  async function onReject() {
+    if (!id) return;
+    const comment = window.prompt('Reject comment (required)');
+    if (!comment?.trim()) {
+      setError('A comment is required when rejecting.');
+      return;
+    }
+    setError(null);
+    try {
+      await apiFetch(`/api/invoices/${id}/comments`, {
+        method: 'POST',
+        body: JSON.stringify({ body: comment.trim() }),
+      });
+      const tasks = await apiFetch<{ id: string; invoiceId: string }[]>(
+        '/api/approvals/my-work',
+      );
+      const mine = tasks.find((t) => t.invoiceId === id);
+      if (mine) {
+        await apiFetch(`/api/approvals/${mine.id}/reject`, {
+          method: 'POST',
+          body: JSON.stringify({ comment: comment.trim() }),
+        });
+      } else if (
+        invoice &&
+        ['needs_review', 'exception', 'captured', 'extracting'].includes(
+          invoice.status,
+        )
+      ) {
+        await apiFetch(`/api/invoices/${id}/void`, { method: 'POST' });
+      } else {
+        throw new Error('Nothing to reject on this invoice');
+      }
+      setMessage('Rejected');
+      await goNext();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Reject failed');
     }
   }
 
@@ -1041,9 +1222,34 @@ export function InvoiceWorkspacePage() {
             type="button"
             className="btn btn--ghost"
             onClick={() => void onApprove()}
-            disabled={invoice.status === 'approved' || invoice.status === 'exported'}
+            disabled={
+              invoice.status === 'approved' ||
+              invoice.status === 'exported' ||
+              invoice.status === 'paid' ||
+              invoice.status === 'void'
+            }
           >
-            Force approve
+            Approve
+          </button>
+          <button
+            type="button"
+            className="btn btn--danger-ghost"
+            onClick={() => void onReject()}
+            disabled={
+              invoice.status === 'approved' ||
+              invoice.status === 'exported' ||
+              invoice.status === 'paid' ||
+              invoice.status === 'void'
+            }
+          >
+            Reject
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={() => void goNext()}
+          >
+            Next
           </button>
         </div>
       </header>
@@ -1053,7 +1259,8 @@ export function InvoiceWorkspacePage() {
           <div className="hitl-doc__toolbar">
             <h2>Original scan</h2>
             <p>
-              Drag a highlighted region (or chip) onto a form field
+              Drag a highlighted region (or chip) onto a form field. Keyboard: Tab
+              review fields · A approve · R reject · N next.
               {armedChip ? (
                 <>
                   {' '}
@@ -1098,6 +1305,11 @@ export function InvoiceWorkspacePage() {
                     >
                       <span className="hitl-chip__label">{chip.label}</span>
                       <span className="hitl-chip__value">{chip.value}</span>
+                      {chip.confidence != null && (
+                        <span className="hitl-chip__conf">
+                          {Math.round(chip.confidence * 100)}%
+                        </span>
+                      )}
                     </button>
                   </li>
                 ))}
@@ -1145,8 +1357,108 @@ export function InvoiceWorkspacePage() {
               </div>
             )}
 
+          {matchPanel && (
+            <div className="hitl-alert hitl-alert--soft">
+              <h2>PO match</h2>
+              {matchPanel.po ? (
+                <p>
+                  PO {matchPanel.po.number} · {matchPanel.po.status} · invoice{' '}
+                  {matchPanel.invoice.totalMinor ?? '—'} vs PO{' '}
+                  {matchPanel.po.totalMinor ?? '—'}
+                </p>
+              ) : (
+                <p className="muted">No purchase order linked.</p>
+              )}
+              {matchPanel.lines.length > 0 && (
+                <ul className="match-lines">
+                  {matchPanel.lines.map((row) => (
+                    <li key={row.invoiceLineNo} className={`match-lines__${row.state}`}>
+                      Line {row.invoiceLineNo} {row.invoiceDesc ?? ''} · {row.state}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {matchPanel.issues.map((x) => (
+                <p key={x.code} className="error">
+                  {x.code}: {x.message}
+                </p>
+              ))}
+            </div>
+          )}
+
+          {vendor360 && (
+            <div className="hitl-alert hitl-alert--soft">
+              <h2>Vendor 360 · {vendor360.vendor.name}</h2>
+              <p className="muted">
+                Spend on recent invoices: {(vendor360.spendMinor / 100).toFixed(2)} ·{' '}
+                {vendor360.openExceptions} open exceptions
+              </p>
+              <ul>
+                {vendor360.invoices.slice(0, 5).map((row) => (
+                  <li key={row.id}>
+                    <Link to={`/invoices/${row.id}`}>
+                      {row.invoiceNumber ?? row.id.slice(0, 8)}
+                    </Link>{' '}
+                    · {row.status}
+                  </li>
+                ))}
+              </ul>
+              {codingSuggest && codingSuggest.lines.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn--ghost"
+                  onClick={() => {
+                    setEditLines((prev) =>
+                      prev.map((line, i) => ({
+                        ...line,
+                        ...codingSuggest.lines[
+                          Math.min(i, codingSuggest.lines.length - 1)
+                        ],
+                      })),
+                    );
+                    setMessage('Applied last coding for this vendor');
+                  }}
+                >
+                  Apply last coding
+                  {codingSuggest.sourceNumber
+                    ? ` from ${codingSuggest.sourceNumber}`
+                    : ''}
+                </button>
+              )}
+            </div>
+          )}
+
           <form className="workspace-form hitl-form" onSubmit={onSave}>
-            <fieldset disabled={fieldsLocked} className="hitl-fieldset">
+            <fieldset
+              disabled={fieldsLocked}
+              className="hitl-fieldset"
+              onKeyDown={(e) => {
+                if (e.key !== 'Tab') return;
+                const current = (e.target as HTMLElement).closest('.hitl-field');
+                if (!current) return;
+                const all = [
+                  ...e.currentTarget.querySelectorAll('.hitl-field'),
+                ];
+                const review = all.filter(
+                  (el) => !el.classList.contains('hitl-field--high'),
+                );
+                const pool = review.length > 0 ? review : all;
+                if (pool.length === 0) return;
+                e.preventDefault();
+                const fromIdx = all.indexOf(current);
+                const dir = e.shiftKey ? -1 : 1;
+                const len = all.length;
+                for (let step = 1; step <= len; step += 1) {
+                  const el = all[(fromIdx + dir * step + len * 20) % len];
+                  if (el && pool.includes(el)) {
+                    el.querySelector<HTMLElement>(
+                      'input, select, textarea',
+                    )?.focus();
+                    return;
+                  }
+                }
+              }}
+            >
             {fieldsLocked && (
               <p className="muted span-2">
                 Fields are read-only while status is {invoice.status.replace(/_/g, ' ')}.
@@ -1160,6 +1472,7 @@ export function InvoiceWorkspacePage() {
               fieldKey="invoiceNumber"
               dropActive={dragging || !!armedChip}
               onDropValue={applyChipValue}
+              confidence={fieldConf('invoiceNumber')}
             >
               <input
                 value={invoiceNumber}
@@ -1175,6 +1488,7 @@ export function InvoiceWorkspacePage() {
               fieldKey="vendorNameRaw"
               dropActive={dragging || !!armedChip}
               onDropValue={applyChipValue}
+              confidence={fieldConf('vendorName')}
             >
               <input
                 value={vendorNameRaw}
@@ -1584,7 +1898,7 @@ export function InvoiceWorkspacePage() {
                 <input
                   value={commentBody}
                   onChange={(e) => setCommentBody(e.target.value)}
-                  placeholder="Add a comment…"
+              placeholder="Add a comment… use @email to mention"
                   required
                   style={{ flex: 1, minWidth: '12rem' }}
                 />

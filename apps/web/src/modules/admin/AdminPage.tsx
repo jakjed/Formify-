@@ -197,21 +197,46 @@ type OutboundEmail = {
   configured: boolean;
 };
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'users', label: 'Users' },
-  { id: 'entities', label: 'Entities' },
-  { id: 'modules', label: 'Modules' },
-  { id: 'keys', label: 'API keys' },
-  { id: 'oauth', label: 'OAuth apps' },
-  { id: 'usage', label: 'Usage' },
-  { id: 'mailbox', label: 'Mailbox' },
-  { id: 'webhooks', label: 'Webhooks' },
-  { id: 'sso', label: 'SSO' },
-  { id: 'notifications', label: 'Notifications' },
-  { id: 'audit', label: 'Audit' },
-  { id: 'workflow', label: 'Approvals' },
-  { id: 'delegations', label: 'Delegation' },
+const TAB_GROUPS: { label: string; tabs: { id: Tab; label: string }[] }[] = [
+  {
+    label: 'Identity',
+    tabs: [
+      { id: 'users', label: 'Users' },
+      { id: 'entities', label: 'Entities' },
+      { id: 'sso', label: 'SSO' },
+      { id: 'delegations', label: 'Delegation' },
+    ],
+  },
+  {
+    label: 'Capture',
+    tabs: [{ id: 'mailbox', label: 'Mailbox' }],
+  },
+  {
+    label: 'Workflow',
+    tabs: [
+      { id: 'workflow', label: 'Approvals' },
+      { id: 'notifications', label: 'Email' },
+    ],
+  },
+  {
+    label: 'Compliance',
+    tabs: [
+      { id: 'audit', label: 'Audit' },
+      { id: 'modules', label: 'Modules' },
+      { id: 'usage', label: 'Usage' },
+    ],
+  },
+  {
+    label: 'Developers',
+    tabs: [
+      { id: 'keys', label: 'API keys' },
+      { id: 'oauth', label: 'OAuth apps' },
+      { id: 'webhooks', label: 'Webhooks' },
+    ],
+  },
 ];
+
+const TABS: { id: Tab; label: string }[] = TAB_GROUPS.flatMap((g) => g.tabs);
 
 const ROLES = ['admin', 'ap_manager', 'ap_clerk', 'approver'] as const;
 const USER_STATUSES = ['invited', 'active', 'locked'] as const;
@@ -999,22 +1024,28 @@ export function AdminPage() {
       <p className="eyebrow">Platform</p>
       <h1>Admin</h1>
       <p className="lede">
-        Users, entities, API keys, usage limits, capture mailbox, and audit.
+        Identity, capture, workflow, compliance, and developer settings for this
+        workspace.
       </p>
 
       {error && <p className="error">{error}</p>}
       {message && <p className="ok">{message}</p>}
 
-      <div className="tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={tab === t.id ? 'tabs__btn tabs__btn--active' : 'tabs__btn'}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
+      <div className="tabs tabs--grouped">
+        {TAB_GROUPS.map((group) => (
+          <div key={group.label} className="tabs__group">
+            <span className="tabs__group-label">{group.label}</span>
+            {group.tabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={tab === t.id ? 'tabs__btn tabs__btn--active' : 'tabs__btn'}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         ))}
       </div>
 
@@ -2280,7 +2311,11 @@ export function AdminPage() {
       {tab === 'notifications' && (
         <div className="panel">
           <div className="panel__head">
-            <h2>Notifications</h2>
+            <h2>Notification history</h2>
+            <p className="muted">
+              The live inbox is the bell in the sidebar. This list is the full
+              history for operators.
+            </p>
             <button
               type="button"
               className="secondary-btn"

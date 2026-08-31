@@ -30,6 +30,7 @@ export type UserRecord = {
   canApprove: boolean;
   failedLoginCount: number;
   lockedUntil: string | null;
+  totpEnabled?: boolean;
   createdAt: string;
   defaultEntityId?: string | null;
   entityMemberships?: EntityMembershipSummary[];

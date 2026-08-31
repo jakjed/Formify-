@@ -63,6 +63,14 @@ const BUILTIN_VIEWS: SavedView[] = [
     sort: 'created_desc',
   },
   {
+    id: 'high',
+    label: 'High amount',
+    status: '',
+    q: '',
+    hasOpenExceptions: false,
+    sort: 'total_desc',
+  },
+  {
     id: 'approved',
     label: 'Approved (export)',
     status: 'approved',
@@ -72,8 +80,6 @@ const BUILTIN_VIEWS: SavedView[] = [
   },
 ];
 
-const VIEWS_KEY = 'aptora_invoice_views';
-
 function formatMoney(minor: number | null, currency: string) {
   if (minor == null) return '—';
   return new Intl.NumberFormat(undefined, {
@@ -82,23 +88,16 @@ function formatMoney(minor: number | null, currency: string) {
   }).format(minor / 100);
 }
 
-function loadCustomViews(): SavedView[] {
-  try {
-    const raw = localStorage.getItem(VIEWS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as SavedView[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 export function InvoicesPage() {
   const [params, setParams] = useSearchParams();
   const [items, setItems] = useState<InvoiceListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [customViews, setCustomViews] = useState<SavedView[]>(loadCustomViews);
+  const [customViews, setCustomViews] = useState<SavedView[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [inbox, setInbox] = useState<{
+    extracting: { id: string; status: string; fileAsset: { originalName: string } | null }[];
+  } | null>(null);
 
   const status = params.get('status') ?? '';
   const q = params.get('q') ?? '';
@@ -120,6 +119,23 @@ export function InvoicesPage() {
     if (hasOpenExceptions) sp.set('hasOpenExceptions', 'true');
     if (sort) sp.set('sort', sort);
     setItems(await apiFetch<InvoiceListItem[]>(`/api/invoices?${sp}`));
+    const views = await apiFetch<
+      { id: string; name: string; filters: { status?: string; q?: string; hasOpenExceptions?: boolean; sort?: string } }[]
+    >('/api/invoices/views').catch(() => []);
+    setCustomViews(
+      views.map((v) => ({
+        id: v.id,
+        label: v.name,
+        status: v.filters.status ?? '',
+        q: v.filters.q ?? '',
+        hasOpenExceptions: Boolean(v.filters.hasOpenExceptions),
+        sort: v.filters.sort ?? 'created_desc',
+      })),
+    );
+    const cap = await apiFetch<{
+      extracting: { id: string; status: string; fileAsset: { originalName: string } | null }[];
+    }>('/api/invoices/capture-inbox').catch(() => null);
+    setInbox(cap);
   }, [status, q, hasOpenExceptions, sort]);
 
   useEffect(() => {
@@ -154,21 +170,63 @@ export function InvoicesPage() {
     setParams(next);
   }
 
-  function saveCurrentView() {
+  async function saveCurrentView() {
     const label = window.prompt('Name this view');
     if (!label?.trim()) return;
-    const view: SavedView = {
-      id: `custom-${Date.now()}`,
-      label: label.trim(),
-      status,
-      q,
-      hasOpenExceptions,
-      sort,
-    };
-    const next = [...customViews, view];
-    setCustomViews(next);
-    localStorage.setItem(VIEWS_KEY, JSON.stringify(next));
-    applyView(view);
+    try {
+      const created = await apiFetch<{ id: string; name: string }>(
+        '/api/invoices/views',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            name: label.trim(),
+            filters: { status, q, hasOpenExceptions, sort },
+            shared: true,
+          }),
+        },
+      );
+      const view: SavedView = {
+        id: created.id,
+        label: created.name,
+        status,
+        q,
+        hasOpenExceptions,
+        sort,
+      };
+      setCustomViews((prev) => [...prev, view]);
+      applyView(view);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save view');
+    }
+  }
+
+  async function bulk(action: 'submit' | 'export') {
+    if (selected.length === 0) return;
+    setBusy(true);
+    try {
+      const result = await apiFetch<{
+        csv?: string;
+        results?: { ok: boolean }[];
+      }>('/api/invoices/bulk', {
+        method: 'POST',
+        body: JSON.stringify({ ids: selected, action }),
+      });
+      if (action === 'export' && result.csv) {
+        const blob = new Blob([result.csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'invoices-selection.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+      setSelected([]);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bulk action failed');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function uploadFiles(files: File[]) {
@@ -290,10 +348,26 @@ export function InvoicesPage() {
             {view.label}
           </button>
         ))}
-        <button type="button" className="view-chip" onClick={saveCurrentView}>
+        <button type="button" className="view-chip" onClick={() => void saveCurrentView()}>
           Save view
         </button>
       </div>
+
+      {inbox && inbox.extracting.length > 0 && (
+        <div className="panel panel--wide capture-inbox">
+          <h2>Capture inbox</h2>
+          <ul>
+            {inbox.extracting.map((row) => (
+              <li key={row.id}>
+                <Link to={`/invoices/${row.id}`}>
+                  {row.fileAsset?.originalName ?? row.id.slice(0, 8)}
+                </Link>{' '}
+                <InvoiceStatusBadge status={row.status} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <form
         className="dropzone"
@@ -374,6 +448,26 @@ export function InvoicesPage() {
           />
           Open exceptions only
         </label>
+        {selected.length > 0 && (
+          <>
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={busy}
+              onClick={() => void bulk('submit')}
+            >
+              Submit {selected.length}
+            </button>
+            <button
+              type="button"
+              className="btn btn--ghost"
+              disabled={busy}
+              onClick={() => void bulk('export')}
+            >
+              Export selected
+            </button>
+          </>
+        )}
       </form>
 
       {error && <p className="error">{error}</p>}
@@ -382,6 +476,16 @@ export function InvoicesPage() {
         <table className="data-table">
           <thead>
             <tr>
+              <th>
+                <input
+                  type="checkbox"
+                  aria-label="Select all"
+                  checked={items.length > 0 && selected.length === items.length}
+                  onChange={(e) =>
+                    setSelected(e.target.checked ? items.map((i) => i.id) : [])
+                  }
+                />
+              </th>
               <th>Number</th>
               <th>Entity</th>
               <th>Vendor</th>
@@ -395,7 +499,7 @@ export function InvoicesPage() {
           <tbody>
             {items.length === 0 && (
               <tr>
-                <td colSpan={8}>
+                <td colSpan={9}>
                   <div className="empty-state" style={{ padding: '2rem 1rem' }}>
                     <div className="empty-state__orb" aria-hidden />
                     <h3>No invoices in this view</h3>
@@ -413,6 +517,20 @@ export function InvoicesPage() {
               const aging = ageTone(ageHours);
               return (
                 <tr key={inv.id}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={selected.includes(inv.id)}
+                      onChange={(e) =>
+                        setSelected((prev) =>
+                          e.target.checked
+                            ? [...prev, inv.id]
+                            : prev.filter((id) => id !== inv.id),
+                        )
+                      }
+                      aria-label={`Select ${inv.invoiceNumber ?? 'draft'}`}
+                    />
+                  </td>
                   <td>
                     <Link to={`/invoices/${inv.id}`}>
                       {inv.invoiceNumber ?? 'Draft'}
