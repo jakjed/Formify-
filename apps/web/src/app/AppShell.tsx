@@ -216,21 +216,34 @@ function NavIcon({ id }: { id: NavIconId }) {
   }
 }
 
+const WORK_MODULE_KEYS = [
+  'invoices',
+  'contracts',
+  'purchase_requests',
+  'purchase_orders',
+] as const;
+
 export function AppShell() {
   const navigate = useNavigate();
   const [unread, setUnread] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [entities, setEntities] = useState<EntityRow[]>([]);
   const [modules, setModules] = useState<ModuleRow[]>([]);
+  const [modulesLoaded, setModulesLoaded] = useState(false);
   const [me, setMe] = useState<MeUser | null>(null);
   const [entityId, setEntityId] = useState(() => getSelectedEntityId());
   const [collapsed, setCollapsed] = useState(() => isNavCollapsed());
 
   const enabled = useMemo(() => {
     const map = new Map(modules.map((m) => [m.moduleKey, m.enabled]));
-    if (!map.has('invoices')) map.set('invoices', true);
+    if (!modulesLoaded) {
+      // Avoid Invoices-only flash while /api/modules is in flight.
+      for (const key of WORK_MODULE_KEYS) map.set(key, true);
+    } else if (!map.has('invoices')) {
+      map.set('invoices', true);
+    }
     return map;
-  }, [modules]);
+  }, [modules, modulesLoaded]);
 
   const canDirectory =
     me?.role === 'admin' || me?.canAccessDirectory === true;
@@ -274,6 +287,7 @@ export function AppShell() {
         setUnread(rows.length);
         setEntities(ents);
         setModules(mods);
+        setModulesLoaded(true);
         setMe(user);
         const stored = sessionStorage.getItem(ENTITY_KEY);
         if (!stored) {
