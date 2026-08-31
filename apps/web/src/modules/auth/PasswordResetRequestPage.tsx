@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PRODUCT_NAME } from '@aptora/types';
 import { apiFetch } from '../../shared/lib/api';
+import { AuthBrand, AuthLegalFooter } from './AuthChrome';
 
 type ResetRequestResult = {
   ok: true;
@@ -26,7 +26,7 @@ export function PasswordResetRequestPage() {
         '/api/auth/password-reset/request',
         {
           method: 'POST',
-          body: JSON.stringify({ tenantId, email }),
+          body: JSON.stringify({ slug: tenantId, email }),
         },
       );
       setMessage(
@@ -43,22 +43,15 @@ export function PasswordResetRequestPage() {
   return (
     <div className="auth">
       <form className="auth__card" onSubmit={(e) => void onSubmit(e)}>
-        <div className="auth__brand">
-          <img
-            className="auth__mark"
-            src="/brand/procure-ledger-mark.png"
-            width={72}
-            height={72}
-            alt=""
-          />
-          <h1>{PRODUCT_NAME}</h1>
-        </div>
+        <AuthBrand />
         <p className="lede">Request a password reset.</p>
         <label>
-          Tenant ID
+          Workspace
           <input
             value={tenantId}
             onChange={(e) => setTenantId(e.target.value)}
+            placeholder="acme"
+            autoComplete="organization"
             required
           />
         </label>
@@ -83,6 +76,7 @@ export function PasswordResetRequestPage() {
         <p className="muted">
           <Link to="/login">Back to sign in</Link>
         </p>
+        <AuthLegalFooter />
       </form>
     </div>
   );

@@ -17,6 +17,7 @@ type Dashboard = {
     byCode: { code: string; count: number }[];
   };
   exportBacklog: number;
+  stpRate?: number;
   usage: {
     approvedInvoicesMtd: number;
     approvedInvoices: number;
@@ -116,6 +117,10 @@ export function OpsDashboardPage() {
               <span className="stat-tile__label">Export backlog</span>
               <span className="stat-tile__value">{data.exportBacklog}</span>
             </Link>
+            <div className="stat-tile">
+              <span className="stat-tile__label">STP rate</span>
+              <span className="stat-tile__value">{data.stpRate ?? 0}%</span>
+            </div>
             <div className="stat-tile">
               <span className="stat-tile__label">Approved MTD</span>
               <span className="stat-tile__value">

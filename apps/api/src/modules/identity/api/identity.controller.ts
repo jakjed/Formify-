@@ -21,6 +21,9 @@ import {
   CreateTenantUserDto,
   InviteUserDto,
   LoginDto,
+  MfaConfirmDto,
+  MfaDisableDto,
+  MfaVerifyDto,
   PasswordResetConfirmDto,
   PasswordResetRequestDto,
   RegisterUserDto,
@@ -58,10 +61,23 @@ export class IdentityController {
   ) {}
 
   @Public()
+  @Get('auth/workspace')
+  @ApiOperation({ summary: 'Resolve a workspace by slug or tenant id' })
+  workspace(
+    @Query('slug') slug?: string,
+    @Query('tenantId') tenantId?: string,
+  ) {
+    return this.identity.resolveWorkspace({ slug, tenantId });
+  }
+
+  @Public()
   @Get('auth/providers')
   @ApiOperation({ summary: 'List auth providers for a tenant (secrets redacted)' })
-  providers(@Query('tenantId') tenantId?: string) {
-    return this.identity.getAuthProviders(tenantId);
+  providers(
+    @Query('tenantId') tenantId?: string,
+    @Query('slug') slug?: string,
+  ) {
+    return this.identity.getAuthProviders(tenantId, slug);
   }
 
   @ApiBearerAuth('bearer')
@@ -134,13 +150,15 @@ export class IdentityController {
   @ApiOperation({ summary: 'Begin SAML SP-initiated flow' })
   async samlStart(
     @Query('tenantId') tenantId: string,
+    @Query('slug') slug: string | undefined,
     @Query('email') email: string | undefined,
     @Res() res: Response,
   ) {
-    if (!tenantId) {
-      return res.status(400).json({ message: 'tenantId is required' });
+    const resolved = await this.identity.findTenant({ tenantId, slug });
+    if (!resolved) {
+      return res.status(400).json({ message: 'Workspace slug is required' });
     }
-    const { redirectUrl } = await this.saml.start(tenantId, { email });
+    const { redirectUrl } = await this.saml.start(resolved.id, { email });
     return res.redirect(redirectUrl);
   }
 
@@ -202,13 +220,15 @@ export class IdentityController {
   @ApiOperation({ summary: 'Begin OIDC Authorization Code + PKCE flow' })
   async oidcStart(
     @Query('tenantId') tenantId: string,
+    @Query('slug') slug: string | undefined,
     @Query('email') email: string | undefined,
     @Res() res: Response,
   ) {
-    if (!tenantId) {
-      return res.status(400).json({ message: 'tenantId is required' });
+    const resolved = await this.identity.findTenant({ tenantId, slug });
+    if (!resolved) {
+      return res.status(400).json({ message: 'Workspace slug is required' });
     }
-    const { redirectUrl } = await this.oidc.start(tenantId, { email });
+    const { redirectUrl } = await this.oidc.start(resolved.id, { email });
     return res.redirect(redirectUrl);
   }
 
@@ -256,6 +276,34 @@ export class IdentityController {
   @ApiOperation({ summary: 'Create a session (bearer token)' })
   login(@Body() dto: LoginDto) {
     return this.identity.login(dto);
+  }
+
+  @Public()
+  @Post('auth/mfa/verify')
+  @ApiOperation({ summary: 'Complete MFA challenge after password login' })
+  verifyMfa(@Body() dto: MfaVerifyDto) {
+    return this.identity.verifyMfa(dto);
+  }
+
+  @ApiBearerAuth('bearer')
+  @Post('auth/mfa/setup')
+  @ApiOperation({ summary: 'Start TOTP enrollment (returns secret + otpauth URL)' })
+  startMfa(@CurrentUser() user: RequestUser) {
+    return this.identity.startMfaSetup(user.id, user.email);
+  }
+
+  @ApiBearerAuth('bearer')
+  @Post('auth/mfa/confirm')
+  @ApiOperation({ summary: 'Confirm TOTP enrollment with an authenticator code' })
+  confirmMfa(@CurrentUser() user: RequestUser, @Body() dto: MfaConfirmDto) {
+    return this.identity.confirmMfaSetup(user.id, dto.code);
+  }
+
+  @ApiBearerAuth('bearer')
+  @Post('auth/mfa/disable')
+  @ApiOperation({ summary: 'Disable TOTP with a current authenticator code' })
+  disableMfa(@CurrentUser() user: RequestUser, @Body() dto: MfaDisableDto) {
+    return this.identity.disableMfa(user.id, dto.code);
   }
 
   @Public()

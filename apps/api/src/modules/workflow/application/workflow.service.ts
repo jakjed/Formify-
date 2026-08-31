@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
 import { InvoiceValidationService } from '../../invoice-rules/application/invoice-validation.service';
@@ -244,6 +245,7 @@ export class WorkflowService {
         tenantId,
         invoiceId,
         assigneeId: user.id,
+        emailToken: randomBytes(24).toString('base64url'),
       })),
     });
 
@@ -466,9 +468,41 @@ export class WorkflowService {
     const invoiceIds = tasks.map((t) => t.invoiceId);
     const invoices = await this.prisma.invoice.findMany({
       where: { tenantId, id: { in: invoiceIds } },
-      include: { exceptions: { where: { resolved: false } } },
+      include: {
+        exceptions: { where: { resolved: false } },
+        lines: { orderBy: { lineNo: 'asc' }, take: 8 },
+        fileAsset: { select: { mimeType: true, originalName: true } },
+      },
     });
-    const byId = new Map(invoices.map((i) => [i.id, i]));
+    const glIds = [
+      ...new Set(
+        invoices.flatMap((inv) =>
+          inv.lines.map((l) => l.glAccountId).filter((id): id is string => Boolean(id)),
+        ),
+      ),
+    ];
+    const accounts =
+      glIds.length === 0
+        ? []
+        : await this.prisma.glAccount.findMany({
+            where: { tenantId, id: { in: glIds } },
+            select: { id: true, code: true, name: true },
+          });
+    const glMap = new Map(accounts.map((a) => [a.id, a]));
+    const byId = new Map(
+      invoices.map((inv) => [
+        inv.id,
+        {
+          ...inv,
+          lines: inv.lines.map((line) => ({
+            ...line,
+            glAccount: line.glAccountId
+              ? glMap.get(line.glAccountId) ?? null
+              : null,
+          })),
+        },
+      ]),
+    );
     return tasks.map((task) => ({
       ...task,
       invoice: byId.get(task.invoiceId) ?? null,
@@ -495,6 +529,10 @@ export class WorkflowService {
 
     if (decision === 'approved') {
       await this.assertCanApprove(tenantId, task.invoiceId, userId);
+    }
+
+    if (decision === 'rejected' && !comment?.trim()) {
+      throw new BadRequestException('A comment is required when rejecting');
     }
 
     await this.prisma.approvalTask.update({
@@ -546,6 +584,104 @@ export class WorkflowService {
       data: { status: 'approved', comment: 'Closed by peer approval', decidedAt: new Date() },
     });
     return this.finalizeApprove(tenantId, task.invoiceId, userId);
+  }
+
+  async remindPending(tenantId: string, actorUserId?: string) {
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const stale = await this.prisma.approvalTask.findMany({
+      where: {
+        tenantId,
+        status: 'pending',
+        createdAt: { lte: cutoff },
+        OR: [{ lastRemindedAt: null }, { lastRemindedAt: { lte: cutoff } }],
+      },
+    });
+    const invoiceIds = [...new Set(stale.map((t) => t.invoiceId))];
+    const invoices = await this.prisma.invoice.findMany({
+      where: { tenantId, id: { in: invoiceIds } },
+      select: { id: true, invoiceNumber: true },
+    });
+    const byId = new Map(invoices.map((i) => [i.id, i]));
+    await this.notifications.notifyMany(
+      stale.map((task) => {
+        const inv = byId.get(task.invoiceId);
+        return {
+          tenantId,
+          userId: task.assigneeId,
+          type: 'approval.reminder',
+          title: 'Approval reminder',
+          body: inv?.invoiceNumber
+            ? `Invoice ${inv.invoiceNumber} is still waiting for you.`
+            : 'An invoice is still waiting for your approval.',
+          href: `/invoices/${task.invoiceId}`,
+        };
+      }),
+    );
+    await this.prisma.approvalTask.updateMany({
+      where: { id: { in: stale.map((t) => t.id) } },
+      data: { lastRemindedAt: new Date() },
+    });
+    if (actorUserId) {
+      await this.audit.record({
+        tenantId,
+        actorId: actorUserId,
+        action: 'approval.reminded',
+        entityType: 'ApprovalTask',
+        meta: { count: stale.length },
+      });
+    }
+    return { reminded: stale.length };
+  }
+
+  async getEmailApproval(token: string) {
+    const task = await this.prisma.approvalTask.findUnique({
+      where: { emailToken: token },
+    });
+    if (!task || task.status !== 'pending') {
+      throw new NotFoundException('Approval link is invalid or already used');
+    }
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: task.invoiceId, tenantId: task.tenantId },
+      include: {
+        exceptions: { where: { resolved: false } },
+        lines: { orderBy: { lineNo: 'asc' }, take: 8 },
+      },
+    });
+    return {
+      taskId: task.id,
+      status: task.status,
+      invoice: invoice
+        ? {
+            id: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            vendorNameRaw: invoice.vendorNameRaw,
+            totalMinor: invoice.totalMinor,
+            currency: invoice.currency,
+            exceptions: invoice.exceptions,
+            lines: invoice.lines,
+          }
+        : null,
+    };
+  }
+
+  async decideByEmailToken(
+    token: string,
+    decision: 'approved' | 'rejected',
+    comment?: string,
+  ) {
+    const task = await this.prisma.approvalTask.findUnique({
+      where: { emailToken: token },
+    });
+    if (!task || task.status !== 'pending') {
+      throw new NotFoundException('Approval link is invalid or already used');
+    }
+    return this.decideTask(
+      task.tenantId,
+      task.id,
+      task.assigneeId,
+      decision,
+      comment,
+    );
   }
 
   /** Force-approve path — still respects SoD own-approve when submittedBy is known. */

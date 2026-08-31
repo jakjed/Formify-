@@ -3,12 +3,14 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Headers,
   Param,
   Patch,
   Post,
 } from '@nestjs/common';
 import {
   IsBoolean,
+  IsEmail,
   IsIn,
   IsInt,
   IsOptional,
@@ -27,6 +29,10 @@ import {
 import type { RequestUser } from '../../identity/domain/identity.types';
 import { AuditService } from '../../audit/application/audit.service';
 import { ALL_MODULE_KEYS } from '@aptora/types';
+import {
+  bootstrapStatus as getBootstrapStatus,
+  isPublicBootstrapAllowed,
+} from '../../../common/bootstrap-gate';
 
 class CreateEntityDto {
   @IsString()
@@ -94,6 +100,15 @@ class UpdateAiSettingsDto {
   llmProvider?: 'none' | 'bedrock' | 'byo';
 }
 
+class WaitlistDto {
+  @IsEmail()
+  email!: string;
+
+  @IsOptional()
+  @IsString()
+  company?: string;
+}
+
 @Controller()
 export class TenancyController {
   constructor(
@@ -102,8 +117,28 @@ export class TenancyController {
   ) {}
 
   @Public()
+  @Get('tenants/bootstrap-status')
+  bootstrapStatus() {
+    return getBootstrapStatus();
+  }
+
+  @Public()
+  @Post('waitlist')
+  joinWaitlist(@Body() dto: WaitlistDto) {
+    return this.tenancy.joinWaitlist(dto.email, dto.company);
+  }
+
+  @Public()
   @Post('tenants')
-  create(@Body() dto: CreateTenantDto) {
+  create(
+    @Body() dto: CreateTenantDto,
+    @Headers('x-bootstrap-token') bootstrapToken?: string,
+  ) {
+    if (!isPublicBootstrapAllowed(bootstrapToken ?? dto.setupToken)) {
+      throw new ForbiddenException(
+        'Public workspace creation is closed. Join the waitlist or use an invite.',
+      );
+    }
     return this.tenancy.createTenant(dto);
   }
 
@@ -169,6 +204,13 @@ export class TenancyController {
       entityId: id,
     });
     return entity;
+  }
+
+  @Get('onboarding')
+  getOnboarding(
+    @CurrentTenantId() tenantId: string,
+  ) {
+    return this.tenancy.getOnboarding(tenantId);
   }
 
   @Get('plan')

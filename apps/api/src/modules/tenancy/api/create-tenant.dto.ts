@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 
 export class CreateTenantDto {
   @IsString()
@@ -12,4 +12,8 @@ export class CreateTenantDto {
   @IsOptional()
   @IsIn(['us', 'eu'])
   region?: 'us' | 'eu';
+
+  @IsOptional()
+  @IsString()
+  setupToken?: string;
 }

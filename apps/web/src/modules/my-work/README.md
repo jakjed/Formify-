@@ -1,1 +1,1 @@
-Unified approval / assigned-exception inbox (My Work).
+Command Center: cross-module attention, first-run checklist, and invoice approvals.

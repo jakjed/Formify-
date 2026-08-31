@@ -1,7 +1,9 @@
 import {
   IsArray,
+  IsBoolean,
   IsInt,
   IsISO8601,
+  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -144,4 +146,27 @@ export class CreateInvoiceCommentDto {
   @IsString()
   @MinLength(1)
   body!: string;
+}
+
+export class CreateSavedViewDto {
+  @IsString()
+  @MinLength(1)
+  name!: string;
+
+  @IsOptional()
+  @IsObject()
+  filters?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsBoolean()
+  shared?: boolean;
+}
+
+export class BulkInvoicesDto {
+  @IsArray()
+  @IsUUID('4', { each: true })
+  ids!: string[];
+
+  @IsString()
+  action!: 'submit' | 'export';
 }
