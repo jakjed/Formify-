@@ -1,6 +1,6 @@
 # Procure Ledger brand mark
 
-**Ledger Flow** — the ownable symbol for **Procure Ledger**. Three ledger lines; the center line breaks forward into a swoosh (flow through the books). Designed to be as recognizable at a glance as iconic marks like the Nike swoosh: one silhouette, no letters.
+**Ledger Flow (Geometric)** — the ownable symbol for **Procure Ledger**. Three sharp diagonal ledger stripes; the center stripe breaks into an angular forward chevron with a teal tip. Hard edges, Adidas-like geometry — one silhouette, no letters.
 
 | Token | Value |
 |---|---|
