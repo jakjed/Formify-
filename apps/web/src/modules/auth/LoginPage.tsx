@@ -15,7 +15,7 @@ type Provider = {
 };
 
 /** Local dev default — Acme tenant (matches admin@acme.test seed). */
-const DEV_ACME_TENANT_ID = '6bc4e774-3846-47d0-af2c-fa59b32498a0';
+const DEV_ACME_TENANT_ID = '686c8950-4c24-4a8b-961e-b69c18e97c32';
 
 export function LoginPage() {
   const navigate = useNavigate();
