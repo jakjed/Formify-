@@ -5,6 +5,7 @@ import type {
 } from '../domain/document-extraction.types';
 import type { OcrInput, OcrResult } from '../domain/ocr.types';
 import { stubContractOcr } from './contract-stub-ocr';
+import { fullTextForStorage } from './full-text.util';
 import { stubOcr } from './stub-ocr';
 import { textractOcr } from './textract-ocr';
 
@@ -68,7 +69,7 @@ export class OcrService {
       const stub = stubOcr(input);
       return {
         ...stub,
-        fullText: input.buffer.toString('utf8').slice(0, 100_000),
+        fullText: fullTextForStorage(input),
       };
     }
 
@@ -84,7 +85,7 @@ export class OcrService {
       const stub = stubOcr(input);
       return {
         ...stub,
-        fullText: input.buffer.toString('utf8').slice(0, 100_000),
+        fullText: fullTextForStorage(input),
       };
     }
 
@@ -92,7 +93,7 @@ export class OcrService {
       const result = await textractOcr(input);
       return {
         ...result,
-        fullText: input.buffer.toString('utf8').slice(0, 100_000),
+        fullText: fullTextForStorage(input),
       };
     } catch (err) {
       this.logger.error(
@@ -103,7 +104,7 @@ export class OcrService {
       const fallback = stubOcr(input);
       return {
         ...fallback,
-        fullText: input.buffer.toString('utf8').slice(0, 100_000),
+        fullText: fullTextForStorage(input),
         exceptions: [
           {
             code: 'OCR_LOW',
