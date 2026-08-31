@@ -15,6 +15,7 @@ export class TenancyService {
   }): Promise<TenantRecord> {
     try {
       const token = randomBytes(24).toString('hex');
+      const devAllModules = process.env.NODE_ENV !== 'production';
       const tenant = await this.prisma.tenant.create({
         data: {
           name: input.name,
@@ -23,9 +24,9 @@ export class TenancyService {
           moduleLicenses: {
             create: [
               { moduleKey: 'invoices', enabled: true },
-              { moduleKey: 'contracts', enabled: false },
-              { moduleKey: 'purchase_requests', enabled: false },
-              { moduleKey: 'purchase_orders', enabled: false },
+              { moduleKey: 'contracts', enabled: devAllModules },
+              { moduleKey: 'purchase_requests', enabled: devAllModules },
+              { moduleKey: 'purchase_orders', enabled: devAllModules },
             ],
           },
           entities: {

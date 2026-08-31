@@ -1,6 +1,12 @@
 # Procure Ledger brand mark
 
-Primary mark for **Procure Ledger** (Ledger Light design system). Abstract **check on ledger line** — approval on the books. Warm paper `#F7F6F2`, ink `#0F1914`, accent teal `#0F766E`. Flat, rounded, readable at 16px.
+**Ledger Flow (Geometric)** — the ownable symbol for **Procure Ledger**. Three sharp diagonal ledger stripes; the center stripe breaks into an angular forward chevron with a teal tip. Hard edges, Adidas-like geometry — one silhouette, no letters.
+
+| Token | Value |
+|---|---|
+| Paper | `#F7F6F2` |
+| Ink | `#0F1914` |
+| Accent | `#0F766E` (swoosh tip only) |
 
 | Asset | Path | Use |
 |---|---|---|
