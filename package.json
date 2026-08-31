@@ -19,7 +19,8 @@
     "db:deploy": "pnpm --filter @aptora/api prisma:deploy",
     "test:api": "pnpm --filter @aptora/api test",
     "test:e2e": "pnpm --filter @aptora/e2e test",
-    "test:journey": "RUN_JOURNEY=1 pnpm --filter @aptora/api test -- phase1.journey"
+    "test:journey": "RUN_JOURNEY=1 pnpm --filter @aptora/api test -- phase1.journey",
+    "seed:demo": "node --experimental-strip-types tooling/seed-demo.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
