@@ -19,11 +19,14 @@ function collect(
 }
 
 export function stubOcr(input: OcrInput): OcrResult {
-  const { originalName, buffer } = input;
-  const text = buffer.toString('utf8');
-  const looksLikeText =
-    originalName.toLowerCase().endsWith('.txt') ||
-    text.toLowerCase().includes('invoice');
+  const { originalName, buffer, mimeType } = input;
+  const isTextFile =
+    mimeType?.toLowerCase().startsWith('text/') ||
+    originalName.toLowerCase().endsWith('.txt');
+  const text = isTextFile
+    ? buffer.toString('utf8').replace(/\0/g, '')
+    : '';
+  const looksLikeText = isTextFile && text.toLowerCase().includes('invoice');
 
   const vendorFromName = originalName
     .replace(/\.[^.]+$/, '')
