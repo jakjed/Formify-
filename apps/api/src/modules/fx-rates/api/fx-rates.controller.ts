@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -6,9 +7,10 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsBoolean, IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
 import {
   CurrentTenantId,
   CurrentUser,
@@ -24,6 +26,11 @@ class SyncFxDto {
   @IsString()
   @IsIn(PROVIDER_KEYS)
   providerKey?: string;
+
+  /** When true, also backfill gaps from 2020-01-01. */
+  @IsOptional()
+  @IsBoolean()
+  backfill?: boolean;
 }
 
 class ActivateFxDto {
@@ -58,14 +65,41 @@ export class FxRatesController {
   }
 
   @Get('tables/:id')
-  @ApiOperation({ summary: 'Get one FX rate table with rates' })
+  @ApiOperation({
+    summary:
+      'Get FX rates for a table. Filter by year / month / day / quote. Defaults to latest rate date.',
+  })
   getTable(
     @CurrentTenantId() tenantId: string,
     @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) id: string,
+    @Query('year') yearRaw?: string,
+    @Query('month') monthRaw?: string,
+    @Query('day') dayRaw?: string,
+    @Query('quote') quote?: string,
+    @Query('limit') limitRaw?: string,
   ) {
     assertAdmin(user);
-    return this.fx.getTable(tenantId, id);
+    const year = yearRaw ? Number(yearRaw) : undefined;
+    const month = monthRaw ? Number(monthRaw) : undefined;
+    const day = dayRaw ? Number(dayRaw) : undefined;
+    const limit = limitRaw ? Number(limitRaw) : undefined;
+    if (yearRaw && (!Number.isInteger(year) || year! < 2020)) {
+      throw new BadRequestException('Invalid year');
+    }
+    if (monthRaw && (!Number.isInteger(month) || month! < 1 || month! > 12)) {
+      throw new BadRequestException('Invalid month');
+    }
+    if (dayRaw && (!Number.isInteger(day) || day! < 1 || day! > 31)) {
+      throw new BadRequestException('Invalid day');
+    }
+    return this.fx.getTable(tenantId, id, {
+      year: year != null && Number.isFinite(year) ? year : undefined,
+      month: month != null && Number.isFinite(month) ? month : undefined,
+      day: day != null && Number.isFinite(day) ? day : undefined,
+      quote,
+      limit: limit != null && Number.isFinite(limit) ? limit : undefined,
+    });
   }
 
   @Post('activate')
@@ -82,7 +116,7 @@ export class FxRatesController {
   @Post('sync')
   @ApiOperation({
     summary:
-      'Sync FX rates from free providers (NBP / ECB / FRED / BOE). Omit providerKey to sync all.',
+      'Sync FX rates (history from 2020 + incremental). Omit providerKey to sync all.',
   })
   sync(
     @CurrentTenantId() tenantId: string,
@@ -90,9 +124,10 @@ export class FxRatesController {
     @Body() dto: SyncFxDto,
   ) {
     assertAdmin(user);
+    const opts = { backfill: dto.backfill ?? true };
     if (dto.providerKey) {
-      return this.fx.sync(tenantId, dto.providerKey, user.id);
+      return this.fx.sync(tenantId, dto.providerKey, user.id, opts);
     }
-    return this.fx.syncAll(tenantId, user.id);
+    return this.fx.syncAll(tenantId, user.id, opts);
   }
 }

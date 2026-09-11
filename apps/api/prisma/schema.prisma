@@ -1186,6 +1186,8 @@ model FxRateTable {
   baseCurrency  String
   sourceUrl     String?
   asOfDate      DateTime? @db.Date
+  /// Earliest stored rate date (history begins 2020-01-01).
+  earliestDate  DateTime? @db.Date
   lastSyncedAt  DateTime?
   lastSyncError String?
   rateCount     Int       @default(0)
@@ -1208,6 +1210,7 @@ model FxRate {
   quoteCurrency String
   /// Units of quoteCurrency per 1 unit of baseCurrency.
   rate          Decimal  @db.Decimal(18, 8)
+  /// Official publication / effective date of this rate.
   asOfDate      DateTime @db.Date
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -1215,7 +1218,8 @@ model FxRate {
   tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   table  FxRateTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
 
-  @@unique([tableId, quoteCurrency])
-  @@index([tenantId, tableId])
-  @@index([tenantId, baseCurrency, quoteCurrency])
+  @@unique([tableId, quoteCurrency, asOfDate])
+  @@index([tenantId, tableId, asOfDate])
+  @@index([tenantId, tableId, quoteCurrency])
+  @@index([tenantId, baseCurrency, quoteCurrency, asOfDate])
 }
