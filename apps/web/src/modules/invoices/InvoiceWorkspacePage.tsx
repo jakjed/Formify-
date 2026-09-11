@@ -131,6 +131,17 @@ function mapEditLines(lines: InvoiceLine[]): InvoiceLine[] {
   }));
 }
 
+function lineDraftsFromLines(lines: InvoiceLine[]) {
+  return {
+    amounts: lines.map((line) =>
+      line.amountMinor != null ? toMajor(line.amountMinor) : '',
+    ),
+    qtys: lines.map((line) =>
+      line.quantity != null ? String(line.quantity) : '',
+    ),
+  };
+}
+
 type ActivityItem =
   | {
       id: string;
@@ -583,6 +594,8 @@ export function InvoiceWorkspacePage() {
   const [armedChip, setArmedChip] = useState<OcrChip | null>(null);
   const [vendorMatchHint, setVendorMatchHint] = useState<string | null>(null);
   const [editLines, setEditLines] = useState<InvoiceLine[]>([]);
+  const [lineAmountDrafts, setLineAmountDrafts] = useState<string[]>([]);
+  const [lineQtyDrafts, setLineQtyDrafts] = useState<string[]>([]);
   const [attachFile, setAttachFile] = useState<File | null>(null);
   const [attachLabel, setAttachLabel] = useState('');
   const [attachInputKey, setAttachInputKey] = useState(0);
@@ -736,7 +749,11 @@ export function InvoiceWorkspacePage() {
         setTotal(toMajor(current.totalMinor));
         setNotes(current.notes ?? '');
         setPurchaseOrderId(current.purchaseOrderId ?? '');
-        setEditLines(mapEditLines(current.lines ?? []));
+        const mappedLines = mapEditLines(current.lines ?? []);
+        setEditLines(mappedLines);
+        const drafts = lineDraftsFromLines(mappedLines);
+        setLineAmountDrafts(drafts.amounts);
+        setLineQtyDrafts(drafts.qtys);
         if (!current.vendorId && current.vendorNameRaw) {
           tryVendorMatch(current.vendorNameRaw, vendorList, '');
         } else {
@@ -883,6 +900,9 @@ export function InvoiceWorkspacePage() {
   }
 
   function onAmountChange(index: number, major: string) {
+    setLineAmountDrafts((prev) =>
+      prev.map((value, i) => (i === index ? major : value)),
+    );
     const amountMinor = fromMajor(major);
     const line = editLines[index];
     if (!line) return;
@@ -896,6 +916,18 @@ export function InvoiceWorkspacePage() {
     updateEditLine(index, {
       amountMinor,
       ...(code ? { taxMinor } : {}),
+    });
+  }
+
+  function onQtyChange(index: number, raw: string) {
+    setLineQtyDrafts((prev) =>
+      prev.map((value, i) => (i === index ? raw : value)),
+    );
+    const trimmed = raw.trim();
+    const parsed = trimmed === '' ? null : Number(trimmed);
+    updateEditLine(index, {
+      quantity:
+        parsed != null && Number.isFinite(parsed) ? parsed : null,
     });
   }
 
@@ -916,6 +948,14 @@ export function InvoiceWorkspacePage() {
         purchaseOrderLineId: null,
       },
     ]);
+    setLineAmountDrafts((prev) => [...prev, '']);
+    setLineQtyDrafts((prev) => [...prev, '']);
+  }
+
+  function removeEditLine(index: number) {
+    setEditLines((prev) => prev.filter((_, i) => i !== index));
+    setLineAmountDrafts((prev) => prev.filter((_, i) => i !== index));
+    setLineQtyDrafts((prev) => prev.filter((_, i) => i !== index));
   }
 
   function onChipDragStart(e: DragEvent, chip: OcrChip) {
@@ -962,9 +1002,16 @@ export function InvoiceWorkspacePage() {
             id: line.id,
             lineNo: i + 1,
             description: line.description,
-            quantity: line.quantity,
+            quantity: (() => {
+              const raw = (lineQtyDrafts[i] ?? '').trim();
+              if (raw === '') return null;
+              const parsed = Number(raw);
+              return Number.isFinite(parsed) ? parsed : line.quantity;
+            })(),
             unitPriceMinor: line.unitPriceMinor,
-            amountMinor: line.amountMinor,
+            amountMinor: fromMajor(
+              lineAmountDrafts[i] ?? toMajor(line.amountMinor),
+            ),
             taxMinor: line.taxMinor,
             taxCodeId: line.taxCodeId,
             glAccountId: line.glAccountId,
@@ -975,7 +1022,13 @@ export function InvoiceWorkspacePage() {
         }),
       });
       setInvoice(inv);
-      setEditLines(mapEditLines(inv.lines ?? []));
+      {
+        const mappedLines = mapEditLines(inv.lines ?? []);
+        setEditLines(mappedLines);
+        const drafts = lineDraftsFromLines(mappedLines);
+        setLineAmountDrafts(drafts.amounts);
+        setLineQtyDrafts(drafts.qtys);
+      }
       const validation = await loadSidePanels(id);
       setMessage(
         validation.blocking
@@ -1115,7 +1168,13 @@ export function InvoiceWorkspacePage() {
         method: 'POST',
       });
       setInvoice(inv);
-      setEditLines(mapEditLines(inv.lines ?? []));
+      {
+        const mappedLines = mapEditLines(inv.lines ?? []);
+        setEditLines(mappedLines);
+        const drafts = lineDraftsFromLines(mappedLines);
+        setLineAmountDrafts(drafts.amounts);
+        setLineQtyDrafts(drafts.qtys);
+      }
       setMessage('Recalled — back to Needs review');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Recall failed');
@@ -1663,6 +1722,7 @@ export function InvoiceWorkspacePage() {
               )}
               {editLines.map((line, index) => (
                 <div key={line.id ?? `new-${index}`} className="hitl-line-row">
+                  <div className="hitl-line-row__fields">
                   <label>
                     <span className="muted">#{index + 1} Description</span>
                     <input
@@ -1677,20 +1737,15 @@ export function InvoiceWorkspacePage() {
                   <label>
                     <span className="muted">Qty</span>
                     <input
-                      value={line.quantity ?? ''}
+                      value={lineQtyDrafts[index] ?? ''}
                       inputMode="decimal"
-                      onChange={(e) => {
-                        const raw = e.target.value.trim();
-                        updateEditLine(index, {
-                          quantity: raw === '' ? null : Number(raw),
-                        });
-                      }}
+                      onChange={(e) => onQtyChange(index, e.target.value)}
                     />
                   </label>
                   <label>
                     <span className="muted">Amount</span>
                     <input
-                      value={toMajor(line.amountMinor)}
+                      value={lineAmountDrafts[index] ?? ''}
                       inputMode="decimal"
                       onChange={(e) => onAmountChange(index, e.target.value)}
                     />
@@ -1779,6 +1834,14 @@ export function InvoiceWorkspacePage() {
                       </select>
                     </label>
                   )}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn--ghost hitl-line-row__remove"
+                    onClick={() => removeEditLine(index)}
+                  >
+                    Remove line
+                  </button>
                 </div>
               ))}
               <button

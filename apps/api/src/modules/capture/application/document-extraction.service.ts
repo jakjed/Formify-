@@ -30,6 +30,16 @@ export class DocumentExtractionService {
     return createHash('sha256').update(buffer).digest('hex');
   }
 
+  /** Skip stale stub/cache-stub results when Textract is configured. */
+  shouldUseCachedExtraction(extraction: StoredExtraction): boolean {
+    const configured = (process.env.OCR_PROVIDER ?? 'stub').toLowerCase();
+    if (configured !== 'textract') return true;
+    const cachedProvider = extraction.provider?.toLowerCase() ?? '';
+    if (cachedProvider === 'stub') return false;
+    if (cachedProvider.startsWith('cache:stub')) return false;
+    return extraction.invoice?.provider !== 'stub';
+  }
+
   async findCachedExtraction(tenantId: string, contentHash: string) {
     return this.prisma.fileAsset.findFirst({
       where: {
@@ -109,21 +119,23 @@ export class DocumentExtractionService {
 
     if (cached?.extractionPayload) {
       const extraction = cached.extractionPayload as unknown as StoredExtraction;
-      const updated = await this.prisma.fileAsset.update({
-        where: { id: fileAsset.id },
-        data: {
-          extractionPayload: cached.extractionPayload as Prisma.InputJsonValue,
-          fullText: cached.fullText,
-          extractionProvider: `cache:${cached.extractionProvider ?? 'unknown'}`,
-          extractedAt: cached.extractedAt ?? new Date(),
-        },
-      });
-      return {
-        fileAsset: updated,
-        extraction,
-        source: 'cache',
-        pageCount,
-      };
+      if (this.shouldUseCachedExtraction(extraction)) {
+        const updated = await this.prisma.fileAsset.update({
+          where: { id: fileAsset.id },
+          data: {
+            extractionPayload: cached.extractionPayload as Prisma.InputJsonValue,
+            fullText: cached.fullText,
+            extractionProvider: `cache:${cached.extractionProvider ?? 'unknown'}`,
+            extractedAt: cached.extractedAt ?? new Date(),
+          },
+        });
+        return {
+          fileAsset: updated,
+          extraction,
+          source: 'cache',
+          pageCount,
+        };
+      }
     }
 
     const raw = await this.ocr.extract(
