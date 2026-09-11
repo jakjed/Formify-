@@ -2,7 +2,11 @@ import { Injectable, NotFoundException, ConflictException } from '@nestjs/common
 import { Prisma } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../../../database/prisma.service';
-import type { EntityRecord, TenantRecord } from '../domain/tenancy.types';
+import type {
+  EntityRecord,
+  EntityWriteInput,
+  TenantRecord,
+} from '../domain/tenancy.types';
 
 @Injectable()
 export class TenancyService {
@@ -129,12 +133,7 @@ export class TenancyService {
       where: { tenantId },
       orderBy: { code: 'asc' },
     });
-    return entities.map((e) => ({
-      id: e.id,
-      tenantId: e.tenantId,
-      name: e.name,
-      code: e.code,
-    }));
+    return entities.map((e) => this.toEntityRecord(e));
   }
 
   /**
@@ -158,19 +157,14 @@ export class TenancyService {
       orderBy: { entity: { code: 'asc' } },
     });
     if (memberships.length > 0) {
-      return memberships.map((m) => ({
-        id: m.entity.id,
-        tenantId: m.entity.tenantId,
-        name: m.entity.name,
-        code: m.entity.code,
-      }));
+      return memberships.map((m) => this.toEntityRecord(m.entity));
     }
     return [];
   }
 
   async createEntity(
     tenantId: string,
-    input: { name: string; code: string },
+    input: EntityWriteInput & { name: string; code: string },
     createdByUserId?: string,
   ): Promise<EntityRecord> {
     await this.getTenant(tenantId);
@@ -189,7 +183,12 @@ export class TenancyService {
     try {
       const entity = await this.prisma.$transaction(async (tx) => {
         const created = await tx.entity.create({
-          data: { tenantId, name, code },
+          data: {
+            tenantId,
+            name,
+            code,
+            ...this.entityAddressData(input),
+          },
         });
         if (createdByUserId) {
           await tx.userEntityMembership.upsert({
@@ -209,12 +208,7 @@ export class TenancyService {
         }
         return created;
       });
-      return {
-        id: entity.id,
-        tenantId: entity.tenantId,
-        name: entity.name,
-        code: entity.code,
-      };
+      return this.toEntityRecord(entity);
     } catch (err) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
@@ -231,7 +225,7 @@ export class TenancyService {
   async updateEntity(
     tenantId: string,
     id: string,
-    input: { name?: string; code?: string },
+    input: EntityWriteInput,
   ): Promise<EntityRecord> {
     const existing = await this.prisma.entity.findFirst({
       where: { id, tenantId },
@@ -243,14 +237,10 @@ export class TenancyService {
         data: {
           name: input.name?.trim(),
           code: input.code?.trim().toUpperCase(),
+          ...this.entityAddressData(input),
         },
       });
-      return {
-        id: entity.id,
-        tenantId: entity.tenantId,
-        name: entity.name,
-        code: entity.code,
-      };
+      return this.toEntityRecord(entity);
     } catch (err) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
@@ -465,6 +455,53 @@ export class TenancyService {
       region: tenant.region,
       modules,
       createdAt: tenant.createdAt.toISOString(),
+    };
+  }
+
+  private entityAddressData(input: EntityWriteInput) {
+    const data: Record<string, string | null | undefined> = {};
+    if ('addressLine1' in input) data.addressLine1 = input.addressLine1?.trim() || null;
+    if ('addressLine2' in input) data.addressLine2 = input.addressLine2?.trim() || null;
+    if ('city' in input) data.city = input.city?.trim() || null;
+    if ('region' in input) data.region = input.region?.trim() || null;
+    if ('postalCode' in input) data.postalCode = input.postalCode?.trim() || null;
+    if ('country' in input) data.country = input.country?.trim() || null;
+    if (input.defaultCurrency != null) {
+      data.defaultCurrency = input.defaultCurrency.trim().toUpperCase() || 'EUR';
+    }
+    if (input.fxProviderKey != null) {
+      data.fxProviderKey = input.fxProviderKey.trim().toLowerCase() || 'ecb';
+    }
+    return data;
+  }
+
+  private toEntityRecord(e: {
+    id: string;
+    tenantId: string;
+    name: string;
+    code: string;
+    addressLine1?: string | null;
+    addressLine2?: string | null;
+    city?: string | null;
+    region?: string | null;
+    postalCode?: string | null;
+    country?: string | null;
+    defaultCurrency?: string;
+    fxProviderKey?: string;
+  }): EntityRecord {
+    return {
+      id: e.id,
+      tenantId: e.tenantId,
+      name: e.name,
+      code: e.code,
+      addressLine1: e.addressLine1 ?? null,
+      addressLine2: e.addressLine2 ?? null,
+      city: e.city ?? null,
+      region: e.region ?? null,
+      postalCode: e.postalCode ?? null,
+      country: e.country ?? null,
+      defaultCurrency: e.defaultCurrency ?? 'EUR',
+      fxProviderKey: e.fxProviderKey ?? 'ecb',
     };
   }
 }

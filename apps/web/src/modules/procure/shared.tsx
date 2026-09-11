@@ -100,10 +100,11 @@ export function formatMoney(minor: number | null | undefined, currency = 'EUR') 
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(minor / 100);
   } catch {
-    return `${(minor / 100).toFixed(0)} ${currency}`;
+    return `${(minor / 100).toFixed(2)} ${currency}`;
   }
 }
 

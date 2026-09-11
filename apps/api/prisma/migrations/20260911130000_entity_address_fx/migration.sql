@@ -1,0 +1,11 @@
+-- Entity address + default currency + FX rate type
+
+ALTER TABLE "Entity"
+  ADD COLUMN IF NOT EXISTS "addressLine1" TEXT,
+  ADD COLUMN IF NOT EXISTS "addressLine2" TEXT,
+  ADD COLUMN IF NOT EXISTS "city" TEXT,
+  ADD COLUMN IF NOT EXISTS "region" TEXT,
+  ADD COLUMN IF NOT EXISTS "postalCode" TEXT,
+  ADD COLUMN IF NOT EXISTS "country" TEXT,
+  ADD COLUMN IF NOT EXISTS "defaultCurrency" TEXT NOT NULL DEFAULT 'EUR',
+  ADD COLUMN IF NOT EXISTS "fxProviderKey" TEXT NOT NULL DEFAULT 'ecb';

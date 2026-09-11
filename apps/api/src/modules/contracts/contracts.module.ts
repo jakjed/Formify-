@@ -5,9 +5,10 @@ import { AuditModule } from '../audit/audit.module';
 import { TenancyModule } from '../tenancy/tenancy.module';
 import { CaptureModule } from '../capture/capture.module';
 import { ModuleLicenseGuard } from '../../common/module-license.guard';
+import { FxRatesModule } from '../fx-rates/fx-rates.module';
 
 @Module({
-  imports: [AuditModule, TenancyModule, CaptureModule],
+  imports: [AuditModule, TenancyModule, CaptureModule, FxRatesModule],
   controllers: [ContractsController],
   providers: [ContractsService, ModuleLicenseGuard],
   exports: [ContractsService],

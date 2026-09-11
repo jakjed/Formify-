@@ -7,6 +7,7 @@ import { Prisma, PurchaseOrderStatus } from '@prisma/client';
 import { buildScopedEntityWhere } from '../../../common/entity-scope';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
+import { FxConvertService } from '../../fx-rates/application/fx-convert.service';
 
 const poInclude = {
   lines: { orderBy: { lineNo: 'asc' as const } },
@@ -36,6 +37,7 @@ export class PurchaseOrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly fx: FxConvertService,
   ) {}
 
   async list(
@@ -57,7 +59,11 @@ export class PurchaseOrdersService {
       take: 200,
       include: poInclude,
     });
-    return rows.map(withInvoiceTotals);
+    const withTotals = rows.map(withInvoiceTotals);
+    return this.fx.attachReporting(tenantId, withTotals, {
+      amount: (r) => r.totalMinor,
+      asOfDate: (r) => r.issuedAt ?? r.createdAt,
+    });
   }
 
   async get(tenantId: string, id: string) {
@@ -66,7 +72,18 @@ export class PurchaseOrdersService {
       include: poInclude,
     });
     if (!row) throw new NotFoundException('Purchase order not found');
-    return withInvoiceTotals(row);
+    const withTotals = withInvoiceTotals(row);
+    const asOf = withTotals.issuedAt ?? withTotals.createdAt;
+    const reporting =
+      withTotals.totalMinor == null
+        ? null
+        : await this.fx.convertOne(tenantId, {
+            amountMinor: withTotals.totalMinor,
+            currency: withTotals.currency,
+            asOfDate: asOf.toISOString().slice(0, 10),
+            entityId: withTotals.entityId,
+          });
+    return { ...withTotals, reporting };
   }
 
   async update(
@@ -334,7 +351,18 @@ export class PurchaseOrdersService {
         data: { status },
         include: poInclude,
       });
-      row = withInvoiceTotals(updated);
+      const withTotals = withInvoiceTotals(updated);
+      const asOf = withTotals.issuedAt ?? withTotals.createdAt;
+      const reporting =
+        withTotals.totalMinor == null
+          ? null
+          : await this.fx.convertOne(tenantId, {
+              amountMinor: withTotals.totalMinor,
+              currency: withTotals.currency,
+              asOfDate: asOf.toISOString().slice(0, 10),
+              entityId: withTotals.entityId,
+            });
+      row = { ...withTotals, reporting };
     }
 
     await this.audit.record({

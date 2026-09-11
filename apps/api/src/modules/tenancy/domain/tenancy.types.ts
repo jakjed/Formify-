@@ -14,4 +14,25 @@ export type EntityRecord = {
   tenantId: string;
   name: string;
   code: string;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  region: string | null;
+  postalCode: string | null;
+  country: string | null;
+  defaultCurrency: string;
+  fxProviderKey: string;
+};
+
+export type EntityWriteInput = {
+  name?: string;
+  code?: string;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  region?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  defaultCurrency?: string;
+  fxProviderKey?: string;
 };

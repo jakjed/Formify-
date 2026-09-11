@@ -11,6 +11,7 @@ import type { UploadedFile } from '../../capture/domain/upload.types';
 import { DocumentExtractionService } from '../../capture/application/document-extraction.service';
 import { AiAssistService } from '../../capture/application/ai-assist.service';
 import { ruleBasedContractRedFlags } from './contract-red-flags';
+import { FxConvertService } from '../../fx-rates/application/fx-convert.service';
 import {
   CONTRACT_APPROVAL_CHAIN,
   CONTRACT_DOC_CATEGORIES,
@@ -67,6 +68,7 @@ export class ContractsService {
     private readonly audit: AuditService,
     private readonly documents: DocumentExtractionService,
     private readonly aiAssist: AiAssistService,
+    private readonly fx: FxConvertService,
   ) {}
 
   async list(
@@ -85,7 +87,9 @@ export class ContractsService {
       userId: opts?.userId,
       role: opts?.role,
     });
-    return this.prisma.contract.findMany({
+    return this.fx.attachReporting(
+      tenantId,
+      await this.prisma.contract.findMany({
       where: {
         tenantId,
         ...entityWhere,
@@ -103,7 +107,12 @@ export class ContractsService {
       include: contractInclude,
       orderBy: { createdAt: 'desc' },
       take: 200,
-    });
+    }),
+      {
+        amount: (r) => r.valueMinor,
+        asOfDate: (r) => r.contractDate ?? r.startDate ?? r.createdAt,
+      },
+    );
   }
 
   async get(tenantId: string, id: string) {
@@ -118,7 +127,18 @@ export class ContractsService {
       include: contractInclude,
     });
     if (!row) throw new NotFoundException('Contract not found');
-    return row;
+    const asOf =
+      row.contractDate ?? row.startDate ?? row.createdAt;
+    const reporting =
+      row.valueMinor == null
+        ? null
+        : await this.fx.convertOne(tenantId, {
+            amountMinor: row.valueMinor,
+            currency: row.currency,
+            asOfDate: asOf.toISOString().slice(0, 10),
+            entityId: row.entityId,
+          });
+    return { ...row, reporting };
   }
 
   /** Resolve route param (uuid or number) to canonical contract id. */

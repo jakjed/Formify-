@@ -7,6 +7,7 @@ import { InvoiceRulesModule } from '../invoice-rules/invoice-rules.module';
 import { AuditModule } from '../audit/audit.module';
 import { WebhooksModule } from '../webhooks/webhooks.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { FxRatesModule } from '../fx-rates/fx-rates.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     AuditModule,
     WebhooksModule,
     NotificationsModule,
+    FxRatesModule,
   ],
   controllers: [InvoicesController],
   providers: [InvoicesService],
