@@ -126,6 +126,7 @@ type FxTableRow = {
   baseCurrency: string;
   sourceUrl: string | null;
   asOfDate: string | null;
+  earliestDate: string | null;
   lastSyncedAt: string | null;
   lastSyncError: string | null;
   rateCount: number;
@@ -139,6 +140,28 @@ type FxRateRow = {
   rate: number;
   inverseRate: number | null;
   asOfDate: string;
+};
+
+type FxTableDetail = {
+  id: string;
+  name: string;
+  baseCurrency: string;
+  asOfDate: string | null;
+  earliestDate: string | null;
+  rateCount: number;
+  total: number;
+  truncated: boolean;
+  filters: {
+    year: number | null;
+    month: number | null;
+    day: number | null;
+    quote: string | null;
+    selectedDate: string | null;
+    availableYears: number[];
+    availableMonths: number[];
+    availableDays: number[];
+  };
+  rates: FxRateRow[];
 };
 
 type FxOverview = {
@@ -373,6 +396,15 @@ export function AdminPage() {
   const [fxDetailName, setFxDetailName] = useState<string>('');
   const [fxDetailBase, setFxDetailBase] = useState<string>('');
   const [fxRateFilter, setFxRateFilter] = useState('');
+  const [fxYear, setFxYear] = useState<number | ''>('');
+  const [fxMonth, setFxMonth] = useState<number | ''>('');
+  const [fxDay, setFxDay] = useState<number | ''>('');
+  const [fxAvailableYears, setFxAvailableYears] = useState<number[]>([]);
+  const [fxAvailableMonths, setFxAvailableMonths] = useState<number[]>([]);
+  const [fxAvailableDays, setFxAvailableDays] = useState<number[]>([]);
+  const [fxSelectedDate, setFxSelectedDate] = useState<string | null>(null);
+  const [fxTotal, setFxTotal] = useState(0);
+  const [fxEarliest, setFxEarliest] = useState<string | null>(null);
 
   async function refresh() {
     const [
@@ -527,17 +559,61 @@ export function AdminPage() {
     }
   }
 
-  async function loadFxTable(tableId: string) {
-    const detail = await apiFetch<{
-      id: string;
-      name: string;
-      baseCurrency: string;
-      rates: FxRateRow[];
-    }>(`/api/fx-rates/tables/${tableId}`);
+  async function loadFxTable(
+    tableId: string,
+    filters?: {
+      year?: number | '';
+      month?: number | '';
+      day?: number | '';
+      quote?: string;
+    },
+  ) {
+    const year = filters?.year ?? fxYear;
+    const month = filters?.month ?? fxMonth;
+    const day = filters?.day ?? fxDay;
+    const quote = filters?.quote ?? fxRateFilter;
+    const qs = new URLSearchParams();
+    if (year !== '') qs.set('year', String(year));
+    if (month !== '') qs.set('month', String(month));
+    if (day !== '') qs.set('day', String(day));
+    if (quote.trim()) qs.set('quote', quote.trim());
+    const q = qs.toString();
+    const detail = await apiFetch<FxTableDetail>(
+      `/api/fx-rates/tables/${tableId}${q ? `?${q}` : ''}`,
+    );
     setFxSelectedTableId(detail.id);
     setFxDetailName(detail.name);
     setFxDetailBase(detail.baseCurrency);
     setFxRates(detail.rates);
+    setFxTotal(detail.total);
+    setFxEarliest(detail.earliestDate);
+    setFxAvailableYears(detail.filters.availableYears);
+    setFxAvailableMonths(detail.filters.availableMonths);
+    setFxAvailableDays(detail.filters.availableDays);
+    setFxSelectedDate(detail.filters.selectedDate);
+    // When landing on latest-date default, seed year/month/day from selectedDate
+    if (
+      year === '' &&
+      month === '' &&
+      day === '' &&
+      detail.filters.selectedDate
+    ) {
+      const [y, m, d] = detail.filters.selectedDate.split('-').map(Number);
+      setFxYear(y!);
+      setFxMonth(m!);
+      setFxDay(d!);
+      // reload months/days options for that year/month
+      const seeded = await apiFetch<FxTableDetail>(
+        `/api/fx-rates/tables/${tableId}?year=${y}&month=${m}&day=${d}${
+          quote.trim() ? `&quote=${encodeURIComponent(quote.trim())}` : ''
+        }`,
+      );
+      setFxAvailableMonths(seeded.filters.availableMonths);
+      setFxAvailableDays(seeded.filters.availableDays);
+      setFxRates(seeded.rates);
+      setFxTotal(seeded.total);
+      setFxSelectedDate(seeded.filters.selectedDate);
+    }
   }
 
   async function syncFx(providerKey?: string) {
@@ -546,25 +622,25 @@ export function AdminPage() {
     setMessage(null);
     try {
       if (providerKey) {
-        const detail = await apiFetch<{
-          id: string;
-          name: string;
-          baseCurrency: string;
-          rates: FxRateRow[];
-          rateCount?: number;
-        }>('/api/fx-rates/sync', {
+        const detail = await apiFetch<FxTableDetail>('/api/fx-rates/sync', {
           method: 'POST',
-          body: JSON.stringify({ providerKey }),
+          body: JSON.stringify({ providerKey, backfill: true }),
         });
         setMessage(
-          `Synced ${detail.name}: ${detail.rates.length} rates`,
+          `Synced ${detail.name}: ${detail.rateCount} rows` +
+            (detail.earliestDate && detail.asOfDate
+              ? ` (${detail.earliestDate} → ${detail.asOfDate})`
+              : ''),
         );
         await loadFx();
-        await loadFxTable(detail.id);
+        setFxYear('');
+        setFxMonth('');
+        setFxDay('');
+        await loadFxTable(detail.id, { year: '', month: '', day: '' });
       } else {
         const overview = await apiFetch<FxOverview>('/api/fx-rates/sync', {
           method: 'POST',
-          body: JSON.stringify({}),
+          body: JSON.stringify({ backfill: true }),
         });
         setFxOverview(overview);
         const ok = overview.syncResults?.filter((r) => r.ok).length ?? 0;
@@ -572,11 +648,16 @@ export function AdminPage() {
         setMessage(
           fail
             ? `Synced ${ok} table(s); ${fail} failed — see errors below`
-            : `Synced all ${ok} FX tables`,
+            : `Synced all ${ok} FX tables (history from 2020)`,
         );
         const preferred =
           overview.activeFxTableId ?? overview.tables[0]?.id ?? null;
-        if (preferred) await loadFxTable(preferred);
+        setFxYear('');
+        setFxMonth('');
+        setFxDay('');
+        if (preferred) {
+          await loadFxTable(preferred, { year: '', month: '', day: '' });
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'FX sync failed');
@@ -2984,9 +3065,9 @@ export function AdminPage() {
             <div>
               <h2 style={{ marginBottom: '0.25rem' }}>FX rates</h2>
               <p className="lede" style={{ margin: 0 }}>
-                Free official tables — Polish NBP, ECB, US Fed (H.10), Bank of
-                England. Sync pulls the latest published mid/reference rates.
-                Choose which table is active for the workspace.
+                Official rate tables with full history from 2020. Sync pulls
+                missing dates and the latest publish. Filter by year, month and
+                day of the rate.
               </p>
             </div>
             <button
@@ -3022,7 +3103,16 @@ export function AdminPage() {
                     ? 'tabs__btn tabs__btn--active'
                     : 'tabs__btn'
                 }
-                onClick={() => void loadFxTable(t.id).catch((e: Error) => setError(e.message))}
+                onClick={() => {
+                  setFxYear('');
+                  setFxMonth('');
+                  setFxDay('');
+                  void loadFxTable(t.id, {
+                    year: '',
+                    month: '',
+                    day: '',
+                  }).catch((e: Error) => setError(e.message));
+                }}
               >
                 {t.name}
                 {t.isActive ? ' · active' : ''}
@@ -3071,7 +3161,12 @@ export function AdminPage() {
                 return (
                   <p className="muted">
                     Base <strong>{t.baseCurrency}</strong>
-                    {t.asOfDate ? ` · as of ${t.asOfDate}` : ''}
+                    {fxEarliest || t.earliestDate
+                      ? ` · history ${fxEarliest ?? t.earliestDate} → ${t.asOfDate ?? '…'}`
+                      : ''}
+                    {t.rateCount
+                      ? ` · ${t.rateCount.toLocaleString()} stored rows`
+                      : ''}
                     {t.lastSyncedAt
                       ? ` · last sync ${new Date(t.lastSyncedAt).toLocaleString()}`
                       : ' · not synced yet'}
@@ -3093,56 +3188,153 @@ export function AdminPage() {
                 );
               })()}
 
-              <label>
-                Filter currency
-                <input
-                  value={fxRateFilter}
-                  onChange={(e) => setFxRateFilter(e.target.value)}
-                  placeholder="USD, EUR…"
-                />
-              </label>
+              <div
+                className="actions"
+                style={{ flexWrap: 'wrap', alignItems: 'end', gap: '0.75rem' }}
+              >
+                <label>
+                  Year
+                  <select
+                    value={fxYear === '' ? '' : String(fxYear)}
+                    onChange={(e) => {
+                      const y =
+                        e.target.value === '' ? '' : Number(e.target.value);
+                      setFxYear(y);
+                      setFxMonth('');
+                      setFxDay('');
+                      void loadFxTable(fxSelectedTableId, {
+                        year: y,
+                        month: '',
+                        day: '',
+                      }).catch((err: Error) => setError(err.message));
+                    }}
+                  >
+                    <option value="">Latest</option>
+                    {fxAvailableYears.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Month
+                  <select
+                    value={fxMonth === '' ? '' : String(fxMonth)}
+                    disabled={fxYear === ''}
+                    onChange={(e) => {
+                      const m =
+                        e.target.value === '' ? '' : Number(e.target.value);
+                      setFxMonth(m);
+                      setFxDay('');
+                      void loadFxTable(fxSelectedTableId, {
+                        year: fxYear,
+                        month: m,
+                        day: '',
+                      }).catch((err: Error) => setError(err.message));
+                    }}
+                  >
+                    <option value="">All months</option>
+                    {fxAvailableMonths.map((m) => (
+                      <option key={m} value={m}>
+                        {String(m).padStart(2, '0')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Day
+                  <select
+                    value={fxDay === '' ? '' : String(fxDay)}
+                    disabled={fxYear === '' || fxMonth === ''}
+                    onChange={(e) => {
+                      const d =
+                        e.target.value === '' ? '' : Number(e.target.value);
+                      setFxDay(d);
+                      void loadFxTable(fxSelectedTableId, {
+                        year: fxYear,
+                        month: fxMonth,
+                        day: d,
+                      }).catch((err: Error) => setError(err.message));
+                    }}
+                  >
+                    <option value="">All days</option>
+                    {fxAvailableDays.map((d) => (
+                      <option key={d} value={d}>
+                        {String(d).padStart(2, '0')}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Currency
+                  <input
+                    value={fxRateFilter}
+                    onChange={(e) => setFxRateFilter(e.target.value)}
+                    onBlur={() => {
+                      if (!fxSelectedTableId) return;
+                      void loadFxTable(fxSelectedTableId).catch((err: Error) =>
+                        setError(err.message),
+                      );
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && fxSelectedTableId) {
+                        e.preventDefault();
+                        void loadFxTable(fxSelectedTableId).catch(
+                          (err: Error) => setError(err.message),
+                        );
+                      }
+                    }}
+                    placeholder="USD, EUR…"
+                  />
+                </label>
+              </div>
+
+              <p className="muted">
+                Showing {fxRates.length.toLocaleString()}
+                {fxTotal > fxRates.length
+                  ? ` of ${fxTotal.toLocaleString()}`
+                  : ''}{' '}
+                rates
+                {fxSelectedDate ? ` · rate date ${fxSelectedDate}` : ''}
+                {fxYear !== '' && fxMonth === ''
+                  ? ` · year ${fxYear}`
+                  : ''}
+                {fxYear !== '' && fxMonth !== '' && fxDay === ''
+                  ? ` · ${fxYear}-${String(fxMonth).padStart(2, '0')}`
+                  : ''}
+              </p>
 
               <div className="table-wrap">
                 <table className="data-table">
                   <thead>
                     <tr>
+                      <th>Rate date</th>
                       <th>Quote</th>
-                      <th>
-                        1 {fxDetailBase || 'base'} =
-                      </th>
-                      <th>
-                        1 quote = ({fxDetailBase || 'base'})
-                      </th>
-                      <th>As of</th>
+                      <th>1 {fxDetailBase || 'base'} =</th>
+                      <th>1 quote = ({fxDetailBase || 'base'})</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {fxRates
-                      .filter((r) =>
-                        fxRateFilter.trim()
-                          ? r.quoteCurrency
-                              .toLowerCase()
-                              .includes(fxRateFilter.trim().toLowerCase())
-                          : true,
-                      )
-                      .map((r) => (
-                        <tr key={r.id}>
-                          <td>
-                            <strong>{r.quoteCurrency}</strong>
-                          </td>
-                          <td className="mono">{r.rate.toFixed(6)}</td>
-                          <td className="mono">
-                            {r.inverseRate != null
-                              ? r.inverseRate.toFixed(6)
-                              : '—'}
-                          </td>
-                          <td>{r.asOfDate}</td>
-                        </tr>
-                      ))}
+                    {fxRates.map((r) => (
+                      <tr key={r.id}>
+                        <td className="mono">{r.asOfDate}</td>
+                        <td>
+                          <strong>{r.quoteCurrency}</strong>
+                        </td>
+                        <td className="mono">{r.rate.toFixed(6)}</td>
+                        <td className="mono">
+                          {r.inverseRate != null
+                            ? r.inverseRate.toFixed(6)
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
                     {fxRates.length === 0 && (
                       <tr>
                         <td colSpan={4} className="muted">
-                          No rates yet — click Sync to pull {fxDetailName || 'this table'}.
+                          No rates for this filter — click Sync to pull{' '}
+                          {fxDetailName || 'this table'} history from 2020.
                         </td>
                       </tr>
                     )}
