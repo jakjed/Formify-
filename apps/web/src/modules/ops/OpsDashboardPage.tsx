@@ -51,6 +51,12 @@ type CommandCenter = {
     draft: number;
     issued: number;
     remainingMinorSum: number;
+    remainingReporting?: {
+      amountMinor: number;
+      currency: string;
+      converted: boolean;
+      providerKey: string;
+    };
   };
   accruals: {
     draft: number;
@@ -219,7 +225,12 @@ export function OpsDashboardPage() {
             <Link className="stat-tile" to="/purchase-orders">
               <span className="stat-tile__label">Unbilled open POs</span>
               <span className="stat-tile__value">
-                {formatMoney(cc.purchaseOrders.remainingMinorSum)}
+                {cc.purchaseOrders.remainingReporting?.converted
+                  ? formatMoney(
+                      cc.purchaseOrders.remainingReporting.amountMinor,
+                      cc.purchaseOrders.remainingReporting.currency,
+                    )
+                  : formatMoney(cc.purchaseOrders.remainingMinorSum)}
               </span>
             </Link>
             <Link className="stat-tile" to="/purchase-orders">

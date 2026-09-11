@@ -60,10 +60,38 @@ export class PurchaseOrdersService {
       include: poInclude,
     });
     const withTotals = rows.map(withInvoiceTotals);
-    return this.fx.attachReporting(tenantId, withTotals, {
-      amount: (r) => r.totalMinor,
-      asOfDate: (r) => r.issuedAt ?? r.createdAt,
-    });
+    const result = [];
+    for (const row of withTotals) {
+      const asOf = (row.issuedAt ?? row.createdAt).toISOString().slice(0, 10);
+      const reporting =
+        row.totalMinor == null
+          ? null
+          : await this.fx.convertOne(tenantId, {
+              amountMinor: row.totalMinor,
+              currency: row.currency,
+              asOfDate: asOf,
+              entityId: row.entityId,
+            });
+      const reportingInvoiced = await this.fx.convertOne(tenantId, {
+        amountMinor: row.invoicedMinor,
+        currency: row.currency,
+        asOfDate: asOf,
+        entityId: row.entityId,
+      });
+      const reportingRemaining = await this.fx.convertOne(tenantId, {
+        amountMinor: row.remainingMinor,
+        currency: row.currency,
+        asOfDate: asOf,
+        entityId: row.entityId,
+      });
+      result.push({
+        ...row,
+        reporting,
+        reportingInvoiced,
+        reportingRemaining,
+      });
+    }
+    return result;
   }
 
   async get(tenantId: string, id: string) {

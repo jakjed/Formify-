@@ -167,6 +167,8 @@ export class InvoicesService {
             vendorNameRaw: true,
             currency: true,
             totalMinor: true,
+            entityId: true,
+            invoiceDate: true,
             createdAt: true,
           },
         },
@@ -175,28 +177,42 @@ export class InvoicesService {
     });
 
     const now = Date.now();
-    const items = exceptions.map((row) => {
-      const ageHours =
-        Math.round(
-          ((now - row.createdAt.getTime()) / (1000 * 60 * 60)) * 10,
-        ) / 10;
-      return {
-        id: row.id,
-        code: row.code,
-        message: row.message,
-        createdAt: row.createdAt.toISOString(),
-        ageHours,
-        invoice: {
-          id: row.invoice.id,
-          status: row.invoice.status,
-          invoiceNumber: row.invoice.invoiceNumber,
-          vendorNameRaw: row.invoice.vendorNameRaw,
-          currency: row.invoice.currency,
-          totalMinor: row.invoice.totalMinor,
-          createdAt: row.invoice.createdAt.toISOString(),
-        },
-      };
-    });
+    const items = await Promise.all(
+      exceptions.map(async (row) => {
+        const ageHours =
+          Math.round(
+            ((now - row.createdAt.getTime()) / (1000 * 60 * 60)) * 10,
+          ) / 10;
+        const reporting =
+          row.invoice.totalMinor == null
+            ? null
+            : await this.fx.convertOne(tenantId, {
+                amountMinor: row.invoice.totalMinor,
+                currency: row.invoice.currency,
+                asOfDate: (row.invoice.invoiceDate ?? row.invoice.createdAt)
+                  .toISOString()
+                  .slice(0, 10),
+                entityId: row.invoice.entityId,
+              });
+        return {
+          id: row.id,
+          code: row.code,
+          message: row.message,
+          createdAt: row.createdAt.toISOString(),
+          ageHours,
+          invoice: {
+            id: row.invoice.id,
+            status: row.invoice.status,
+            invoiceNumber: row.invoice.invoiceNumber,
+            vendorNameRaw: row.invoice.vendorNameRaw,
+            currency: row.invoice.currency,
+            totalMinor: row.invoice.totalMinor,
+            createdAt: row.invoice.createdAt.toISOString(),
+            reporting,
+          },
+        };
+      }),
+    );
 
     const byCode = new Map<string, number>();
     for (const item of items) {
@@ -956,6 +972,26 @@ export class InvoicesService {
         state,
       };
     });
+    const invoiceReporting =
+      invoice.totalMinor == null
+        ? null
+        : await this.fx.convertOne(tenantId, {
+            amountMinor: invoice.totalMinor,
+            currency: invoice.currency,
+            asOfDate: (invoice.invoiceDate ?? invoice.createdAt)
+              .toISOString()
+              .slice(0, 10),
+            entityId: invoice.entityId,
+          });
+    const poReporting =
+      !po || poTotal == null
+        ? null
+        : await this.fx.convertOne(tenantId, {
+            amountMinor: poTotal,
+            currency: po.currency,
+            asOfDate: (po.issuedAt ?? po.createdAt).toISOString().slice(0, 10),
+            entityId: po.entityId ?? invoice.entityId,
+          });
     return {
       linked: Boolean(po),
       invoice: {
@@ -963,6 +999,7 @@ export class InvoicesService {
         vendorName: invoice.vendorNameRaw,
         totalMinor: invoice.totalMinor,
         currency: invoice.currency,
+        reporting: invoiceReporting,
       },
       po: po
         ? {
@@ -971,6 +1008,8 @@ export class InvoicesService {
             title: po.title,
             status: po.status,
             totalMinor: poTotal,
+            currency: po.currency,
+            reporting: poReporting,
           }
         : null,
       lines: lineRows,
@@ -992,9 +1031,13 @@ export class InvoicesService {
         lines: { orderBy: { lineNo: 'asc' }, take: 4 },
       },
     });
-    const spendMinor = invoices
-      .filter((i) => ['approved', 'exported', 'paid'].includes(i.status))
-      .reduce((sum, i) => sum + (i.totalMinor ?? 0), 0);
+    const spendInvoices = invoices.filter((i) =>
+      ['approved', 'exported', 'paid'].includes(i.status),
+    );
+    const spendMinor = spendInvoices.reduce(
+      (sum, i) => sum + (i.totalMinor ?? 0),
+      0,
+    );
     const openExceptions = invoices.reduce(
       (sum, i) => sum + i.exceptions.length,
       0,
@@ -1004,6 +1047,49 @@ export class InvoicesService {
         ['approved', 'exported', 'paid', 'in_approval'].includes(i.status) &&
         i.lines.some((l) => l.glAccountId),
     );
+    const invoiceRows = await Promise.all(
+      invoices.map(async (i) => {
+        const reporting =
+          i.totalMinor == null
+            ? null
+            : await this.fx.convertOne(tenantId, {
+                amountMinor: i.totalMinor,
+                currency: i.currency,
+                asOfDate: (i.invoiceDate ?? i.createdAt)
+                  .toISOString()
+                  .slice(0, 10),
+                entityId: i.entityId,
+              });
+        return {
+          id: i.id,
+          invoiceNumber: i.invoiceNumber,
+          status: i.status,
+          totalMinor: i.totalMinor,
+          currency: i.currency,
+          createdAt: i.createdAt,
+          reporting,
+        };
+      }),
+    );
+    const defaults = await this.fx.resolveDefaults(tenantId, null);
+    let spendReportingMinor = 0;
+    let spendConverted = true;
+    for (const i of spendInvoices) {
+      if (i.totalMinor == null) continue;
+      const converted = await this.fx.convertOne(tenantId, {
+        amountMinor: i.totalMinor,
+        currency: i.currency,
+        asOfDate: (i.invoiceDate ?? i.createdAt).toISOString().slice(0, 10),
+        entityId: i.entityId,
+        toCurrency: defaults.currency,
+        providerKey: defaults.providerKey,
+      });
+      if (!converted.converted) {
+        spendConverted = false;
+        continue;
+      }
+      spendReportingMinor += converted.amountMinor;
+    }
     return {
       vendor: {
         id: vendor.id,
@@ -1013,15 +1099,14 @@ export class InvoicesService {
         email: vendor.email,
       },
       spendMinor,
+      spendReporting: {
+        amountMinor: spendReportingMinor,
+        currency: defaults.currency,
+        converted: spendConverted,
+        providerKey: defaults.providerKey,
+      },
       openExceptions,
-      invoices: invoices.map((i) => ({
-        id: i.id,
-        invoiceNumber: i.invoiceNumber,
-        status: i.status,
-        totalMinor: i.totalMinor,
-        currency: i.currency,
-        createdAt: i.createdAt,
-      })),
+      invoices: invoiceRows,
       lastCoding: lastCoded
         ? lastCoded.lines.map((l) => ({
             glAccountId: l.glAccountId,

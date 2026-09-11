@@ -11,6 +11,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { CURRENCY_CODES } from '@aptora/types';
 import { apiFetch, apiFetchBlob, getToken } from '../../shared/lib/api';
 import { FileSelect } from '../../shared/components/FileSelect';
+import { MoneyAmount, type ReportingMoney } from '../../shared/components/MoneyAmount';
 import { InvoiceStatusBadge, StatusBadge } from '../../shared/ui/StatusBadge';
 import { ocrConfidenceTone } from '../../shared/ui/status';
 import { bestVendorMatch } from '../../shared/ui/vendorMatch';
@@ -67,6 +68,7 @@ type Invoice = {
     };
   }[];
   exceptions: { id: string; code: string; message: string; resolved: boolean }[];
+  reporting?: ReportingMoney;
 };
 
 type OcrBBox = {
@@ -588,8 +590,19 @@ export function InvoiceWorkspacePage() {
   const [attachInputKey, setAttachInputKey] = useState(0);
   const [matchPanel, setMatchPanel] = useState<{
     linked: boolean;
-    invoice: { totalMinor: number | null; vendorName: string | null };
-    po: { number: string; status: string; totalMinor: number | null } | null;
+    invoice: {
+      totalMinor: number | null;
+      vendorName: string | null;
+      currency?: string;
+      reporting?: ReportingMoney;
+    };
+    po: {
+      number: string;
+      status: string;
+      totalMinor: number | null;
+      currency?: string;
+      reporting?: ReportingMoney;
+    } | null;
     lines: {
       invoiceLineNo: number;
       invoiceDesc: string | null;
@@ -603,8 +616,21 @@ export function InvoiceWorkspacePage() {
   const [vendor360, setVendor360] = useState<{
     vendor: { name: string; code: string };
     spendMinor: number;
+    spendReporting?: {
+      amountMinor: number;
+      currency: string;
+      converted: boolean;
+      providerKey: string;
+    };
     openExceptions: number;
-    invoices: { id: string; invoiceNumber: string | null; status: string; totalMinor: number | null }[];
+    invoices: {
+      id: string;
+      invoiceNumber: string | null;
+      status: string;
+      totalMinor: number | null;
+      currency?: string;
+      reporting?: ReportingMoney;
+    }[];
     lastCoding: { glAccountId: string | null }[];
   } | null>(null);
   const [codingSuggest, setCodingSuggest] = useState<{
@@ -1186,6 +1212,13 @@ export function InvoiceWorkspacePage() {
                 OCR {(invoice.ocrConfidence * 100).toFixed(0)}%
               </StatusBadge>
             )}
+            <span>
+              <MoneyAmount
+                amountMinor={invoice.totalMinor}
+                currency={invoice.currency}
+                reporting={invoice.reporting}
+              />
+            </span>
             {invoice.fileAsset && (
               <span className="muted">{invoice.fileAsset.originalName}</span>
             )}
@@ -1363,8 +1396,17 @@ export function InvoiceWorkspacePage() {
               {matchPanel.po ? (
                 <p>
                   PO {matchPanel.po.number} · {matchPanel.po.status} · invoice{' '}
-                  {matchPanel.invoice.totalMinor ?? '—'} vs PO{' '}
-                  {matchPanel.po.totalMinor ?? '—'}
+                  <MoneyAmount
+                    amountMinor={matchPanel.invoice.totalMinor}
+                    currency={matchPanel.invoice.currency ?? invoice.currency}
+                    reporting={matchPanel.invoice.reporting}
+                  />{' '}
+                  vs PO{' '}
+                  <MoneyAmount
+                    amountMinor={matchPanel.po.totalMinor}
+                    currency={matchPanel.po.currency ?? invoice.currency}
+                    reporting={matchPanel.po.reporting}
+                  />
                 </p>
               ) : (
                 <p className="muted">No purchase order linked.</p>
@@ -1390,8 +1432,30 @@ export function InvoiceWorkspacePage() {
             <div className="hitl-alert hitl-alert--soft">
               <h2>Vendor 360 · {vendor360.vendor.name}</h2>
               <p className="muted">
-                Spend on recent invoices: {(vendor360.spendMinor / 100).toFixed(2)} ·{' '}
-                {vendor360.openExceptions} open exceptions
+                Spend on recent invoices:{' '}
+                {vendor360.spendReporting?.converted ? (
+                  <MoneyAmount
+                    amountMinor={vendor360.spendMinor}
+                    currency={
+                      vendor360.invoices[0]?.currency ?? invoice.currency
+                    }
+                    reporting={{
+                      amountMinor: vendor360.spendReporting.amountMinor,
+                      currency: vendor360.spendReporting.currency,
+                      originalAmountMinor: vendor360.spendMinor,
+                      originalCurrency:
+                        vendor360.invoices[0]?.currency ?? invoice.currency,
+                      asOfDate: new Date().toISOString().slice(0, 10),
+                      rateDate: null,
+                      providerKey: vendor360.spendReporting.providerKey,
+                      rateUsed: null,
+                      converted: true,
+                    }}
+                  />
+                ) : (
+                  (vendor360.spendMinor / 100).toFixed(2)
+                )}{' '}
+                · {vendor360.openExceptions} open exceptions
               </p>
               <ul>
                 {vendor360.invoices.slice(0, 5).map((row) => (
@@ -1400,6 +1464,17 @@ export function InvoiceWorkspacePage() {
                       {row.invoiceNumber ?? row.id.slice(0, 8)}
                     </Link>{' '}
                     · {row.status}
+                    {row.totalMinor != null && (
+                      <>
+                        {' '}
+                        ·{' '}
+                        <MoneyAmount
+                          amountMinor={row.totalMinor}
+                          currency={row.currency ?? invoice.currency}
+                          reporting={row.reporting}
+                        />
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -1638,6 +1713,24 @@ export function InvoiceWorkspacePage() {
                 required
                 onFocus={() => onFieldFocus('total')}
               />
+              {invoice.reporting?.converted &&
+                invoice.reporting.currency.toUpperCase() !==
+                  invoice.currency.toUpperCase() && (
+                  <p className="muted" style={{ margin: '0.35rem 0 0' }}>
+                    ≈{' '}
+                    {new Intl.NumberFormat(undefined, {
+                      style: 'currency',
+                      currency: invoice.reporting.currency,
+                    }).format(invoice.reporting.amountMinor / 100)}
+                    {invoice.reporting.providerKey
+                      ? ` (${invoice.reporting.providerKey.toUpperCase()}${
+                          invoice.reporting.rateDate
+                            ? ` · ${invoice.reporting.rateDate}`
+                            : ''
+                        })`
+                      : ''}
+                  </p>
+                )}
             </DropField>
             <DropField
               label="Notes"
