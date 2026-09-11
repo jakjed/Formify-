@@ -22,6 +22,7 @@ import { ContractsModule } from './modules/contracts/contracts.module';
 import { PurchaseRequestsModule } from './modules/purchase-requests/purchase-requests.module';
 import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { FxRatesModule } from './modules/fx-rates/fx-rates.module';
 import { AuthGuard } from './common/auth.guard';
 import { RateLimitGuard } from './common/rate-limit.guard';
 import { ModuleLicenseGuard } from './common/module-license.guard';
@@ -53,6 +54,7 @@ import { ModuleLicenseGuard } from './common/module-license.guard';
     PurchaseRequestsModule,
     PurchaseOrdersModule,
     WebhooksModule,
+    FxRatesModule,
   ],
   providers: [
     ModuleLicenseGuard,
