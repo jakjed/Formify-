@@ -9,6 +9,7 @@ import { buildScopedEntityWhere } from '../../../common/entity-scope';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
 import { TenancyService } from '../../tenancy/application/tenancy.service';
+import { FxConvertService } from '../../fx-rates/application/fx-convert.service';
 
 const prInclude = {
   lines: { orderBy: { lineNo: 'asc' as const } },
@@ -41,6 +42,7 @@ export class PurchaseRequestsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly tenancy: TenancyService,
+    private readonly fx: FxConvertService,
   ) {}
 
   async list(
@@ -56,11 +58,15 @@ export class PurchaseRequestsService {
       userId: opts?.userId,
       role: opts?.role,
     });
-    return this.prisma.purchaseRequest.findMany({
+    const rows = await this.prisma.purchaseRequest.findMany({
       where: { tenantId, ...entityWhere },
       orderBy: { createdAt: 'desc' },
       take: 200,
       include: prInclude,
+    });
+    return this.fx.attachReporting(tenantId, rows, {
+      amount: (r) => r.totalMinor,
+      asOfDate: (r) => r.createdAt,
     });
   }
 
@@ -70,7 +76,16 @@ export class PurchaseRequestsService {
       include: prInclude,
     });
     if (!row) throw new NotFoundException('Purchase request not found');
-    return row;
+    const reporting =
+      row.totalMinor == null
+        ? null
+        : await this.fx.convertOne(tenantId, {
+            amountMinor: row.totalMinor,
+            currency: row.currency,
+            asOfDate: row.createdAt.toISOString().slice(0, 10),
+            entityId: row.entityId,
+          });
+    return { ...row, reporting };
   }
 
   async update(

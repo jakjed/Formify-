@@ -6,9 +6,10 @@ import { AccrualsService } from './application/accruals.service';
 import { AuditModule } from '../audit/audit.module';
 import { TenancyModule } from '../tenancy/tenancy.module';
 import { ModuleLicenseGuard } from '../../common/module-license.guard';
+import { FxRatesModule } from '../fx-rates/fx-rates.module';
 
 @Module({
-  imports: [AuditModule, TenancyModule],
+  imports: [AuditModule, TenancyModule, FxRatesModule],
   controllers: [PurchaseOrdersController, AccrualsController],
   providers: [PurchaseOrdersService, AccrualsService, ModuleLicenseGuard],
   exports: [PurchaseOrdersService, AccrualsService],

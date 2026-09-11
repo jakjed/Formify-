@@ -116,7 +116,44 @@ type UserRow = {
   canApprove?: boolean;
 };
 
-type EntityRow = { id: string; name: string; code: string };
+type EntityRow = {
+  id: string;
+  name: string;
+  code: string;
+  addressLine1?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  region?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  defaultCurrency?: string;
+  fxProviderKey?: string;
+};
+
+const FX_PROVIDER_OPTIONS = [
+  { key: 'nbp', label: 'Polish NBP' },
+  { key: 'ecb', label: 'ECB reference' },
+  { key: 'fred', label: 'US Fed (H.10)' },
+  { key: 'boe', label: 'Bank of England' },
+] as const;
+
+const ENTITY_CURRENCY_OPTIONS = [
+  'EUR',
+  'USD',
+  'GBP',
+  'PLN',
+  'CHF',
+  'SEK',
+  'NOK',
+  'DKK',
+  'CZK',
+  'HUF',
+  'RON',
+  'CAD',
+  'AUD',
+  'JPY',
+  'CNY',
+] as const;
 
 type FxTableRow = {
   id: string;
@@ -846,6 +883,14 @@ export function AdminPage() {
         body: JSON.stringify({
           name: data.get('name'),
           code: data.get('code'),
+          addressLine1: data.get('addressLine1') || null,
+          addressLine2: data.get('addressLine2') || null,
+          city: data.get('city') || null,
+          region: data.get('region') || null,
+          postalCode: data.get('postalCode') || null,
+          country: data.get('country') || null,
+          defaultCurrency: data.get('defaultCurrency') || 'EUR',
+          fxProviderKey: data.get('fxProviderKey') || 'ecb',
         }),
       });
       form.reset();
@@ -877,6 +922,14 @@ export function AdminPage() {
         body: JSON.stringify({
           name: data.get('name'),
           code: data.get('code'),
+          addressLine1: data.get('addressLine1') || null,
+          addressLine2: data.get('addressLine2') || null,
+          city: data.get('city') || null,
+          region: data.get('region') || null,
+          postalCode: data.get('postalCode') || null,
+          country: data.get('country') || null,
+          defaultCurrency: data.get('defaultCurrency') || 'EUR',
+          fxProviderKey: data.get('fxProviderKey') || 'ecb',
         }),
       });
       setEditingEntity(null);
@@ -1614,6 +1667,13 @@ export function AdminPage() {
                 <div>
                   <strong>{ent.name}</strong>
                   <span className="muted"> · {ent.code}</span>
+                  <div className="muted">
+                    {ent.defaultCurrency ?? 'EUR'} ·{' '}
+                    {(ent.fxProviderKey ?? 'ecb').toUpperCase()}
+                    {ent.city || ent.country
+                      ? ` · ${[ent.city, ent.country].filter(Boolean).join(', ')}`
+                      : ''}
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -1650,6 +1710,72 @@ export function AdminPage() {
                   defaultValue={editingEntity.code}
                 />
               </label>
+              <label>
+                Address line 1
+                <input
+                  name="addressLine1"
+                  defaultValue={editingEntity.addressLine1 ?? ''}
+                />
+              </label>
+              <label>
+                Address line 2
+                <input
+                  name="addressLine2"
+                  defaultValue={editingEntity.addressLine2 ?? ''}
+                />
+              </label>
+              <label>
+                City
+                <input name="city" defaultValue={editingEntity.city ?? ''} />
+              </label>
+              <label>
+                Region / state
+                <input
+                  name="region"
+                  defaultValue={editingEntity.region ?? ''}
+                />
+              </label>
+              <label>
+                Postal code
+                <input
+                  name="postalCode"
+                  defaultValue={editingEntity.postalCode ?? ''}
+                />
+              </label>
+              <label>
+                Country
+                <input
+                  name="country"
+                  defaultValue={editingEntity.country ?? ''}
+                  placeholder="PL, DE, US…"
+                />
+              </label>
+              <label>
+                Default currency
+                <select
+                  name="defaultCurrency"
+                  defaultValue={editingEntity.defaultCurrency ?? 'EUR'}
+                >
+                  {ENTITY_CURRENCY_OPTIONS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Default FX rate type
+                <select
+                  name="fxProviderKey"
+                  defaultValue={editingEntity.fxProviderKey ?? 'ecb'}
+                >
+                  {FX_PROVIDER_OPTIONS.map((p) => (
+                    <option key={p.key} value={p.key}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <div className="span-2 actions">
                 <button
                   type="button"
@@ -1672,6 +1798,50 @@ export function AdminPage() {
             <label>
               Code
               <input name="code" required minLength={1} />
+            </label>
+            <label>
+              Address line 1
+              <input name="addressLine1" />
+            </label>
+            <label>
+              Address line 2
+              <input name="addressLine2" />
+            </label>
+            <label>
+              City
+              <input name="city" />
+            </label>
+            <label>
+              Region / state
+              <input name="region" />
+            </label>
+            <label>
+              Postal code
+              <input name="postalCode" />
+            </label>
+            <label>
+              Country
+              <input name="country" placeholder="PL, DE, US…" />
+            </label>
+            <label>
+              Default currency
+              <select name="defaultCurrency" defaultValue="EUR">
+                {ENTITY_CURRENCY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Default FX rate type
+              <select name="fxProviderKey" defaultValue="ecb">
+                {FX_PROVIDER_OPTIONS.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
             </label>
             <div className="span-2 actions">
               <button type="submit" disabled={busy}>

@@ -12,6 +12,7 @@ import {
   ProcureTabs,
   formatMoney,
 } from '../procure/shared';
+import { MoneyAmount, type ReportingMoney } from '../../shared/components/MoneyAmount';
 
 type LinkedPo = {
   id: string;
@@ -26,6 +27,7 @@ type Pr = {
   title: string;
   status: string;
   totalMinor: number | null;
+  reporting?: ReportingMoney;
   currency?: string;
   department: string | null;
   category: string | null;
@@ -480,7 +482,7 @@ export function PurchaseRequestsPage() {
                         <td>{p.department ?? '—'}</td>
                         <td>{p.category ?? '—'}</td>
                         <td className="procure__mono">
-                          {formatMoney(p.totalMinor, p.currency ?? 'EUR')}
+                          <MoneyAmount amountMinor={p.totalMinor} currency={p.currency ?? 'EUR'} reporting={p.reporting} />
                         </td>
                         <td>
                           <PrStatusBadge status={p.status} />

@@ -13,6 +13,7 @@ import {
   ProgressBar,
   formatMoney,
 } from '../procure/shared';
+import { MoneyAmount, type ReportingMoney } from '../../shared/components/MoneyAmount';
 
 type SignatureSigner = {
   name: string;
@@ -35,6 +36,7 @@ type Contract = {
   status: string;
   currency: string;
   valueMinor: number | null;
+  reporting?: ReportingMoney;
   agreementType: string | null;
   clmTool: string | null;
   ownerName: string | null;
@@ -425,7 +427,7 @@ export function ContractsPage() {
                       </td>
                       <td>{c.agreementType ?? '—'}</td>
                       <td className="procure__mono">
-                        {formatMoney(c.valueMinor, c.currency)}
+                        <MoneyAmount amountMinor={c.valueMinor} currency={c.currency} reporting={c.reporting} />
                       </td>
                       <td>
                         <ContractStatusBadge status={c.status} />
@@ -504,7 +506,7 @@ export function ContractsPage() {
                         <td className="procure__mono">{c.number}</td>
                         <td>{c.vendor?.name ?? '—'}</td>
                         <td className="procure__mono">
-                          {formatMoney(c.valueMinor, c.currency)}
+                          <MoneyAmount amountMinor={c.valueMinor} currency={c.currency} reporting={c.reporting} />
                         </td>
                         <td>
                           <button
@@ -545,7 +547,7 @@ export function ContractsPage() {
                       {c.number} · {c.vendor?.name ?? c.title}
                     </h3>
                     <p className="procure__card-sub">
-                      {formatMoney(c.valueMinor, c.currency)}
+                      <MoneyAmount amountMinor={c.valueMinor} currency={c.currency} reporting={c.reporting} />
                       {c.ownerName ? ` · Owner ${c.ownerName}` : ''}
                     </p>
                   </div>

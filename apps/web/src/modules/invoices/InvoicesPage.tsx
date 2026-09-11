@@ -6,6 +6,7 @@ import { appendEntityParam, formatEntityCell } from '../../shared/lib/entity';
 import { FileSelect } from '../../shared/components/FileSelect';
 import { InvoiceStatusBadge } from '../../shared/ui/StatusBadge';
 import { ageTone } from '../../shared/ui/status';
+import { MoneyAmount, type ReportingMoney } from '../../shared/components/MoneyAmount';
 
 type InvoiceListItem = {
   id: string;
@@ -18,6 +19,7 @@ type InvoiceListItem = {
   createdAt: string;
   exceptions: { code: string }[];
   fileAsset: { originalName: string } | null;
+  reporting?: ReportingMoney;
 };
 
 type SavedView = {
@@ -538,7 +540,13 @@ export function InvoicesPage() {
                   </td>
                   <td className="muted">{formatEntityCell(inv.entityId)}</td>
                   <td>{inv.vendorNameRaw ?? '—'}</td>
-                  <td>{formatMoney(inv.totalMinor, inv.currency)}</td>
+                  <td>
+                    <MoneyAmount
+                      amountMinor={inv.totalMinor}
+                      currency={inv.currency}
+                      reporting={inv.reporting}
+                    />
+                  </td>
                   <td>
                     <InvoiceStatusBadge status={inv.status} />
                   </td>

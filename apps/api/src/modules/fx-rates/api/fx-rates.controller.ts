@@ -10,12 +10,24 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Min,
+  ValidateNested,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import {
   CurrentTenantId,
   CurrentUser,
 } from '../../../common/current-user.decorator';
 import type { RequestUser } from '../../identity/domain/identity.types';
+import { FxConvertService } from '../application/fx-convert.service';
 import { FxRatesService } from '../application/fx-rates.service';
 import { FX_PROVIDERS } from '../domain/fx-providers';
 
@@ -27,7 +39,6 @@ class SyncFxDto {
   @IsIn(PROVIDER_KEYS)
   providerKey?: string;
 
-  /** When true, also backfill gaps from 2020-01-01. */
   @IsOptional()
   @IsBoolean()
   backfill?: boolean;
@@ -36,6 +47,41 @@ class SyncFxDto {
 class ActivateFxDto {
   @IsUUID()
   tableId!: string;
+}
+
+class ConvertItemDto {
+  @IsString()
+  id!: string;
+
+  @IsInt()
+  @Min(0)
+  amountMinor!: number;
+
+  @IsString()
+  currency!: string;
+
+  @IsString()
+  asOfDate!: string;
+
+  @IsOptional()
+  @IsUUID()
+  entityId?: string;
+
+  @IsOptional()
+  @IsString()
+  toCurrency?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(PROVIDER_KEYS)
+  providerKey?: string;
+}
+
+class ConvertBatchDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ConvertItemDto)
+  items!: ConvertItemDto[];
 }
 
 function assertAdmin(user: RequestUser) {
@@ -52,7 +98,10 @@ function assertAdmin(user: RequestUser) {
 @ApiBearerAuth('bearer')
 @Controller('fx-rates')
 export class FxRatesController {
-  constructor(private readonly fx: FxRatesService) {}
+  constructor(
+    private readonly fx: FxRatesService,
+    private readonly convert: FxConvertService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List FX rate tables and providers' })
@@ -100,6 +149,18 @@ export class FxRatesController {
       quote,
       limit: limit != null && Number.isFinite(limit) ? limit : undefined,
     });
+  }
+
+  @Post('convert')
+  @ApiOperation({
+    summary:
+      'Convert amounts to entity default currency using entity FX table and rate date',
+  })
+  convertBatch(
+    @CurrentTenantId() tenantId: string,
+    @Body() dto: ConvertBatchDto,
+  ) {
+    return this.convert.convertMany(tenantId, dto.items ?? []);
   }
 
   @Post('activate')

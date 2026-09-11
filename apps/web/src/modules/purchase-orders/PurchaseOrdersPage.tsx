@@ -11,6 +11,7 @@ import {
   ProcureTabs,
   formatMoney,
 } from '../procure/shared';
+import { MoneyAmount, type ReportingMoney } from '../../shared/components/MoneyAmount';
 
 type PoLine = {
   id: string;
@@ -27,6 +28,7 @@ type Po = {
   status: string;
   currency: string;
   totalMinor: number | null;
+  reporting?: ReportingMoney;
   entityId?: string | null;
   invoicedMinor?: number;
   remainingMinor?: number;
@@ -329,7 +331,7 @@ export function PurchaseOrdersPage() {
                           )}
                         </td>
                         <td className="procure__mono">
-                          {formatMoney(po.totalMinor, po.currency)}
+                          <MoneyAmount amountMinor={po.totalMinor} currency={po.currency} reporting={po.reporting} />
                         </td>
                         <td className="procure__mono">
                           {formatMoney(po.invoicedMinor ?? 0, po.currency)}

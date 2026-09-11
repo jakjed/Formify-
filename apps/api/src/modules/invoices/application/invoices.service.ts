@@ -14,6 +14,7 @@ import { UsageService } from '../../usage/application/usage.service';
 import { WorkflowService } from '../../workflow/application/workflow.service';
 import { WebhooksService } from '../../webhooks/application/webhooks.service';
 import { NotificationsService } from '../../notifications/application/notifications.service';
+import { FxConvertService } from '../../fx-rates/application/fx-convert.service';
 
 export type InvoiceListQuery = {
   status?: InvoiceStatus | InvoiceStatus[];
@@ -37,6 +38,7 @@ export class InvoicesService {
     private readonly audit: AuditService,
     private readonly webhooks: WebhooksService,
     private readonly notifications: NotificationsService,
+    private readonly fx: FxConvertService,
   ) {}
 
   async list(tenantId: string, query: InvoiceListQuery = {}) {
@@ -95,7 +97,7 @@ export class InvoicesService {
     const orderBy = sortToOrderBy(query.sort ?? 'created_desc');
     const take = Math.min(Math.max(query.limit ?? 100, 1), 500);
 
-    return this.prisma.invoice.findMany({
+    const rows = await this.prisma.invoice.findMany({
       where,
       orderBy,
       take,
@@ -104,6 +106,10 @@ export class InvoicesService {
         exceptions: { where: { resolved: false } },
         lines: { orderBy: { lineNo: 'asc' } },
       },
+    });
+    return this.fx.attachReporting(tenantId, rows, {
+      amount: (r) => r.totalMinor,
+      asOfDate: (r) => r.invoiceDate ?? r.createdAt,
     });
   }
 
@@ -313,7 +319,16 @@ export class InvoicesService {
       },
     });
     if (!invoice) throw new NotFoundException('Invoice not found');
-    return invoice;
+    const reporting = await this.fx.convertOne(tenantId, {
+      amountMinor: invoice.totalMinor ?? 0,
+      currency: invoice.currency,
+      asOfDate: (invoice.invoiceDate ?? invoice.createdAt).toISOString().slice(0, 10),
+      entityId: invoice.entityId,
+    });
+    return {
+      ...invoice,
+      reporting: invoice.totalMinor == null ? null : reporting,
+    };
   }
 
   async getFile(tenantId: string, id: string) {

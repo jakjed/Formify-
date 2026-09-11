@@ -42,6 +42,40 @@ class CreateEntityDto {
   @IsString()
   @MinLength(1)
   code!: string;
+
+  @IsOptional()
+  @IsString()
+  addressLine1?: string | null;
+
+  @IsOptional()
+  @IsString()
+  addressLine2?: string | null;
+
+  @IsOptional()
+  @IsString()
+  city?: string | null;
+
+  @IsOptional()
+  @IsString()
+  region?: string | null;
+
+  @IsOptional()
+  @IsString()
+  postalCode?: string | null;
+
+  @IsOptional()
+  @IsString()
+  country?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  defaultCurrency?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['nbp', 'ecb', 'fred', 'boe'])
+  fxProviderKey?: string;
 }
 
 class UpdateEntityDto {
@@ -54,6 +88,40 @@ class UpdateEntityDto {
   @IsString()
   @MinLength(1)
   code?: string;
+
+  @IsOptional()
+  @IsString()
+  addressLine1?: string | null;
+
+  @IsOptional()
+  @IsString()
+  addressLine2?: string | null;
+
+  @IsOptional()
+  @IsString()
+  city?: string | null;
+
+  @IsOptional()
+  @IsString()
+  region?: string | null;
+
+  @IsOptional()
+  @IsString()
+  postalCode?: string | null;
+
+  @IsOptional()
+  @IsString()
+  country?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  defaultCurrency?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['nbp', 'ecb', 'fred', 'boe'])
+  fxProviderKey?: string;
 }
 
 class UpdatePlanDto {
