@@ -8,8 +8,8 @@ import {
   DOC_CATEGORIES,
   Kv,
   ApprovalProgress,
-  formatMoney,
 } from '../procure/shared';
+import { MoneyAmount, type ReportingMoney } from '../../shared/components/MoneyAmount';
 
 type Party = { id: string; code: string; name: string };
 type Flag = { severity: string; text: string };
@@ -29,6 +29,7 @@ type Contract = {
   clmTool: string | null; ownerName: string | null; approvalStage: number;
   contractDate: string | null; aiExtracted: boolean; redFlagsJson: Flag[] | null;
   signatureJson: Sig | null; documents: Doc[]; vendor: Party | null; entity: Party | null;
+  reporting?: ReportingMoney;
 };
 type Activity =
   | { id: string; kind: 'audit'; at: string; actorName: string | null; action: string }
@@ -242,10 +243,16 @@ export function ContractWorkspacePage() {
               contract.vendor?.name,
               contract.ownerName ? `Owner ${contract.ownerName}` : null,
               contract.clmTool,
-              formatMoney(contract.valueMinor, contract.currency),
             ]
               .filter(Boolean)
               .join(' · ')}
+            {(contract.vendor?.name || contract.ownerName || contract.clmTool) &&
+              ' · '}
+            <MoneyAmount
+              amountMinor={contract.valueMinor}
+              currency={contract.currency}
+              reporting={contract.reporting}
+            />
           </p>
         </div>
         <div className="procure__actions">
@@ -373,7 +380,13 @@ export function ContractWorkspacePage() {
               { k: 'Vendor', v: dash(contract.vendor?.name) },
               { k: 'Entity', v: dash(contract.entity?.name) },
               { k: 'Agreement type', v: dash(contract.agreementType) },
-              { k: 'Value', v: formatMoney(contract.valueMinor, contract.currency) },
+              { k: 'Value', v: (
+                <MoneyAmount
+                  amountMinor={contract.valueMinor}
+                  currency={contract.currency}
+                  reporting={contract.reporting}
+                />
+              ) },
               { k: 'Currency', v: contract.currency },
               { k: 'Contract date', v: dash(d(contract.contractDate)) },
               { k: 'Start', v: dash(d(contract.startDate)) },

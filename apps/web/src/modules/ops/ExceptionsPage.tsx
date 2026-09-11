@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../../shared/lib/api';
+import { MoneyAmount, type ReportingMoney } from '../../shared/components/MoneyAmount';
 
 type ExceptionItem = {
   id: string;
@@ -15,6 +16,7 @@ type ExceptionItem = {
     vendorNameRaw: string | null;
     currency: string;
     totalMinor: number | null;
+    reporting?: ReportingMoney;
   };
 };
 
@@ -23,14 +25,6 @@ type ExceptionQueue = {
   byCode: { code: string; count: number }[];
   items: ExceptionItem[];
 };
-
-function money(minor: number | null, currency: string) {
-  if (minor == null) return '—';
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-  }).format(minor / 100);
-}
 
 function ageLabel(hours: number) {
   if (hours < 24) return `${Math.round(hours)}h`;
@@ -130,7 +124,11 @@ export function ExceptionsPage() {
                 </td>
                 <td>{item.invoice.vendorNameRaw ?? '—'}</td>
                 <td>
-                  {money(item.invoice.totalMinor, item.invoice.currency)}
+                  <MoneyAmount
+                    amountMinor={item.invoice.totalMinor}
+                    currency={item.invoice.currency}
+                    reporting={item.invoice.reporting}
+                  />
                 </td>
                 <td className={item.ageHours >= 72 ? 'error' : 'muted'}>
                   {ageLabel(item.ageHours)}

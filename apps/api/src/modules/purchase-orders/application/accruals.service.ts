@@ -7,6 +7,7 @@ import { ApAccrualStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../../database/prisma.service';
 import { AuditService } from '../../audit/application/audit.service';
 import { ACCRUAL_APPROVAL_CHAIN } from '../../contracts/application/procure-constants';
+import { FxConvertService } from '../../fx-rates/application/fx-convert.service';
 
 const accrualInclude = {
   purchaseOrder: {
@@ -31,10 +32,11 @@ export class AccrualsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly fx: FxConvertService,
   ) {}
 
-  listAccruals(tenantId: string, opts?: { status?: ApAccrualStatus }) {
-    return this.prisma.apAccrual.findMany({
+  async listAccruals(tenantId: string, opts?: { status?: ApAccrualStatus }) {
+    const rows = await this.prisma.apAccrual.findMany({
       where: {
         tenantId,
         ...(opts?.status ? { status: opts.status } : {}),
@@ -42,6 +44,10 @@ export class AccrualsService {
       include: accrualInclude,
       orderBy: { createdAt: 'desc' },
       take: 200,
+    });
+    return this.fx.attachReporting(tenantId, rows, {
+      amount: (r) => r.amountMinor,
+      asOfDate: (r) => r.createdAt,
     });
   }
 
@@ -51,7 +57,13 @@ export class AccrualsService {
       include: accrualInclude,
     });
     if (!row) throw new NotFoundException('Accrual not found');
-    return row;
+    const reporting = await this.fx.convertOne(tenantId, {
+      amountMinor: row.amountMinor,
+      currency: row.currency,
+      asOfDate: row.createdAt.toISOString().slice(0, 10),
+      entityId: row.entityId,
+    });
+    return { ...row, reporting };
   }
 
   /**

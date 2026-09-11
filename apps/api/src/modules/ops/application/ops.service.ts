@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
+import { FxConvertService } from '../../fx-rates/application/fx-convert.service';
 
 @Injectable()
 export class OpsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly fx: FxConvertService,
+  ) {}
 
   async getCommandCenter(tenantId: string, userId: string) {
     const [
@@ -50,6 +54,10 @@ export class OpsService {
         },
         select: {
           totalMinor: true,
+          currency: true,
+          entityId: true,
+          issuedAt: true,
+          createdAt: true,
           invoices: { select: { totalMinor: true } },
         },
       }),
@@ -87,6 +95,31 @@ export class OpsService {
       return sum + Math.max(0, (po.totalMinor ?? 0) - invoiced);
     }, 0);
 
+    const defaults = await this.fx.resolveDefaults(tenantId, null);
+    let remainingReportingMinor = 0;
+    let remainingConverted = true;
+    for (const po of poRows) {
+      const invoiced = po.invoices.reduce(
+        (s, invRow) => s + (invRow.totalMinor ?? 0),
+        0,
+      );
+      const remaining = Math.max(0, (po.totalMinor ?? 0) - invoiced);
+      if (remaining <= 0) continue;
+      const converted = await this.fx.convertOne(tenantId, {
+        amountMinor: remaining,
+        currency: po.currency,
+        asOfDate: (po.issuedAt ?? po.createdAt).toISOString().slice(0, 10),
+        entityId: po.entityId,
+        toCurrency: defaults.currency,
+        providerKey: defaults.providerKey,
+      });
+      if (!converted.converted) {
+        remainingConverted = false;
+        continue;
+      }
+      remainingReportingMinor += converted.amountMinor;
+    }
+
     return {
       invoices: {
         needsReview: inv.needs_review ?? 0,
@@ -109,6 +142,12 @@ export class OpsService {
         draft: pos.draft ?? 0,
         issued: pos.issued ?? 0,
         remainingMinorSum,
+        remainingReporting: {
+          amountMinor: remainingReportingMinor,
+          currency: defaults.currency,
+          converted: remainingConverted,
+          providerKey: defaults.providerKey,
+        },
       },
       accruals: {
         draft: accruals.draft ?? 0,

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiFetch } from '../../shared/lib/api';
 import { formatMoney } from '../procure/shared';
+import { MoneyAmount, type ReportingMoney } from '../../shared/components/MoneyAmount';
 
 type Onboarding = {
   complete: boolean;
@@ -21,6 +22,7 @@ type ApprovalTask = {
     totalMinor: number | null;
     currency: string;
     status: string;
+    reporting?: ReportingMoney;
     exceptions?: { code: string; message: string }[];
     lines?: {
       lineNo: number;
@@ -53,6 +55,12 @@ type CommandCenter = {
     draft: number;
     issued: number;
     remainingMinorSum: number;
+    remainingReporting?: {
+      amountMinor: number;
+      currency: string;
+      converted: boolean;
+      providerKey: string;
+    };
   };
   accruals: {
     draft: number;
@@ -301,10 +309,11 @@ export function HomePage() {
                   </p>
                 </div>
                 <p className="approval-card__amount">
-                  {formatMoney(
-                    task.invoice?.totalMinor ?? null,
-                    task.invoice?.currency ?? 'EUR',
-                  )}
+                  <MoneyAmount
+                    amountMinor={task.invoice?.totalMinor}
+                    currency={task.invoice?.currency ?? 'EUR'}
+                    reporting={task.invoice?.reporting}
+                  />
                 </p>
                 <div className="approval-card__actions">
                   <button
@@ -343,10 +352,11 @@ export function HomePage() {
             <h2>{sheet.invoice?.invoiceNumber ?? 'Draft invoice'}</h2>
             <p className="lede">
               {sheet.invoice?.vendorNameRaw ?? 'Unknown vendor'} ·{' '}
-              {formatMoney(
-                sheet.invoice?.totalMinor ?? null,
-                sheet.invoice?.currency ?? 'EUR',
-              )}
+              <MoneyAmount
+                amountMinor={sheet.invoice?.totalMinor}
+                currency={sheet.invoice?.currency ?? 'EUR'}
+                reporting={sheet.invoice?.reporting}
+              />
             </p>
             {sheet.invoice?.fileAsset && (
               <p className="muted">
@@ -464,7 +474,16 @@ export function HomePage() {
                 <Link to="/purchase-orders">{cc.purchaseOrders.issued}</Link>
               </dd>
               <dt>Unbilled (open POs)</dt>
-              <dd>{formatMoney(cc.purchaseOrders.remainingMinorSum)}</dd>
+              <dd>
+                {cc.purchaseOrders.remainingReporting?.converted ? (
+                  formatMoney(
+                    cc.purchaseOrders.remainingReporting.amountMinor,
+                    cc.purchaseOrders.remainingReporting.currency,
+                  )
+                ) : (
+                  formatMoney(cc.purchaseOrders.remainingMinorSum)
+                )}
+              </dd>
             </dl>
           </div>
           <div className="panel">

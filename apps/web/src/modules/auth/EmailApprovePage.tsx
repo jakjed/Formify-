@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { AuthBrand, AuthLegalFooter } from '../auth/AuthChrome';
+import { MoneyAmount, type ReportingMoney } from '../../shared/components/MoneyAmount';
 
 type Preview = {
   taskId: string;
@@ -11,17 +12,10 @@ type Preview = {
     vendorNameRaw: string | null;
     totalMinor: number | null;
     currency: string;
+    reporting?: ReportingMoney;
     exceptions: { code: string; message: string }[];
   } | null;
 };
-
-function formatMoney(minor: number | null, currency: string) {
-  if (minor == null) return '—';
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency,
-  }).format(minor / 100);
-}
 
 export function EmailApprovePage() {
   const { token } = useParams();
@@ -79,10 +73,11 @@ export function EmailApprovePage() {
             <p className="lede">
               {preview.invoice.invoiceNumber ?? 'Draft invoice'} ·{' '}
               {preview.invoice.vendorNameRaw ?? 'Vendor'} ·{' '}
-              {formatMoney(
-                preview.invoice.totalMinor,
-                preview.invoice.currency,
-              )}
+              <MoneyAmount
+                amountMinor={preview.invoice.totalMinor}
+                currency={preview.invoice.currency}
+                reporting={preview.invoice.reporting}
+              />
             </p>
             {preview.invoice.exceptions.length > 0 && (
               <ul>

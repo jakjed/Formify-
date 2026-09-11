@@ -44,6 +44,7 @@ type Proposal = {
   status: string;
   valueMinor: number | null;
   currency: string;
+  reporting?: ReportingMoney;
   vendor: { id: string; code: string; name: string } | null;
 };
 
@@ -228,7 +229,12 @@ export function PurchaseRequestsPage() {
                       {p.number} · {p.vendor?.name ?? p.title}
                     </h3>
                     <p className="procure__card-sub">
-                      {formatMoney(p.valueMinor, p.currency)} · from signed agreement
+                      <MoneyAmount
+                        amountMinor={p.valueMinor}
+                        currency={p.currency}
+                        reporting={p.reporting}
+                      />{' '}
+                      · from signed agreement
                     </p>
                   </div>
                   <button
@@ -291,7 +297,14 @@ export function PurchaseRequestsPage() {
               <span className="procure__muted">
                 {filtered.length} requests ·{' '}
                 {formatMoney(
-                  filtered.reduce((s, r) => s + (r.totalMinor ?? 0), 0),
+                  filtered.reduce((s, r) => {
+                    if (r.reporting?.converted) return s + r.reporting.amountMinor;
+                    return s + (r.totalMinor ?? 0);
+                  }, 0),
+                  filtered.find((r) => r.reporting?.converted)?.reporting
+                    ?.currency ??
+                    filtered[0]?.currency ??
+                    'EUR',
                 )}
               </span>
               <button

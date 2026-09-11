@@ -29,6 +29,8 @@ type Po = {
   currency: string;
   totalMinor: number | null;
   reporting?: ReportingMoney;
+  reportingInvoiced?: ReportingMoney;
+  reportingRemaining?: ReportingMoney;
   entityId?: string | null;
   invoicedMinor?: number;
   remainingMinor?: number;
@@ -51,6 +53,7 @@ type Accrual = {
   currency: string;
   status: string;
   approvalStage: number;
+  reporting?: ReportingMoney;
   purchaseOrder?: { id: string; number: string; title: string; status: string };
 };
 
@@ -93,10 +96,21 @@ export function PurchaseOrdersPage() {
     const open = rows.filter((r) =>
       ['issued', 'partially_received'].includes(r.status),
     );
-    const remaining = open.reduce((s, r) => s + (r.remainingMinor ?? 0), 0);
+    const reportingCurrency =
+      open.find((r) => r.reportingRemaining?.converted)?.reportingRemaining
+        ?.currency ?? open[0]?.currency ?? 'EUR';
+    const remainingReporting = open.reduce((s, r) => {
+      if (r.reportingRemaining?.converted) {
+        return s + r.reportingRemaining.amountMinor;
+      }
+      return s + (r.remainingMinor ?? 0);
+    }, 0);
     return [
       { label: 'Open POs', value: open.length },
-      { label: 'Unbilled', value: formatMoney(remaining) },
+      {
+        label: 'Unbilled',
+        value: formatMoney(remainingReporting, reportingCurrency),
+      },
       {
         label: 'Accrual drafts',
         value: accruals.filter((a) => a.status === 'draft').length,
@@ -334,10 +348,18 @@ export function PurchaseOrdersPage() {
                           <MoneyAmount amountMinor={po.totalMinor} currency={po.currency} reporting={po.reporting} />
                         </td>
                         <td className="procure__mono">
-                          {formatMoney(po.invoicedMinor ?? 0, po.currency)}
+                          <MoneyAmount
+                            amountMinor={po.invoicedMinor ?? 0}
+                            currency={po.currency}
+                            reporting={po.reportingInvoiced}
+                          />
                         </td>
                         <td className="procure__mono">
-                          {formatMoney(po.remainingMinor ?? 0, po.currency)}
+                          <MoneyAmount
+                            amountMinor={po.remainingMinor ?? 0}
+                            currency={po.currency}
+                            reporting={po.reportingRemaining}
+                          />
                         </td>
                         <td className="procure__mono">
                           {qty ? `${received}/${qty}` : '—'}
@@ -470,7 +492,11 @@ export function PurchaseOrdersPage() {
                       {a.purchaseOrder?.number ?? 'PO'} · {a.vendorName ?? 'Vendor'}
                     </h3>
                     <p className="procure__card-sub">
-                      {formatMoney(a.amountMinor, a.currency)}
+                      <MoneyAmount
+                        amountMinor={a.amountMinor}
+                        currency={a.currency}
+                        reporting={a.reporting}
+                      />
                       {a.department ? ` · ${a.department}` : ''}
                       {a.category ? ` · ${a.category}` : ''}
                     </p>

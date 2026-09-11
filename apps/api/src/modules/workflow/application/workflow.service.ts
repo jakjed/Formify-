@@ -15,6 +15,7 @@ import {
   ACCRUAL_APPROVAL_CHAIN,
   CONTRACT_APPROVAL_CHAIN,
 } from '../../contracts/application/procure-constants';
+import { FxConvertService } from '../../fx-rates/application/fx-convert.service';
 
 const DEFAULT_MODULE_POLICIES: Record<
   string,
@@ -60,6 +61,7 @@ export class WorkflowService {
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly validation: InvoiceValidationService,
+    private readonly fx: FxConvertService,
   ) {}
 
   async getPolicy(tenantId: string, moduleKey = 'invoices') {
@@ -489,20 +491,32 @@ export class WorkflowService {
             select: { id: true, code: true, name: true },
           });
     const glMap = new Map(accounts.map((a) => [a.id, a]));
-    const byId = new Map(
-      invoices.map((inv) => [
-        inv.id,
-        {
+    const enriched = await Promise.all(
+      invoices.map(async (inv) => {
+        const reporting =
+          inv.totalMinor == null
+            ? null
+            : await this.fx.convertOne(tenantId, {
+                amountMinor: inv.totalMinor,
+                currency: inv.currency,
+                asOfDate: (inv.invoiceDate ?? inv.createdAt)
+                  .toISOString()
+                  .slice(0, 10),
+                entityId: inv.entityId,
+              });
+        return {
           ...inv,
+          reporting,
           lines: inv.lines.map((line) => ({
             ...line,
             glAccount: line.glAccountId
               ? glMap.get(line.glAccountId) ?? null
               : null,
           })),
-        },
-      ]),
+        };
+      }),
     );
+    const byId = new Map(enriched.map((inv) => [inv.id, inv]));
     return tasks.map((task) => ({
       ...task,
       invoice: byId.get(task.invoiceId) ?? null,
@@ -647,6 +661,17 @@ export class WorkflowService {
         lines: { orderBy: { lineNo: 'asc' }, take: 8 },
       },
     });
+    const reporting =
+      invoice?.totalMinor == null
+        ? null
+        : await this.fx.convertOne(task.tenantId, {
+            amountMinor: invoice.totalMinor,
+            currency: invoice.currency,
+            asOfDate: (invoice.invoiceDate ?? invoice.createdAt)
+              .toISOString()
+              .slice(0, 10),
+            entityId: invoice.entityId,
+          });
     return {
       taskId: task.id,
       status: task.status,
@@ -659,6 +684,7 @@ export class WorkflowService {
             currency: invoice.currency,
             exceptions: invoice.exceptions,
             lines: invoice.lines,
+            reporting,
           }
         : null,
     };

@@ -278,7 +278,7 @@ export class PurchaseRequestsService {
       .map((r) => r.sourceContractId)
       .filter((id): id is string => Boolean(id));
 
-    return this.prisma.contract.findMany({
+    const rows = await this.prisma.contract.findMany({
       where: {
         tenantId,
         status: 'active',
@@ -290,6 +290,10 @@ export class PurchaseRequestsService {
       },
       orderBy: { createdAt: 'desc' },
       take: 200,
+    });
+    return this.fx.attachReporting(tenantId, rows, {
+      amount: (r) => r.valueMinor,
+      asOfDate: (r) => r.contractDate ?? r.createdAt,
     });
   }
 
