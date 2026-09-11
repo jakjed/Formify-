@@ -15,7 +15,8 @@ type Tab =
   | 'notifications'
   | 'audit'
   | 'workflow'
-  | 'delegations';
+  | 'delegations'
+  | 'fx';
 
 type ApprovalModuleKey =
   | 'invoices'
@@ -116,6 +117,47 @@ type UserRow = {
 };
 
 type EntityRow = { id: string; name: string; code: string };
+
+type FxTableRow = {
+  id: string;
+  providerKey: string;
+  name: string;
+  description: string;
+  baseCurrency: string;
+  sourceUrl: string | null;
+  asOfDate: string | null;
+  lastSyncedAt: string | null;
+  lastSyncError: string | null;
+  rateCount: number;
+  isActive: boolean;
+};
+
+type FxRateRow = {
+  id: string;
+  baseCurrency: string;
+  quoteCurrency: string;
+  rate: number;
+  inverseRate: number | null;
+  asOfDate: string;
+};
+
+type FxOverview = {
+  providers: Array<{
+    key: string;
+    name: string;
+    description: string;
+    baseCurrency: string;
+    sourceUrl: string;
+  }>;
+  activeFxTableId: string | null;
+  tables: FxTableRow[];
+  syncResults?: Array<{
+    providerKey: string;
+    ok: boolean;
+    error?: string;
+    rateCount?: number;
+  }>;
+};
 
 type ApiKeyRow = {
   id: string;
@@ -219,6 +261,10 @@ const TAB_GROUPS: { label: string; tabs: { id: Tab; label: string }[] }[] = [
     ],
   },
   {
+    label: 'Finance',
+    tabs: [{ id: 'fx', label: 'FX rates' }],
+  },
+  {
     label: 'Compliance',
     tabs: [
       { id: 'audit', label: 'Audit' },
@@ -319,6 +365,14 @@ export function AdminPage() {
   >([]);
   const [approvalModule, setApprovalModule] =
     useState<ApprovalModuleKey>('invoices');
+  const [fxOverview, setFxOverview] = useState<FxOverview | null>(null);
+  const [fxSelectedTableId, setFxSelectedTableId] = useState<string | null>(
+    null,
+  );
+  const [fxRates, setFxRates] = useState<FxRateRow[]>([]);
+  const [fxDetailName, setFxDetailName] = useState<string>('');
+  const [fxDetailBase, setFxDetailBase] = useState<string>('');
+  const [fxRateFilter, setFxRateFilter] = useState('');
 
   async function refresh() {
     const [
@@ -450,6 +504,105 @@ export function AdminPage() {
     void loadAdminDelegations().catch((err: Error) => setError(err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
+
+  useEffect(() => {
+    if (tab !== 'fx') return;
+    void loadFx().catch((err: Error) => setError(err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  async function loadFx() {
+    const overview = await apiFetch<FxOverview>('/api/fx-rates');
+    setFxOverview(overview);
+    const preferred =
+      fxSelectedTableId &&
+      overview.tables.some((t) => t.id === fxSelectedTableId)
+        ? fxSelectedTableId
+        : (overview.activeFxTableId ?? overview.tables[0]?.id ?? null);
+    if (preferred) {
+      await loadFxTable(preferred);
+    } else {
+      setFxSelectedTableId(null);
+      setFxRates([]);
+    }
+  }
+
+  async function loadFxTable(tableId: string) {
+    const detail = await apiFetch<{
+      id: string;
+      name: string;
+      baseCurrency: string;
+      rates: FxRateRow[];
+    }>(`/api/fx-rates/tables/${tableId}`);
+    setFxSelectedTableId(detail.id);
+    setFxDetailName(detail.name);
+    setFxDetailBase(detail.baseCurrency);
+    setFxRates(detail.rates);
+  }
+
+  async function syncFx(providerKey?: string) {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      if (providerKey) {
+        const detail = await apiFetch<{
+          id: string;
+          name: string;
+          baseCurrency: string;
+          rates: FxRateRow[];
+          rateCount?: number;
+        }>('/api/fx-rates/sync', {
+          method: 'POST',
+          body: JSON.stringify({ providerKey }),
+        });
+        setMessage(
+          `Synced ${detail.name}: ${detail.rates.length} rates`,
+        );
+        await loadFx();
+        await loadFxTable(detail.id);
+      } else {
+        const overview = await apiFetch<FxOverview>('/api/fx-rates/sync', {
+          method: 'POST',
+          body: JSON.stringify({}),
+        });
+        setFxOverview(overview);
+        const ok = overview.syncResults?.filter((r) => r.ok).length ?? 0;
+        const fail = overview.syncResults?.filter((r) => !r.ok).length ?? 0;
+        setMessage(
+          fail
+            ? `Synced ${ok} table(s); ${fail} failed — see errors below`
+            : `Synced all ${ok} FX tables`,
+        );
+        const preferred =
+          overview.activeFxTableId ?? overview.tables[0]?.id ?? null;
+        if (preferred) await loadFxTable(preferred);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'FX sync failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function activateFx(tableId: string) {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const overview = await apiFetch<FxOverview>('/api/fx-rates/activate', {
+        method: 'POST',
+        body: JSON.stringify({ tableId }),
+      });
+      setFxOverview(overview);
+      setMessage('Active FX table updated');
+      await loadFxTable(tableId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Activate failed');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function rotateToken() {
     setBusy(true);
@@ -2822,6 +2975,182 @@ export function AdminPage() {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {tab === 'fx' && (
+        <div className="panel">
+          <div className="actions" style={{ justifyContent: 'space-between' }}>
+            <div>
+              <h2 style={{ marginBottom: '0.25rem' }}>FX rates</h2>
+              <p className="lede" style={{ margin: 0 }}>
+                Free official tables — Polish NBP, ECB, US Fed (H.10), Bank of
+                England. Sync pulls the latest published mid/reference rates.
+                Choose which table is active for the workspace.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn btn--primary"
+              disabled={busy}
+              onClick={() => void syncFx()}
+            >
+              {busy ? 'Syncing…' : 'Sync all'}
+            </button>
+          </div>
+
+          {fxOverview?.syncResults?.some((r) => !r.ok) && (
+            <ul className="task-list">
+              {fxOverview.syncResults
+                .filter((r) => !r.ok)
+                .map((r) => (
+                  <li key={r.providerKey} className="error">
+                    {r.providerKey}: {r.error}
+                  </li>
+                ))}
+            </ul>
+          )}
+
+          <h3>Rate type</h3>
+          <div className="tabs">
+            {(fxOverview?.tables ?? []).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={
+                  fxSelectedTableId === t.id
+                    ? 'tabs__btn tabs__btn--active'
+                    : 'tabs__btn'
+                }
+                onClick={() => void loadFxTable(t.id).catch((e: Error) => setError(e.message))}
+              >
+                {t.name}
+                {t.isActive ? ' · active' : ''}
+              </button>
+            ))}
+          </div>
+
+          {(fxOverview?.tables ?? []).length === 0 && (
+            <p className="muted">Loading FX providers…</p>
+          )}
+
+          {fxSelectedTableId && (
+            <>
+              <div className="actions" style={{ marginTop: '1rem' }}>
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  disabled={busy}
+                  onClick={() => {
+                    const key = fxOverview?.tables.find(
+                      (t) => t.id === fxSelectedTableId,
+                    )?.providerKey;
+                    if (key) void syncFx(key);
+                  }}
+                >
+                  Sync
+                </button>
+                {!fxOverview?.tables.find((t) => t.id === fxSelectedTableId)
+                  ?.isActive && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost"
+                    disabled={busy}
+                    onClick={() => void activateFx(fxSelectedTableId)}
+                  >
+                    Use as active table
+                  </button>
+                )}
+              </div>
+
+              {(() => {
+                const t = fxOverview?.tables.find(
+                  (x) => x.id === fxSelectedTableId,
+                );
+                if (!t) return null;
+                return (
+                  <p className="muted">
+                    Base <strong>{t.baseCurrency}</strong>
+                    {t.asOfDate ? ` · as of ${t.asOfDate}` : ''}
+                    {t.lastSyncedAt
+                      ? ` · last sync ${new Date(t.lastSyncedAt).toLocaleString()}`
+                      : ' · not synced yet'}
+                    {t.sourceUrl ? (
+                      <>
+                        {' '}
+                        ·{' '}
+                        <a href={t.sourceUrl} target="_blank" rel="noreferrer">
+                          source
+                        </a>
+                      </>
+                    ) : null}
+                    {t.lastSyncError ? (
+                      <span className="error"> · {t.lastSyncError}</span>
+                    ) : null}
+                    <br />
+                    {t.description}
+                  </p>
+                );
+              })()}
+
+              <label>
+                Filter currency
+                <input
+                  value={fxRateFilter}
+                  onChange={(e) => setFxRateFilter(e.target.value)}
+                  placeholder="USD, EUR…"
+                />
+              </label>
+
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Quote</th>
+                      <th>
+                        1 {fxDetailBase || 'base'} =
+                      </th>
+                      <th>
+                        1 quote = ({fxDetailBase || 'base'})
+                      </th>
+                      <th>As of</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fxRates
+                      .filter((r) =>
+                        fxRateFilter.trim()
+                          ? r.quoteCurrency
+                              .toLowerCase()
+                              .includes(fxRateFilter.trim().toLowerCase())
+                          : true,
+                      )
+                      .map((r) => (
+                        <tr key={r.id}>
+                          <td>
+                            <strong>{r.quoteCurrency}</strong>
+                          </td>
+                          <td className="mono">{r.rate.toFixed(6)}</td>
+                          <td className="mono">
+                            {r.inverseRate != null
+                              ? r.inverseRate.toFixed(6)
+                              : '—'}
+                          </td>
+                          <td>{r.asOfDate}</td>
+                        </tr>
+                      ))}
+                    {fxRates.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="muted">
+                          No rates yet — click Sync to pull {fxDetailName || 'this table'}.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       )}
     </section>

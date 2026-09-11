@@ -93,6 +93,10 @@ model Tenant {
   connectorConnections ConnectorConnection[]
   approvalDelegations ApprovalDelegation[]
   savedViews          InvoiceSavedView[]
+  fxRateTables        FxRateTable[]
+  fxRates             FxRate[]
+  activeFxTableId     String?   @db.Uuid
+  activeFxTable       FxRateTable? @relation("TenantActiveFxTable", fields: [activeFxTableId], references: [id], onDelete: SetNull)
 }
 
 model ModuleLicense {
@@ -1168,4 +1172,50 @@ model SamlAuthState {
   expiresAt  DateTime
 
   @@index([expiresAt])
+}
+
+/// Exchange-rate table sourced from a free official provider (NBP, ECB, FRED, BOE).
+model FxRateTable {
+  id            String    @id @default(uuid()) @db.Uuid
+  tenantId      String    @db.Uuid
+  /// Stable provider key: nbp | ecb | fred | boe
+  providerKey   String
+  name          String
+  description   String    @default("")
+  /// Pivot / reporting currency for rates in this table (1 base = rate quote).
+  baseCurrency  String
+  sourceUrl     String?
+  asOfDate      DateTime? @db.Date
+  lastSyncedAt  DateTime?
+  lastSyncError String?
+  rateCount     Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rates        FxRate[]
+  activeFor    Tenant[] @relation("TenantActiveFxTable")
+
+  @@unique([tenantId, providerKey])
+  @@index([tenantId])
+}
+
+model FxRate {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @db.Uuid
+  tableId       String   @db.Uuid
+  baseCurrency  String
+  quoteCurrency String
+  /// Units of quoteCurrency per 1 unit of baseCurrency.
+  rate          Decimal  @db.Decimal(18, 8)
+  asOfDate      DateTime @db.Date
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  table  FxRateTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@unique([tableId, quoteCurrency])
+  @@index([tenantId, tableId])
+  @@index([tenantId, baseCurrency, quoteCurrency])
 }

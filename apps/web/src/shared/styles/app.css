@@ -876,6 +876,11 @@
   box-shadow: var(--aptora-shadow);
 }
 
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
